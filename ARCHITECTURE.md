@@ -17,7 +17,7 @@ tool; repos are always given by hand. Installers for other people's skill reposi
 ## Shape
 
 ```
-repos            ←→        store        →        workspaces
+repos            ←→        store        ←→       workspaces
 (skill libraries)     (editing surface)     (accounts, projects)
 ```
 
@@ -29,11 +29,27 @@ repos            ←→        store        →        workspaces
 - **Workspaces** are the directories an agent reads skills from. Linked workspaces see store edits
   immediately; clones get a copy and are expected to drift.
 
-A repo is _exchanged with_ (`import`/`export`); a workspace is _deployed to_ (`link`/`clone`). The two
-registries are **disjoint in name and path**: no command spans them, and no directory is registered as
-both. `clone` may also target an unregistered path — a project directory you would never register — but
-never one inside a repo or inside `~/.grimoire/`. A clone in a repo would be discovered as a repo copy,
-and every repo-facing rule would then apply to a directory that exists in order to drift.
+A repo is _exchanged with_ (`import`/`export`); a workspace is _deployed to_ (`link`/`clone`) and
+_adopted from_ (`adopt`). No command spans the two registries — a name resolves in one or the other,
+never both — and no directory answers to both:
+
+> **No registered path may equal, contain, or sit inside a path in the other registry, and neither
+> registry may touch `~/.grimoire/`.**
+
+Call a violation a **collision**. Containment rather than equality is what makes the rule hold: a
+deployment nested inside a repo is discovered as a repo copy, so every repo-facing rule lands on a
+directory that exists in order to receive content. And because `link` replaces a directory identical to
+the store copy without warning or backup, an `import` that auto-linked back into the repo it had just
+read would turn that repo's own skills into symlinks.
+
+The same test governs a path handed to a command rather than registered — `import` refuses a source
+colliding with a workspace, `clone` a destination inside a repo or inside `~/.grimoire/`, though it may
+still target an unregistered path, a project directory you would never register. And it is applied
+wherever a path is _used_, never inferred from registration, because `config.json` is last-known-intent:
+a hand-edit must not be able to corrupt a repository.
+
+Only writing and registering are closed inside `~/.grimoire/`. Reading stays open — that is what keeps
+`.backup/` and `.trash/` recoverable by a plain `import`.
 
 The expected use-case is to link a skill that is pure method. Clone one that names agent-specific tooling
 or paths, or that has to be available to a project's contributors: format portability is not content
@@ -76,8 +92,8 @@ unregistered. A path that matches a registered workspace is recorded as that wor
 never collects two records.
 
 `link` takes no such path: an unregistered link would be invisible to `remove` and to `status`'s check
-(4), and recording it is exactly what the rule above rejects. Clones are recorded either way, so a path
-variant costs nothing new.
+(4), and the only fix — recording it — is what the state rule above forbids. Clones are recorded
+either way, so a path variant costs nothing new.
 
 `config.json` is the user's to edit by hand or through commands; `.state.json` changes only through
 commands. Both are **last-known-intent, not truth** — truth is the filesystem.
@@ -88,7 +104,7 @@ A repo may group its skills into subdirectories — buckets — to any depth. **
 stay flat**, which is forced rather than chosen: an agent reads `<workspace>/<skill>/SKILL.md`, so skill
 names are already globally unique and a bucket carries no information the store needs.
 
-Two rules, applied wherever a repo or path is read:
+Two rules, applied wherever a directory is read for skills:
 
 > **A directory containing `SKILL.md` is a skill. Any other directory is descended into until a
 > `SKILL.md` is found. A skill's directory never contains another skill.**
@@ -98,8 +114,8 @@ Two rules, applied wherever a repo or path is read:
 
 Descending is what makes a bucketed repo legible; a bucket holds no `SKILL.md` of its own. A directory
 with no `SKILL.md` anywhere beneath it yields nothing and is **reported as skipped**, never silently
-ignored, which is what lets `import ~/.claude/skills --all` do the right thing with a scratch directory.
-Naming such a directory explicitly is an error.
+ignored, which is what lets `import ~/Downloads/skills --all` do the right thing with a scratch
+directory. Naming such a directory explicitly is an error.
 
 Halting is what leaves **duplicates unmodelled**. A second copy of a name is invisible to every command
 — not written to, not compared, not reported — and will go stale unmentioned. Enumeration follows the
@@ -127,20 +143,21 @@ it.
 
 ## Command surface
 
-| Command                                         | Behavior                                                                                                                                                                                                                                            |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `import <repo\|path> [<skill>...]`              | Copy skills into the store. First argument resolves as a repo name, falling back to a path. Requires `--all` when no skill is named. Links into every `autoLink` workspace; `--no-link` opts out. Refuses on collision; `--force` overwrites.       |
-| `export <repo> <skill>... [--bucket <subpath>]` | Copy store → repo. **Always names skills.** Overwrites, after backup, leaving the working tree dirty for review. See `--bucket`.                                                                                                                    |
-| `publish [<repo>] [--skill <skill>...]`         | Re-export **only skills the repo already holds**, each where it resolves. No repo = every writable repo; no skill = every store skill that repo holds; omitting both requires `--all`. Naming a skill the repo lacks reports it and writes nothing. |
-| `link <skill>\|--all [<workspace>...]`          | Symlink `workspace/<skill>` → `~/.grimoire/skills/<skill>`. No workspace = every `autoLink` workspace. `--all` links every store skill.                                                                                                             |
-| `unlink <skill> [<workspace>...]`               | Remove symlinks only; store untouched. No workspace = every one it is linked into.                                                                                                                                                                  |
-| `clone <skill> [<workspace>\|<path>...]`        | Copy store → destination and record it. No destination = every recorded one.                                                                                                                                                                        |
-| `remove <skill>`                                | Move the store skill to `.trash/`, clear its links, drop its state entry. `--remove-clones` also deletes cloned directories, after backup. Warns if no repo holds the skill.                                                                        |
-| `status`                                        | See below.                                                                                                                                                                                                                                          |
-| `repo add/remove/list`                          | `add <name> <path> [--mode <mode>]` defaults to `read-only` and **warns if no `.git` is found at the path or any ancestor**. `remove` unregisters only.                                                                                             |
-| `workspace add/remove/list`                     | `add <name> <path> [--auto-link]`. `remove` **errors while any link or recorded clone remains**, listing them; `--force` removes links and forgets clone records without deleting cloned directories.                                               |
+| Command                                         | Behavior                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `import <repo\|path> [<skill>...]`              | Copy skills into the store. First argument resolves as a repo name, falling back to a non-colliding path. Requires `--all` when no skill is named. Links into every `autoLink` workspace. Refuses if the store already holds the skill; `--force` overwrites.                                                                  |
+| `adopt <workspace> [<skill>...]`                | Move skills from a workspace into the store and link them back. **Entries that are already symlinks into the store are skipped** — only unmanaged directories are adopted. Requires `--all` when no skill is named. Links into every `autoLink` workspace. Refuses if the store already holds the skill; `--force` overwrites. |
+| `export <repo> <skill>... [--bucket <subpath>]` | Copy store → repo. **Always names skills.** Overwrites, after backup, leaving the working tree dirty for review. See `--bucket`.                                                                                                                                                                                               |
+| `publish [<repo>] [--skill <skill>...]`         | Re-export **only skills the repo already holds**, each where it resolves. No repo = every writable repo; no skill = every store skill that repo holds; omitting both requires `--all`. Naming a skill the repo lacks reports it and writes nothing.                                                                            |
+| `link <skill>\|--all [<workspace>...]`          | Symlink `workspace/<skill>` → `~/.grimoire/skills/<skill>`. No workspace = every `autoLink` workspace. `--all` links every store skill.                                                                                                                                                                                        |
+| `unlink <skill> [<workspace>...]`               | Remove symlinks only; store untouched. No workspace = every one it is linked into.                                                                                                                                                                                                                                             |
+| `clone <skill> [<workspace>\|<path>...]`        | Copy store → destination and record it. No destination = every recorded one.                                                                                                                                                                                                                                                   |
+| `remove <skill>`                                | Move the store skill to `.trash/`, clear its links, drop its state entry. `--remove-clones` also deletes cloned directories, after backup. Warns if no repo holds the skill.                                                                                                                                                   |
+| `status`                                        | See below.                                                                                                                                                                                                                                                                                                                     |
+| `repo add/remove/list`                          | `add <name> <path> [--mode <mode>]` defaults to `read-only`, **rejects a path colliding with a workspace**, and **warns if no `.git` is found at the path or any ancestor**. `remove` unregisters only.                                                                                                                        |
+| `workspace add/remove/list`                     | `add <name> <path> [--auto-link]`, **rejecting a path colliding with a repo**. `remove` **errors while any link or recorded clone remains**, listing them; `--force` removes links and forgets clone records without deleting cloned directories.                                                                              |
 
-Splitting `export` from `publish` gives the model its central invariant:
+Splitting `export` from `publish` gives the model its central invariant, which is about repos:
 
 > **Bulk operations never add. Explicit operations may.**
 
@@ -149,13 +166,19 @@ can walk every repo without ever putting a private skill somewhere public — th
 rather than guarded against.
 
 `import` accepts a bare path because skills arrive from places you don't want to register: a
-skill-creation tool's output, a project copy you improved in place, a skill someone sent you. The two
-forms are behaviorally identical.
+skill-creation tool's output written to a scratch directory, a project copy you improved in place, a
+skill someone sent you. The two forms are behaviorally identical. A skill written straight into a
+workspace is the one path form `import` refuses, because that is `adopt`'s job.
+
+`adopt` is a separate verb rather than a path form of `import`, for the same reason `export` is separate
+from `publish`: one verb serving two intents is where an invariant goes to die. The intents differ in
+what becomes of the source — a repo keeps its copy, a workspace surrenders it for a link — and only a
+named verb carries that difference into the safety table.
 
 `autoLink` chooses destinations when a skill enters the store, and is the default destination set for a
-bare `link`. Nothing re-links on its own after the import: a skill's link set belongs to the skill, and
-**the same skill linked into one account and not the other is a supported outcome** — the whole reason
-accounts are linked per skill rather than by symlinking the directory.
+bare `link`. Nothing re-links on its own once a skill is in the store: a skill's link set belongs to
+it, and **the same skill linked into one account and not the other is a supported outcome** — the whole
+reason accounts are linked per skill rather than by symlinking the directory.
 
 `remove` always clears symlinks, or every linked workspace is left dangling; `unlink` is the command for
 unlinking without removing. Cloned directories are opt-in behind `--remove-clones`, being
@@ -206,9 +229,10 @@ copies disagree, not which one moved. `git diff` in the repo answers that.
 | Operation | Writes into | Default                                                      | Force        |
 | --------- | ----------- | ------------------------------------------------------------ | ------------ |
 | `import`  | store       | **refuses** if the skill is already in the store             | after backup |
+| `adopt`   | store       | **refuses** if the skill is already in the store             | after backup |
 | `export`  | repo        | overwrites, after backup                                     | n/a          |
 | `publish` | repo        | overwrites what the repo already holds, after backup         | n/a          |
-| `clone`   | destination | adopts an **identical** directory; refuses on anything else  | after backup |
+| `clone`   | destination | accepts an **identical** directory; refuses on anything else | after backup |
 | `link`    | workspace   | replaces an **identical** directory; errors on anything else | none         |
 
 > **`--force` guards the two destinations grimoire cannot restore from anywhere else.** The store has no
@@ -217,12 +241,14 @@ copies disagree, not which one moved. `git diff` in the repo answers that.
 
 Neither `link` nor `clone` refuses when the directory sitting at the destination is **identical to the
 store copy**: the store demonstrably holds the same content, so nothing is destroyed and nothing is
-backed up. `link` swaps it for a symlink; `clone` writes nothing and records it. Without this,
-`import ~/.claude/skills <new>` would fail on every run: the auto-link targets the workspace the import
-just read from, where the source directory is identical by construction. It is also what lets you adopt
-config directories already full of skills — `import <repo> --all` links everything that agrees and
-errors by name on everything that doesn't, instead of making you empty the directories first and delete
-the evidence of drift unseen.
+backed up. `link` swaps it for a symlink; `clone` writes nothing and records it. This is what lets you
+take on config directories already full of skills — on first run `import <repo> --all` links everything
+that agrees and errors by name on everything that doesn't, instead of making you empty the directories
+first and delete the evidence of drift unseen. `adopt` needs it for its _other_ destinations, where the
+same skill usually already sits, identical, in the second account.
+
+The rule is safe only because of the collision rule in _Shape_: the identical directory `link` replaces
+can only ever be a workspace's copy, never a repo's own.
 
 Beyond that, `link` may create `workspace/<skill>` where nothing is, or find the correct symlink already
 in place (a no-op). A directory that differs, a file, or a symlink pointing elsewhere is an **error that
@@ -232,14 +258,10 @@ yourself.
 
 Refusals are **per skill and per destination**; a batch reports what it declined and processes the rest.
 
-`import --no-link` leaves the workspace's own directory unmanaged, and `status` reports the skill as
-**deployed nowhere** — correct, since that copy will now drift silently. `clone` adopts it for free,
-because it still matches the store.
-
 ### `.backup/` and `.trash/`
 
 ```
-.backup/store/skills/<skill>/        ← `import --force`
+.backup/store/skills/<skill>/        ← `import --force`, `adopt --force`
 .backup/repos/<name>/skills/<skill>/ ← `export`, `publish`
 .backup/clones/<key>/skills/<skill>/ ← `clone --force`, `remove --remove-clones`
 ```
@@ -257,7 +279,7 @@ which is why `remove` needs no `restore`. Backups are keyed by destination and s
 carrying no bucket path — a recovery slot, not a mirror. A clone's `<key>` is its workspace name, or its
 absolute path with every `/` turned into `-`, leading separator kept:
 `/Users/me/projects/app/.claude/skills` → `-Users-me-projects-app-.claude-skills`. That leading `-` is
-what keeps a path key from ever colliding with a workspace name. `.backup/` and `.trash/` stay separate
+what keeps a path key from ever clashing with a workspace name. `.backup/` and `.trash/` stay separate
 because one records an accident and one a decision. No commands operate on either in v1 — which is what
 lets the key be lossy, since nothing has to turn one back into a path.
 
@@ -268,8 +290,8 @@ is already recoverable with `git checkout`.
 ## Ignore
 
 `ignore` is a flat list of file globs matched **inside** skill directories. It applies on `import`,
-`export`, `publish`, and `clone`, and in the tree hash, so a Finder visit doesn't read as a content
-change. Whole _skills_ cannot be ignored and need not be: anything in the store is managed by
+`adopt`, `export`, `publish`, and `clone`, and in the tree hash, so a Finder visit doesn't read as a
+content change. Whole _skills_ cannot be ignored and need not be: anything in the store is managed by
 definition, and discovery already skips directories holding no `SKILL.md`.
 
 ## What `status` reports
@@ -314,6 +336,7 @@ There is no `init`. First run is the ordinary commands in order:
 3. `workspace add <name> <path> --auto-link` for each config directory.
 4. `import <repo> --all` — seeds the store and links into the `autoLink` workspaces.
 5. Resolve what step 4 refused: where a workspace already held a differing copy, `link` reported it by
-   name and wrote nothing. Decide which version wins, delete the other, and `link` it.
+   name and wrote nothing. If the store's version wins, delete the workspace's copy and `link` it; if
+   the workspace's does, `adopt <workspace> <skill> --force`.
 6. `unlink` skills you don't want in a given account — step 4 linked every skill into every `autoLink`
    workspace.
