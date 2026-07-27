@@ -1,1 +1,7 @@
 .claude/plans
+
+node_modules
+dist
+*.tsbuildinfo
+.DS_Store
+coverage

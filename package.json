@@ -1,0 +1,49 @@
+{
+  "name": "grimoire",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Authoring and distribution for agent skills",
+  "author": "Ghaleb Hamadi",
+  "license": "MIT",
+  "bin": {
+    "grimoire": "./dist/cli.js",
+    "grim": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.11.0",
+  "imports": {
+    "#src/*": {
+      "grimoire-src": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "dev": "node --conditions=grimoire-src src/cli.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier . --write --ignore-unknown",
+    "format:check": "prettier . --check --ignore-unknown",
+    "prepare": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.1",
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  }
+}
