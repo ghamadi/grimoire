@@ -14,5 +14,11 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "eslint.validate": ["typescript", "javascript"],
-  "js/ts.tsdk.path": "node_modules/typescript/lib"
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+
+  // Auto-import defaults to "shortest", which reaches for the `#src/*` subpath
+  // even for a sibling in the same directory. Force relative, and keep the
+  // explicit extension `allowImportingTsExtensions` expects.
+  "js/ts.preferences.importModuleSpecifier": "relative",
+  "js/ts.preferences.importModuleSpecifierEnding": "js"
 }

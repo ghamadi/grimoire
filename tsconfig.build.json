@@ -5,5 +5,8 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts"]
+  // Module-local suites sit under src/, so the build has to drop them
+  // explicitly or dist/ ships test files importing vitest, a devDependency.
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/tests/**"]
 }

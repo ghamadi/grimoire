@@ -18,6 +18,10 @@
     "#src/*": {
       "grimoire-src": "./src/*.ts",
       "default": "./dist/*.js"
+    },
+    "#test-helpers/*": {
+      "grimoire-src": "./tests/helpers/*.ts",
+      "default": "./tests/helpers/*.js"
     }
   },
   "scripts": {
