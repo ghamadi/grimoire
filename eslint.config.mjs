@@ -14,4 +14,17 @@ export default tseslint.config({ ignores: ['dist/**', 'node_modules/**'] }, js.c
       tsconfigRootDir: import.meta.dirname,
     },
   },
+  rules: {
+    // A leading `_` marks a binding that exists to be discarded — the omitted key
+    // in a rest destructuring, an argument kept only to reach a later one.
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+      },
+    ],
+  },
 });

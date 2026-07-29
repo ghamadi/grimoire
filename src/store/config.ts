@@ -1,11 +1,21 @@
 import { z } from 'zod';
 
-export const repoSchema = z.strictObject({
+/** The value half of a `repos` entry — config.json supplies the name as the key. */
+export const repoConfigSchema = z.strictObject({
   path: z.string().trim().min(1),
   mode: z.enum(['read-only', 'read-write']),
 });
 
-export const workspaceSchema = z.strictObject({
+/**
+ * Derived from the schema so commander's `--mode` choices and zod's enum cannot
+ * drift. The schema itself stays private — a caller holding it is a caller
+ * about to write config.json behind the store's back — but a constant read off
+ * it is safe to hand out.
+ */
+export const repoModes = repoConfigSchema.shape.mode.options;
+
+/** The value half of a `workspaces` entry — config.json supplies the name as the key. */
+export const workspaceConfigSchema = z.strictObject({
   path: z.string().min(1),
   autoLink: z.boolean(),
 });
@@ -21,13 +31,13 @@ export const workspaceSchema = z.strictObject({
  * hand-written constant.
  */
 export const configSchema = z.strictObject({
-  repos: z.record(z.string(), repoSchema).default({}),
-  workspaces: z.record(z.string(), workspaceSchema).default({}),
+  repos: z.record(z.string(), repoConfigSchema).default({}),
+  workspaces: z.record(z.string(), workspaceConfigSchema).default({}),
   ignore: z.array(z.string()).default([]),
 });
 
-export type Repo = z.infer<typeof repoSchema>;
-export type Workspace = z.infer<typeof workspaceSchema>;
+export type RepoConfig = z.infer<typeof repoConfigSchema>;
+export type WorkspaceConfig = z.infer<typeof workspaceConfigSchema>;
 export type Config = z.infer<typeof configSchema>;
 
 export function defaultConfig(): Config {

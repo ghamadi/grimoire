@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { z } from 'zod';
-import { StoreFileError } from './errors.ts';
+import { StoreFileError } from '#src/lib/errors/index';
 
 /**
  * Reads and validates a JSON file.

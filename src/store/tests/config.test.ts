@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, StoreFileError, type Config } from '../index.ts';
+import { GrimoireStore, type Config } from '../index.ts';
+import { StoreFileError } from '#src/lib/errors/index';
 import { tempRoot } from '#test-helpers/temp-root';
 
 describe('loadConfig', () => {

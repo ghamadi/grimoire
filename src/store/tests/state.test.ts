@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, StoreFileError, type State } from '../index.ts';
+import { GrimoireStore, type State } from '../index.ts';
+import { StoreFileError } from '#src/lib/errors/index';
 import { tempRoot } from '#test-helpers/temp-root';
 
 describe('loadState', () => {

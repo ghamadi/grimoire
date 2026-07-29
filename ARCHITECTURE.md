@@ -48,6 +48,15 @@ still target an unregistered path, a project directory you would never register.
 wherever a path is _used_, never inferred from registration, because `config.json` is last-known-intent:
 a hand-edit must not be able to corrupt a repository.
 
+The rule is about directories, so paths are compared **canonically** — every symlink resolved — and a
+directory has as many spellings as there are links pointing at it. Under the usual dotfiles layout,
+where `~/.claude` is a symlink into the repo that versions it, the repo and the workspace share no
+lexical prefix at all, and a string comparison calls them unrelated right up until `import` auto-links
+that repo's own skills into symlinks. A path that does not exist yet resolves as far as it can — the
+nearest existing ancestor, with the remaining segments rejoined — which loses nothing, because a segment
+that does not exist cannot be a symlink. A refusal names the path as it was **given**, not as it
+resolved: the spelling is what you have to go edit.
+
 Only writing and registering are closed inside `~/.grimoire/`. Reading stays open — that is what keeps
 `.backup/` and `.trash/` recoverable by a plain `import`.
 

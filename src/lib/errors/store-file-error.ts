@@ -1,3 +1,5 @@
+import { GrimoireError } from './grimoire-error.ts';
+
 export type StoreFileErrorProps = {
   file: string;
   reason: 'invalid-json' | 'invalid-shape';
@@ -11,7 +13,7 @@ export type StoreFileErrorProps = {
  * The message always leads with the absolute path, because the fix is always
  * "go edit that file".
  */
-export class StoreFileError extends Error {
+export class StoreFileError extends GrimoireError {
   readonly file: string;
   readonly reason: 'invalid-json' | 'invalid-shape';
 

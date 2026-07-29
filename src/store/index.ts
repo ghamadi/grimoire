@@ -7,8 +7,8 @@
  * through the store, so a caller reaching for `configSchema` is a caller about
  * to write the file behind the store's back.
  */
-export { StoreFileError } from './errors.ts';
 export { resolveGrimoireHome } from './paths.ts';
 export { GrimoireStore, type StorePaths } from './store.ts';
-export type { Config, Repo, Workspace } from './config.ts';
+export { repoModes } from './config.ts';
+export type { Config, RepoConfig, WorkspaceConfig } from './config.ts';
 export type { CloneRecord, SkillState, State } from './state.ts';

@@ -6,6 +6,6 @@ Running more than one agent account or config directory means copying every skil
 
 It is not a discovery or package-manager tool. It ships no skills of its own. Installers for other people's skill repos already exist — **they install other people's skills; grimoire maintains your own.**
 
-> **Early stage.** The CLI currently answers `--version` only.
+> **Early stage.** `repo add`, `repo remove`, and `repo list` work; the rest of the command surface is not implemented yet.
 
 Design and command surface: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
