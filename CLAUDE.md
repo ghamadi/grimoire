@@ -5,6 +5,10 @@ read the relevant section before implementing.
 
 Verify: `pnpm typecheck && pnpm lint && pnpm test`
 
+## Project Management
+
+See @CLAUDE.local.md
+
 ## Conventions
 
 - Relative imports take an explicit `.ts`; subpath imports (e.g., `#src/*`) take none —
