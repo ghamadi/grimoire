@@ -1,8 +1,30 @@
+import { isAbsolute, sep } from 'node:path';
 import { z } from 'zod';
+import { normalizePath } from '#src/lib/paths';
+
+/**
+ * Every registered path, in both registries. Normalizing here makes "absolute
+ * and `~`-expanded" a postcondition of loading rather than something each
+ * consumer has to remember, and the consumers hand these straight to the
+ * filesystem.
+ *
+ * A relative path is refused rather than repaired: `normalizePath` would resolve
+ * it against the cwd, so accepting one means a hand-edited config resolves
+ * differently depending on where grimoire ran — and the next save writes that
+ * answer back.
+ */
+const registeredPath = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((path) => isAbsolute(path) || path === '~' || path.startsWith(`~${sep}`), {
+    error: 'must be an absolute path or start with ~/',
+  })
+  .transform(normalizePath);
 
 /** The value half of a `repos` entry — config.json supplies the name as the key. */
 export const repoConfigSchema = z.strictObject({
-  path: z.string().trim().min(1),
+  path: registeredPath,
   mode: z.enum(['read-only', 'read-write']),
 });
 
@@ -16,7 +38,7 @@ export const repoModes = repoConfigSchema.shape.mode.options;
 
 /** The value half of a `workspaces` entry — config.json supplies the name as the key. */
 export const workspaceConfigSchema = z.strictObject({
-  path: z.string().min(1),
+  path: registeredPath,
   autoLink: z.boolean(),
 });
 

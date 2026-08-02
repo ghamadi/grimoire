@@ -1,3 +1,4 @@
+import { normalizePath } from '#src/lib/paths';
 import { GrimoireError } from './grimoire-error.ts';
 
 export type InvalidPathReason = 'missing' | 'not-a-directory';
@@ -18,7 +19,8 @@ export class InvalidPathError extends GrimoireError {
   readonly reason: InvalidPathReason;
 
   constructor(props: InvalidPathErrorProps) {
-    const { path, reason } = props;
+    const { reason } = props;
+    const path = normalizePath(props.path);
     super(`${path} ${reason === 'missing' ? 'does not exist' : 'is not a directory'}`);
 
     this.name = 'InvalidPathError';

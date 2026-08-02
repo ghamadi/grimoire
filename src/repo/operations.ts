@@ -1,11 +1,7 @@
 import { statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import {
-  DuplicateNameError,
-  InvalidPathError,
-  PathCollisionError,
-  UnknownNameError,
-} from '#src/lib/errors/index';
+import { assertUsableDirectory } from '#src/lib/directories';
+import { DuplicateNameError, PathCollisionError, UnknownNameError } from '#src/lib/errors/index';
 import { findGrimoireHomeCollision, findWorkspaceCollision, normalizePath } from '#src/lib/paths';
 import type { GrimoireStore, RepoConfig } from '#src/store/index';
 
@@ -105,21 +101,6 @@ export function listRepos(store: GrimoireStore): Repo[] {
 // ----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
-
-/**
- * A path that does not exist has exactly one meaning — a typo.
- */
-function assertUsableDirectory(path: string): void {
-  const status = statSync(path, { throwIfNoEntry: false });
-
-  if (!status) {
-    throw new InvalidPathError({ path, reason: 'missing' });
-  }
-
-  if (!status.isDirectory()) {
-    throw new InvalidPathError({ path, reason: 'not-a-directory' });
-  }
-}
 
 /**
  * Checks if a directory is version controlled by Git.

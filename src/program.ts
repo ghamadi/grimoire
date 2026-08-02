@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { repoCommand } from '#src/commands/repo';
+import { workspaceCommand } from '#src/commands/workspace';
 import { getVersion } from '#src/lib/utils';
 import type { GrimoireStore } from '#src/store/index';
 
@@ -17,7 +18,8 @@ export function buildProgram(store: GrimoireStore): Command {
     .name('grimoire')
     .description('Authoring and distribution for agent skills')
     .version(getVersion())
-    .addCommand(repoCommand(store));
+    .addCommand(repoCommand(store))
+    .addCommand(workspaceCommand(store));
 
   return program;
 }

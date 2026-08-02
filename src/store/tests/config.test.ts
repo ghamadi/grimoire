@@ -1,4 +1,6 @@
 import { existsSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GrimoireStore, type Config } from '../index.ts';
 import { StoreFileError } from '#src/lib/errors/index';
@@ -64,6 +66,54 @@ describe('loadConfig', () => {
     writeConfig(store, '{ "repos": { "personal": { "path": "/repos/personal", "mode": "rw" } } }');
 
     expect(loadConfigError(store).reason).toBe('invalid-shape');
+  });
+
+  it('expands a workspace path written with a tilde', async () => {
+    const store = new GrimoireStore(await tempRoot());
+
+    writeConfig(store, '{ "workspaces": { "personal": { "path": "~/x", "autoLink": false } } }');
+
+    expect(store.loadConfig().workspaces.personal?.path).toBe(join(homedir(), 'x'));
+  });
+
+  it('expands a repo path written with a tilde', async () => {
+    const store = new GrimoireStore(await tempRoot());
+
+    writeConfig(store, '{ "repos": { "personal": { "path": "~/x", "mode": "read-only" } } }');
+
+    expect(store.loadConfig().repos.personal?.path).toBe(join(homedir(), 'x'));
+  });
+
+  it('trims a padded path', async () => {
+    const store = new GrimoireStore(await tempRoot());
+
+    writeConfig(store, '{ "workspaces": { "personal": { "path": "  /c/d  ", "autoLink": false } } }');
+
+    expect(store.loadConfig().workspaces.personal?.path).toBe('/c/d');
+  });
+
+  it('collapses parent segments and trailing separators', async () => {
+    const store = new GrimoireStore(await tempRoot());
+
+    writeConfig(
+      store,
+      '{ "workspaces": { "personal": { "path": "/a/other/../app/", "autoLink": false } } }',
+    );
+
+    expect(store.loadConfig().workspaces.personal?.path).toBe('/a/app');
+  });
+
+  // Resolving one against the cwd would make the same file mean different
+  // directories depending on where grimoire ran.
+  it('rejects a relative path, naming the entry', async () => {
+    const store = new GrimoireStore(await tempRoot());
+
+    writeConfig(store, '{ "workspaces": { "personal": { "path": "skills/mine", "autoLink": false } } }');
+
+    const error = loadConfigError(store);
+
+    expect(error.reason).toBe('invalid-shape');
+    expect(error.message).toContain('personal');
   });
 });
 

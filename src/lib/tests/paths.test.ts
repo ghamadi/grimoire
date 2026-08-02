@@ -8,7 +8,6 @@ import {
   findWorkspaceCollision,
   normalizePath,
   relate,
-  resolveExisting,
 } from '../paths.ts';
 import type { Config } from '#src/store/index';
 import { tempRoot } from '#test-helpers/temp-root';
@@ -47,42 +46,6 @@ describe('normalizePath', () => {
   });
 });
 
-describe('resolveExisting', () => {
-  it('follows a symlink standing in the path', async () => {
-    const root = await realRoot();
-    const real = join(root, 'dotfiles/claude/skills');
-
-    mkdirSync(real, { recursive: true });
-    symlinkSync(join(root, 'dotfiles/claude'), join(root, '.claude'));
-
-    expect(resolveExisting(join(root, '.claude/skills'))).toBe(real);
-  });
-
-  it('resolves the existing prefix and keeps the segments below it', async () => {
-    const root = await realRoot();
-
-    mkdirSync(join(root, 'repos/skills'), { recursive: true });
-    symlinkSync(join(root, 'repos'), join(root, 'link'));
-
-    expect(resolveExisting(join(root, 'link/skills/vendor/new'))).toBe(
-      join(root, 'repos/skills/vendor/new'),
-    );
-  });
-
-  it('hands back a path with no existing ancestor unchanged', () => {
-    expect(resolveExisting('/nowhere/at/all')).toBe('/nowhere/at/all');
-  });
-
-  it('normalizes before resolving', async () => {
-    const root = await realRoot();
-
-    mkdirSync(join(root, 'repos/skills'), { recursive: true });
-    symlinkSync(join(root, 'repos'), join(root, 'link'));
-
-    expect(resolveExisting(join(root, 'link/team/../skills/'))).toBe(join(root, 'repos/skills'));
-  });
-});
-
 describe('relate', () => {
   it('reports equal paths', () => {
     expect(relate({ candidate: '/repos/bar', reference: '/repos/bar' })).toBe('equals');
@@ -112,6 +75,46 @@ describe('relate', () => {
   it('does not mistake a shared name prefix for containment', () => {
     expect(relate({ candidate: '/repos/barbaz', reference: '/repos/bar' })).toBeNull();
     expect(relate({ candidate: '/repos/bar', reference: '/repos/barbaz' })).toBeNull();
+  });
+
+  // The dotfiles layout: the two share no lexical prefix at all.
+  it('follows a symlink standing in the path', async () => {
+    const root = await realRoot();
+    const real = join(root, 'dotfiles/claude/skills');
+
+    mkdirSync(real, { recursive: true });
+    symlinkSync(join(root, 'dotfiles/claude'), join(root, '.claude'));
+
+    expect(relate({ candidate: join(root, '.claude/skills'), reference: real })).toBe('equals');
+  });
+
+  it('resolves the existing prefix and keeps the segments below it', async () => {
+    const root = await realRoot();
+
+    mkdirSync(join(root, 'repos/skills'), { recursive: true });
+    symlinkSync(join(root, 'repos'), join(root, 'link'));
+
+    expect(
+      relate({
+        candidate: join(root, 'link/skills/vendor/new'),
+        reference: join(root, 'repos/skills'),
+      }),
+    ).toBe('inside');
+  });
+
+  it('compares two paths with no existing ancestor lexically', () => {
+    expect(relate({ candidate: '/nowhere/at/all', reference: '/nowhere' })).toBe('inside');
+  });
+
+  it('normalizes before resolving', async () => {
+    const root = await realRoot();
+
+    mkdirSync(join(root, 'repos/skills'), { recursive: true });
+    symlinkSync(join(root, 'repos'), join(root, 'link'));
+
+    expect(
+      relate({ candidate: join(root, 'link/team/../skills/'), reference: join(root, 'repos/skills') }),
+    ).toBe('equals');
   });
 });
 
@@ -184,9 +187,16 @@ describe('findWorkspaceCollision', () => {
 
     expect(findWorkspaceCollision({ storeConfig: config, path: '/projects/app/skills' })).toMatchObject({
       name: 'app',
-      path: '/projects/app',
       relation: 'inside',
     });
+  });
+
+  it('reports the registered path in the spelling it was given', () => {
+    const config = configWith({ workspaces: { app: { path: '/projects/app', autoLink: true } } });
+
+    expect(findWorkspaceCollision({ storeConfig: config, path: '/projects/app/skills' })?.path).toBe(
+      '/projects/app',
+    );
   });
 
   // The dotfiles layout: `~/.claude` is a symlink into the repo the workspace

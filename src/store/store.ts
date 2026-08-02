@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { normalizePath } from '#src/lib/paths';
 import { configSchema, defaultConfig, type Config } from './config.ts';
 import { parseJsonFile, writeJsonFileAtomic } from './json-file.ts';
 import { defaultState, stateSchema, type State } from './state.ts';
@@ -17,13 +18,15 @@ export class GrimoireStore {
   readonly paths: StorePaths;
 
   constructor(root: string) {
+    const home = normalizePath(root);
+
     this.paths = {
-      root,
-      skills: join(root, 'skills'),
-      trash: join(root, '.trash'),
-      backup: join(root, '.backup'),
-      config: join(root, 'config.json'),
-      state: join(root, '.state.json'),
+      root: home,
+      skills: join(home, 'skills'),
+      trash: join(home, '.trash'),
+      backup: join(home, '.backup'),
+      config: join(home, 'config.json'),
+      state: join(home, '.state.json'),
     };
   }
 

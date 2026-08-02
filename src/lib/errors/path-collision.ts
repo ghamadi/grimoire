@@ -1,4 +1,4 @@
-import type { Collision, Relation } from '#src/lib/paths';
+import { normalizePath, type Collision, type PathRelation } from '#src/lib/paths';
 import { registryNoun } from '#src/lib/registry';
 import { GrimoireError } from './grimoire-error.ts';
 
@@ -20,16 +20,28 @@ export class PathCollisionError extends GrimoireError {
   readonly collision: Collision;
 
   constructor(props: PathCollisionErrorProps) {
-    const { path, collision } = props;
-    super(`${path} ${describeRelation(collision.relation)} ${describeTarget(collision)}`);
+    super(describeCollision(props));
 
     this.name = 'PathCollisionError';
-    this.path = path;
-    this.collision = collision;
+    this.path = normalizePath(props.path);
+    this.collision = { ...props.collision, path: normalizePath(props.collision.path) };
   }
 }
 
-function describeRelation(relation: Relation): string {
+/**
+ * The sentence, without the refusal.
+ *
+ * A collision found at use rather than at registration does not always refuse —
+ * `workspace remove` reports one and carries on — and the two have to read
+ * identically, or the same fact arrives in two voices.
+ */
+export function describeCollision(props: PathCollisionErrorProps): string {
+  const { path, collision } = props;
+
+  return `${normalizePath(path)} ${describeRelation(collision.relation)} ${describeTarget(collision)}`;
+}
+
+function describeRelation(relation: PathRelation): string {
   switch (relation) {
     case 'equals':
       return 'is the same directory as';
@@ -41,9 +53,11 @@ function describeRelation(relation: Relation): string {
 }
 
 function describeTarget(collision: Collision): string {
+  const path = normalizePath(collision.path);
+
   if (collision.kind === 'grimoire-home') {
-    return `the grimoire store (${collision.path})`;
+    return `the grimoire store (${path})`;
   }
 
-  return `${registryNoun(collision.registry)} "${collision.name}" (${collision.path})`;
+  return `${registryNoun(collision.registry)} "${collision.name}" (${path})`;
 }

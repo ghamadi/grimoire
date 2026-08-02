@@ -9,6 +9,11 @@
 export { GrimoireError } from './grimoire-error.ts';
 export { DuplicateNameError, type DuplicateNameErrorProps } from './duplicate-name.ts';
 export { InvalidPathError, type InvalidPathErrorProps, type InvalidPathReason } from './invalid-path.ts';
-export { PathCollisionError, type PathCollisionErrorProps } from './path-collision.ts';
+export {
+  PathCollisionError,
+  describeCollision,
+  type PathCollisionErrorProps,
+} from './path-collision.ts';
 export { StoreFileError, type StoreFileErrorProps } from './store-file-error.ts';
 export { UnknownNameError, type UnknownNameErrorProps } from './unknown-name.ts';
+export { WorkspaceInUseError, type WorkspaceInUseErrorProps } from './workspace-in-use.ts';

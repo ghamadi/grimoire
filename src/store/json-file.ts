@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { dirname } from 'node:path';
 import { z } from 'zod';
 import { StoreFileError } from '#src/lib/errors/index';
+import { isEnoentException } from '#src/lib/fs';
 
 /**
  * Reads and validates a JSON file.
@@ -71,9 +72,6 @@ export function writeJsonFileAtomic(file: string, data: unknown): void {
 }
 
 function extractFileContents(file: string): string | undefined {
-  const isEnoentException = (error: unknown): error is NodeJS.ErrnoException =>
-    error instanceof Error && 'code' in error && error.code === 'ENOENT';
-
   try {
     return readFileSync(file, 'utf8');
   } catch (error) {

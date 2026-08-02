@@ -3,6 +3,12 @@
 A repo is a directory that skills live under, registered by name. This is not the directory the agent loads skills from, but
 rather the one where you keep your skills.
 
+> [!NOTE]
+>
+> Repos are optional — Grimoire works without them. When you use one, it lets you sync skills between your store and an
+> external directory in which you track skills. Typically, you'll pull from a repo you follow when it gets updated, or push
+> to a repo you own when you create new skills.
+
 There are two types of repos:
 
 - `read-only` these are usually vendor repos that you do not want to edit.
