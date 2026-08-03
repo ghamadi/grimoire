@@ -106,20 +106,38 @@ bucket carries no information the store needs.
 
 Two rules, applied wherever a directory is read for skills:
 
-> **A directory containing `SKILL.md` is a skill. Any other directory is descended into until a `SKILL.md` is found. A
-> skill's directory never contains another skill.**
+> **A directory containing `SKILL.md` is a skill, and never contains another. Any other directory is descended into.**
 >
-> **A name resolves to one path — shallowest wins, lexicographic breaks ties — and the walk halts there.**
+> **A name resolves to one path: the first copy a depth-first walk reaches, reading each directory's entries in lexicographic
+> order. Every later copy of the name is ignored.**
 
 Descending is what makes a bucketed repo legible; a bucket holds no `SKILL.md` of its own. A directory with no `SKILL.md`
-anywhere beneath it yields nothing and is **reported as skipped**, never silently ignored, which is what lets
-`import ~/Downloads/skills --all` do the right thing with a scratch directory. Naming such a directory explicitly is an
-error.
+anywhere beneath it yields nothing, and yields it **silently** — naming one explicitly is the same error as naming a skill
+that is not there. Listing them instead would cost a line per junk directory on every bulk run, and could only name a barren
+subtree by its shallowest directory: the ancestor of the near-miss you were hoping to be told about, never the near-miss
+itself.
 
-Halting is what leaves **duplicates unmodelled**. A second copy of a name is invisible to every command — not written to, not
-compared, not reported — and will go stale unmentioned. Enumeration follows the same rule, so `import <repo> --all` and
-`import <repo> <skill>` never disagree about what a repo holds. Grimoire has no `move` and no "remove from repo"; how a repo
-files its skills is the repo's business.
+The first rule is stated about directories with no exception, so it holds for the directory a walk starts at: one that
+contains `SKILL.md` **is** that skill, named by its own basename, which is what makes `import ~/Downloads/brainstorm` work on
+a bare skill directory someone sent you. Below that starting point, a directory whose resolved name begins with `.` is
+neither descended into nor reported — a repo is registered at its skills directory and `.git` can sit right there. The
+starting directory itself is read whatever it is named, keeping `.backup/` and `.trash/` recoverable by a plain `import`.
+
+A symlink is a way to reach a skill, never a second skill. Every path is resolved before it is read, so a skill is found at
+the directory that holds `SKILL.md` and is named by **that** directory — two entries pointing at one directory are one skill,
+not two copies of it. Centralizing skills by symlink is the case worth serving; a link that renames what it points at is not,
+and honouring the alias would only put one skill in the store twice. So the listing never carries a link's own name, and a
+link that renames its target leaves that skill unaddressable under the name you see on disk.
+
+Ignoring the rest is what leaves **duplicates unmodelled**. A second copy of a name is invisible to every command — not
+written to, not compared, not reported — and will go stale unmentioned. Enumeration follows the same rule, so
+`import <repo> --all` and `import <repo> <skill>` never disagree about what a repo holds. Grimoire has no `move` and no
+"remove from repo"; how a repo files its skills is the repo's business.
+
+Which copy wins is arbitrary, and meant to be: a repo holding one name twice is a repo to go fix, not a case to model. The
+order is pinned rather than left to the filesystem only so that the arbitrary answer is the same one everywhere — `readdir`
+returns entries in hash order on some filesystems, and a store seeded on one machine would otherwise disagree with `status`
+run on another.
 
 ## Repo modes
 
@@ -281,8 +299,8 @@ Backups are the only recovery for **uncommitted work in a repo**, **repos not un
 
 `ignore` is a flat list of file globs matched **inside** skill directories. It applies on `import`, `adopt`, `export`,
 `publish`, and `clone`, and in the tree hash, so a Finder visit doesn't read as a content change. Whole _skills_ cannot be
-ignored and need not be: anything in the store is managed by definition, and discovery already skips directories holding no
-`SKILL.md`.
+ignored and need not be: anything in the store is managed by definition, and discovery already yields nothing for a directory
+holding no skill.
 
 ## What `status` reports
 
@@ -315,7 +333,7 @@ unmentioned — reporting it would be discovery. (7) and (8) resolve registered 
 
 Deliberately not reported: a skill absent from _some_ repos (normal under _bulk never adds_; only absence from every repo is
 check 2), a clone differing from the store (drift-by-design, and `clone` surfaces it at the moment something would destroy
-it), and a second copy of a skill in one repo (the walk never learns it exists).
+it), and a second copy of a skill in one repo (the walk ignores it).
 
 ## Scope for v1
 
