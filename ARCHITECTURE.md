@@ -72,7 +72,7 @@ has to be available to a project's contributors: format portability is not conte
 config.json  {
   repos:      { <name>: { path, mode } },            // mode: read-only | read-write
   workspaces: { <name>: { path, autoLink: bool } },  // e.g. personal → ~/.claude/skills
-  ignore:     [ ".DS_Store", ... ]                   // file globs, matched inside skill directories
+  ignore:     [ ".DS_Store" ]                        // globs, matched inside skill directories; default shown
 }
 
 .state.json  {
@@ -225,8 +225,12 @@ it.
 ## Comparing and overwriting
 
 The **tree hash** is the one comparison primitive. Per skill, over one skill directory's subtree: skip everything matching
-`ignore`, hash each file's content together with its path **relative to the skill directory root**, sort by that path, hash
-the concatenation.
+`ignore`, hash each file's content together with its path **relative to the skill directory root** and its **executable
+bit**, sort by that path, hash the concatenation.
+
+The executable bit is in because it is state a copy carries and git records, so leaving it out would let two copies differ in
+a way the one comparison primitive calls agreement. The rest of the mode is out: a `umask` difference is not a content
+change.
 
 Both qualifiers are load-bearing — a different base path, or `ignore` applied to one side only, makes every skill differ
 forever, and one `.DS_Store` is enough to trigger it. Relative to the skill root a bucket is invisible to the hash, which is
@@ -234,6 +238,13 @@ right: the same content filed differently is the same content.
 
 The hash is computed on demand and never stored, so a difference has **no direction** — it says the copies disagree, not
 which one moved. `git diff` in the repo answers that.
+
+Its subject is a skill directory and nothing else: a path holding no `SKILL.md` is refused rather than walked, so a bucket or
+the store root cannot be hashed into an answer that looks like a skill's.
+
+A skill directory holding a symlink **anywhere beneath it** is refused, by the hash and by every copy alike: a skill is
+fanned out to machines the link's target does not exist on, so the link cannot travel, and materializing it silently would
+change what the author wrote.
 
 **The tool overwrites only what it can prove is safe to lose, and backs up the rest.**
 
@@ -297,10 +308,22 @@ Backups are the only recovery for **uncommitted work in a repo**, **repos not un
 
 ## Ignore
 
-`ignore` is a flat list of file globs matched **inside** skill directories. It applies on `import`, `adopt`, `export`,
-`publish`, and `clone`, and in the tree hash, so a Finder visit doesn't read as a content change. Whole _skills_ cannot be
-ignored and need not be: anything in the store is managed by definition, and discovery already yields nothing for a directory
-holding no skill.
+`ignore` is a flat list of globs matched **inside** skill directories. It applies on `import`, `adopt`, `export`, `publish`,
+and `clone`, and in the tree hash, so a Finder visit doesn't read as a content change. Whole _skills_ cannot be ignored and
+need not be: anything in the store is managed by definition, and discovery already yields nothing for a directory holding no
+skill.
+
+A pattern's shape decides what it is matched against. One with no `/` (`.DS_Store`, `*.tmp`) is tested against each entry's
+**basename**, at any depth — Finder drops a `.DS_Store` in _every_ directory it visits, so a root-only match would miss the
+case the default list exists for. A pattern containing `/` (`build/**`, `a/*.md`) is tested against the **skill-relative
+path** instead, anchored at the skill root.
+
+Every entry is tested, files and directories alike, and a matched directory is **not descended into** — a bare `node_modules`
+in the list skips its whole subtree, which is also the cheaper walk. The default list is `['.DS_Store']`.
+
+`SKILL.md` at the skill root is the one exemption: no pattern reaches it, so `*.md` stays a usable thing to write. Without
+that carve-out "whole skills cannot be ignored" would hold only by convention — a skill hashed without its manifest matches
+every other manifest-less skill, and a copy made without it lands as a directory discovery can no longer see.
 
 ## What `status` reports
 

@@ -10,7 +10,7 @@ describe('loadConfig', () => {
   it('returns the documented defaults on a fresh root', async () => {
     const store = new GrimoireStore(await tempRoot());
 
-    expect(store.loadConfig()).toEqual({ repos: {}, workspaces: {}, ignore: [] });
+    expect(store.loadConfig()).toEqual({ repos: {}, workspaces: {}, ignore: ['.DS_Store'] });
   });
 
   // config.json is yours to hand-edit, and an absent key has exactly one
@@ -20,7 +20,17 @@ describe('loadConfig', () => {
 
     writeConfig(store, '{ "repos": {} }');
 
-    expect(store.loadConfig()).toEqual({ repos: {}, workspaces: {}, ignore: [] });
+    expect(store.loadConfig()).toEqual({ repos: {}, workspaces: {}, ignore: ['.DS_Store'] });
+  });
+
+  // An explicit empty list is the user's stated choice, not an absent key —
+  // only a missing key takes the default.
+  it('loads an explicit empty ignore list as empty', async () => {
+    const store = new GrimoireStore(await tempRoot());
+
+    writeConfig(store, '{ "ignore": [] }');
+
+    expect(store.loadConfig().ignore).toEqual([]);
   });
 
   it('throws on invalid JSON, naming the file', async () => {

@@ -16,4 +16,5 @@ export {
 } from './path-collision.ts';
 export { StoreFileError, type StoreFileErrorProps } from './store-file-error.ts';
 export { UnknownNameError, type UnknownNameErrorProps } from './unknown-name.ts';
+export { UnportableSkillError, type UnportableSkillErrorProps } from './unportable-skill.ts';
 export { WorkspaceInUseError, type WorkspaceInUseErrorProps } from './workspace-in-use.ts';

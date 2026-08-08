@@ -1,6 +1,6 @@
 import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { assertUsableDirectory } from '#src/lib/directories';
+import { assertUsableDirectory, isSkillDirectory } from '#src/lib/directories';
 import { isErrnoException } from '#src/lib/fs';
 
 // -----------------------------------------------------------------------------
@@ -102,10 +102,6 @@ function walkDirectory(params: {
 // -----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
-
-function isSkillDirectory(path: string): boolean {
-  return statSync(join(path, 'SKILL.md'), { throwIfNoEntry: false })?.isFile() ?? false;
-}
 
 /** Nothing at the end of the link, a file part-way along it, or a cycle. */
 const LEADS_NOWHERE = ['ENOENT', 'ENOTDIR', 'ELOOP'] as const;

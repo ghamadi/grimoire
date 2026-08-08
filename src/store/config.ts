@@ -55,7 +55,7 @@ export const workspaceConfigSchema = z.strictObject({
 export const configSchema = z.strictObject({
   repos: z.record(z.string(), repoConfigSchema).default({}),
   workspaces: z.record(z.string(), workspaceConfigSchema).default({}),
-  ignore: z.array(z.string()).default([]),
+  ignore: z.array(z.string()).default(['.DS_Store']),
 });
 
 export type RepoConfig = z.infer<typeof repoConfigSchema>;
