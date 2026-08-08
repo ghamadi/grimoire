@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_REPO_MODE, addRepo, listRepos, removeRepo } from '../index.ts';
@@ -144,6 +144,19 @@ describe('addRepo', () => {
 
       mkdirSync(join(root, '.git'));
       mkdirSync(path, { recursive: true });
+
+      expect(addRepo(store, { name: 'personal', path }).warning).toBeNull();
+    });
+
+    it('stays quiet when the registered path is a symlink into a git repo', async () => {
+      const store = await newStore();
+      const root = await newDirectory('git-repo');
+      const target = join(root, 'agents', 'skills');
+      const path = join(await newDirectory('links'), 'skills');
+
+      mkdirSync(join(root, '.git'));
+      mkdirSync(target, { recursive: true });
+      symlinkSync(target, path);
 
       expect(addRepo(store, { name: 'personal', path }).warning).toBeNull();
     });

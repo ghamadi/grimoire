@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { assertUsableDirectory } from '#src/lib/directories';
 import { DuplicateNameError, PathCollisionError, UnknownNameError } from '#src/lib/errors/index';
@@ -104,9 +104,13 @@ export function listRepos(store: GrimoireStore): Repo[] {
 
 /**
  * Checks if a directory is version controlled by Git.
+ *
+ * The climb starts at the resolved path, not the registered one: `dirname` on a
+ * symlinked registration climbs the link's own parents, so the checkout the
+ * target sits inside is never reached.
  */
 function isVersionControlled(path: string): boolean {
-  let current = path;
+  let current = realpathSync(path);
 
   while (true) {
     if (statSync(join(current, '.git'), { throwIfNoEntry: false })) {
