@@ -34,7 +34,7 @@ No command spans the two registries — a name resolves in one or the other, nev
 > `~/.grimoire/`.**
 
 Call a violation a **collision**. Containment rather than equality is what makes the rule hold: a deployment nested inside a
-repo is discovered as a repo copy, so every repo-facing rule lands on a directory that exists in order to receive content.
+repo would be walked as repo content, putting every repo-facing rule on a directory that exists only to receive deployments.
 And because `link` replaces a directory identical to the store copy without warning or backup, an `import` that auto-linked
 back into the repo it had just read would turn that repo's own skills into symlinks.
 
@@ -43,13 +43,14 @@ workspace, `clone` a destination inside a repo or inside `~/.grimoire/`, though 
 project directory you would never register. And it is applied wherever a path is _used_, never inferred from registration,
 because `config.json` is last-known-intent: a hand-edit must not be able to corrupt a repository.
 
-The rule is about directories, so paths are compared **canonically** — every symlink resolved — and a directory has as many
-spellings as there are links pointing at it. Under the usual dotfiles layout, where `~/.claude` is a symlink into the repo
+The rule is about directories, so paths are compared **canonically** — every symlink resolved. A directory has as many
+spellings as there are links pointing at it: under the usual dotfiles layout, where `~/.claude` is a symlink into the repo
 that versions it, the repo and the workspace share no lexical prefix at all, and a string comparison calls them unrelated
-right up until `import` auto-links that repo's own skills into symlinks. A path that does not exist yet resolves as far as it
-can — the nearest existing ancestor, with the remaining segments rejoined — which loses nothing, because a segment that does
-not exist cannot be a symlink. A refusal names the path as it was **given**, not as it resolved: the spelling is what you
-have to go edit.
+right up until `import` auto-links that repo's own skills into symlinks.
+
+A path that does not exist yet resolves as far as it can — the nearest existing ancestor, with the remaining segments
+rejoined — which loses nothing, because a segment that does not exist cannot be a symlink. A refusal names the path as it was
+**given**, not as it resolved: the spelling is what you have to go edit.
 
 Only writing and registering are closed inside `~/.grimoire/`. Reading stays open — that is what keeps `.backup/` and
 `.trash/` recoverable by a plain `import`.
@@ -121,7 +122,7 @@ The first rule is stated about directories with no exception, so it holds for th
 contains `SKILL.md` **is** that skill, named by its own basename, which is what makes `import ~/Downloads/brainstorm` work on
 a bare skill directory someone sent you. Below that starting point, a directory whose resolved name begins with `.` is
 neither descended into nor reported — a repo is registered at its skills directory and `.git` can sit right there. The
-starting directory itself is read whatever it is named, keeping `.backup/` and `.trash/` recoverable by a plain `import`.
+starting directory itself is read whatever it is named — otherwise `.backup/` and `.trash/` would be unreachable.
 
 A symlink is a way to reach a skill, never a second skill. Every path is resolved before it is read, so a skill is found at
 the directory that holds `SKILL.md` and is named by **that** directory — two entries pointing at one directory are one skill,
@@ -135,9 +136,9 @@ written to, not compared, not reported — and will go stale unmentioned. Enumer
 "remove from repo"; how a repo files its skills is the repo's business.
 
 Which copy wins is arbitrary, and meant to be: a repo holding one name twice is a repo to go fix, not a case to model. The
-order is pinned rather than left to the filesystem only so that the arbitrary answer is the same one everywhere — `readdir`
-returns entries in hash order on some filesystems, and a store seeded on one machine would otherwise disagree with `status`
-run on another.
+order is pinned rather than left to the filesystem only so that the arbitrary answer is always the same one — `readdir`
+returns entries in hash order on some filesystems, so which copy wins would otherwise depend on which filesystem the repo
+sits on.
 
 ## Repo modes
 
@@ -190,8 +191,7 @@ its copy, a workspace surrenders it for a link — and only a named verb carries
 
 `autoLink` chooses destinations when a skill enters the store, and is the default destination set for a bare `link`. Nothing
 re-links on its own once a skill is in the store: a skill's link set belongs to it, and **the same skill linked into one
-account and not the other is a supported outcome** — the whole reason accounts are linked per skill rather than by symlinking
-the directory.
+account and not the other is a supported outcome**.
 
 `remove` always clears symlinks, or every linked workspace is left dangling; `unlink` is the command for unlinking without
 removing. Cloned directories are opt-in behind `--remove-clones`, being drift-by-design copies living where grimoire is a
@@ -228,23 +228,26 @@ The **tree hash** is the one comparison primitive. Per skill, over one skill dir
 `ignore`, hash each file's content together with its path **relative to the skill directory root** and its **executable
 bit**, sort by that path, hash the concatenation.
 
-The executable bit is in because it is state a copy carries and git records, so leaving it out would let two copies differ in
-a way the one comparison primitive calls agreement. The rest of the mode is out: a `umask` difference is not a content
-change.
+Two of those qualifiers are load-bearing. Relative to the skill root, a bucket is invisible to the hash — the same content
+filed differently is the same content. And `ignore` has to apply to every side of a comparison, or a single `.DS_Store` makes
+a skill differ forever.
 
-Both qualifiers are load-bearing — a different base path, or `ignore` applied to one side only, makes every skill differ
-forever, and one `.DS_Store` is enough to trigger it. Relative to the skill root a bucket is invisible to the hash, which is
-right: the same content filed differently is the same content.
+The executable bit is in because a copy carries it and git records it: a script that arrives non-executable is broken, and
+without the bit the hash calls the two copies identical. The rest of the mode is out — a `umask` difference is not a content
+change.
 
 The hash is computed on demand and never stored, so a difference has **no direction** — it says the copies disagree, not
 which one moved. `git diff` in the repo answers that.
 
-Its subject is a skill directory and nothing else: a path holding no `SKILL.md` is refused rather than walked, so a bucket or
-the store root cannot be hashed into an answer that looks like a skill's.
+Its subject is one skill directory: a path holding no `SKILL.md` is refused rather than walked, so a bucket or the store root
+cannot be hashed into an answer that looks like a skill's.
 
-A skill directory holding a symlink **anywhere beneath it** is refused, by the hash and by every copy alike: a skill is
-fanned out to machines the link's target does not exist on, so the link cannot travel, and materializing it silently would
-change what the author wrote.
+A symlink **beneath** a skill directory is refused, by the hash and by every copy alike, because a copy has no honest option:
+carried over as a link it either dangles or leaves the two copies sharing one file, and materialized it becomes content the
+author never wrote — which `export` would then write back over their link. The target also sits outside the skill, so editing
+it changes the skill's hash with nothing in the skill touched. `ignore` is applied first, so a link inside an ignored
+directory is pruned rather than refused. A symlink **to** the skill root is unaffected: it resolves to the directory it
+names, as everywhere else.
 
 **The tool overwrites only what it can prove is safe to lose, and backs up the rest.**
 
@@ -286,8 +289,8 @@ Refusals are **per skill and per destination**; a batch reports what it declined
 .backup/clones/<key>/skills/<skill>/ ← `clone --force`, `remove --remove-clones`
 ```
 
-- **Latest only** — one copy per slot, which bounds the directory. (`.trash/` is never pruned; removing the same skill twice
-  overwrites the earlier entry. Accepted.)
+- **Latest only** — one copy per slot, which bounds the directory. `.trash/` follows the same rule per skill name, but is
+  never emptied.
 - **Written on every destructive write, not only on `--force`** — `export` overwrites by default, so the routine case is the
   dangerous one.
 - **Skipped when the two sides are identical** by tree hash.
@@ -309,9 +312,9 @@ Backups are the only recovery for **uncommitted work in a repo**, **repos not un
 ## Ignore
 
 `ignore` is a flat list of globs matched **inside** skill directories. It applies on `import`, `adopt`, `export`, `publish`,
-and `clone`, and in the tree hash, so a Finder visit doesn't read as a content change. Whole _skills_ cannot be ignored and
-need not be: anything in the store is managed by definition, and discovery already yields nothing for a directory holding no
-skill.
+and `clone`, and in the tree hash — one matcher, so what a copy declines to write and what the hash skips can never disagree.
+Whole _skills_ cannot be ignored and need not be: anything in the store is managed by definition, and discovery already
+yields nothing for a directory holding no skill.
 
 A pattern's shape decides what it is matched against. One with no `/` (`.DS_Store`, `*.tmp`) is tested against each entry's
 **basename**, at any depth — Finder drops a `.DS_Store` in _every_ directory it visits, so a root-only match would miss the
@@ -337,9 +340,9 @@ every other manifest-less skill, and a copy made without it lands as a directory
 6. **Orphaned state** — a `.state.json` key with no matching store skill.
 7. **Unreachable repo or workspace** — a registered path that no longer exists on disk.
 8. **Colliding registrations** — a repo and a workspace whose paths violate the collision rule, or either one touching
-   `~/.grimoire/`. The fix is to unregister one of them and `add` it at a path that doesn't, so `workspace remove` reports a
-   collision rather than refusing over one — a refusal would leave the fix unreachable — and clears nothing from a directory
-   that turned out to be a repo's.
+   `~/.grimoire/`. The fix is to unregister one and `add` it at a path that doesn't collide. `workspace remove` therefore
+   reports a collision rather than refusing over one — refusing would put the fix out of reach — and clears no links from a
+   directory that turned out to be a repo's.
 
 (1) and (2) are what make an unversioned store safe: the window where an edit exists only in the store is visible, and (2)
 names the skills for which that window never closes.
