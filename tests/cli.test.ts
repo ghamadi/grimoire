@@ -18,10 +18,10 @@ describe('grimoire cli', () => {
   // The only test that reaches cli.ts's top-level catch — the in-process suites
   // drive `buildProgram` directly and never import that file.
   it('reports a refusal on stderr and exits non-zero', async () => {
-    const { stderr, code } = await runCli(['repo', 'remove', 'nope'], { home: await tempRoot() });
+    const { stderr, code } = await runCli(['workspace', 'remove', 'nope'], { home: await tempRoot() });
 
     expect(code).toBe(1);
-    expect(stderr).toBe('grimoire: no repo named "nope"');
+    expect(stderr).toBe('grimoire: no workspace named "nope"');
   });
 });
 

@@ -2,8 +2,14 @@ import { GrimoireError } from './grimoire-error.ts';
 
 export type UnportableSkillErrorProps = {
   path: string;
-  entry: string;
+  reason: 'nested-skill' | 'not-a-skill' | 'unexpected-file-type';
 };
+
+const REASON_MESSAGES = {
+  'nested-skill': 'Contains a nested skill.',
+  'not-a-skill': 'Is not a skill directory.',
+  'unexpected-file-type': 'An unexpected file type was encountered.',
+} as const;
 
 /**
  * A skill directory holds a symlink somewhere beneath it.
@@ -14,14 +20,12 @@ export type UnportableSkillErrorProps = {
  */
 export class UnportableSkillError extends GrimoireError {
   readonly path: string;
-  readonly entry: string;
 
   constructor(props: UnportableSkillErrorProps) {
-    const { path, entry } = props;
-    super(`skill "${path}" is not portable: "${entry}" is a symlink`);
+    const { path, reason } = props;
+    super(`skill "${path}" is not portable. ${REASON_MESSAGES[reason]}`);
 
     this.name = 'UnportableSkillError';
     this.path = path;
-    this.entry = entry;
   }
 }

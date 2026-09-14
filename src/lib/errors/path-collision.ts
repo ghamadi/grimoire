@@ -1,5 +1,5 @@
-import { normalizePath, type Collision, type PathRelation } from '#src/lib/paths';
-import { registryNoun } from '#src/lib/registry';
+import type { Collision } from '#src/domains/grimoire-store/index';
+import { normalizePath, type PathRelation } from '#src/lib/paths';
 import { GrimoireError } from './grimoire-error.ts';
 
 export type PathCollisionErrorProps = {
@@ -31,9 +31,9 @@ export class PathCollisionError extends GrimoireError {
 /**
  * The sentence, without the refusal.
  *
- * A collision found at use rather than at registration does not always refuse —
- * `workspace remove` reports one and carries on — and the two have to read
- * identically, or the same fact arrives in two voices.
+ * The same fact reaches the user from two places — refused at registration, and
+ * refused again when the registry is read — so the sentence lives here rather
+ * than in either error, or it arrives in two voices.
  */
 export function describeCollision(props: PathCollisionErrorProps): string {
   const { path, collision } = props;
@@ -53,11 +53,5 @@ function describeRelation(relation: PathRelation): string {
 }
 
 function describeTarget(collision: Collision): string {
-  const path = normalizePath(collision.path);
-
-  if (collision.kind === 'grimoire-home') {
-    return `the grimoire store (${path})`;
-  }
-
-  return `${registryNoun(collision.registry)} "${collision.name}" (${path})`;
+  return `the grimoire store (${normalizePath(collision.path)})`;
 }

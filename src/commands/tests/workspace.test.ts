@@ -1,10 +1,17 @@
-import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
-import { join } from 'node:path';
-import type { Command } from 'commander';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WorkspaceInUseError } from '#src/lib/errors/index';
+import { GrimoireStore } from '#src/domains/grimoire-store/index';
+import {
+  CollidingRegistrationError,
+  DuplicateNameError,
+  EntityNotFoundError,
+  InvalidPathError,
+  PathCollisionError,
+  WorkspaceInUseError,
+} from '#src/lib/errors/index';
 import { buildProgram } from '#src/program';
-import { GrimoireStore } from '#src/store/index';
 import { tempRoot } from '#test-helpers/temp-root';
 
 afterEach(() => {
@@ -18,17 +25,18 @@ describe('workspace add', () => {
 
     const { stdout } = run('workspace', 'add', 'personal', path);
 
-    expect(stdout).toEqual([`registered workspace "personal" → ${path} (manual)`]);
-    expect(store.loadConfig().workspaces.personal).toEqual({ path, autoLink: false });
+    expect(stdout).toEqual([`registered workspace "personal" \u2192 ${path} (manual)`]);
+    expect(readWorkspaces(store).personal).toEqual({ path, autoLink: false });
   });
 
   it('honors --auto-link', async () => {
-    const { run } = await newCli();
+    const { run, store } = await newCli();
     const path = await newDirectory('project');
 
     const { stdout } = run('workspace', 'add', 'personal', path, '--auto-link');
 
-    expect(stdout).toEqual([`registered workspace "personal" → ${path} (auto-link)`]);
+    expect(stdout).toEqual([`registered workspace "personal" \u2192 ${path} (auto-link)`]);
+    expect(readWorkspaces(store).personal).toEqual({ path, autoLink: true });
   });
 
   // A created directory is a result, not a warning: it belongs on stdout.
@@ -38,7 +46,10 @@ describe('workspace add', () => {
 
     const { stdout, stderr } = run('workspace', 'add', 'personal', path);
 
-    expect(stdout).toEqual([`created ${path}`, `registered workspace "personal" → ${path} (manual)`]);
+    expect(stdout).toEqual([
+      `created ${path}`,
+      `registered workspace "personal" \u2192 ${path} (manual)`,
+    ]);
     expect(stderr).toEqual([]);
   });
 
@@ -48,6 +59,134 @@ describe('workspace add', () => {
     const { stdout } = run('workspace', 'add', 'personal', await newDirectory('project'));
 
     expect(stdout).toHaveLength(1);
+  });
+
+  // What lands in state.json is what every later command resolves, so the
+  // spelling is normalized before it is stored rather than on each read.
+  it('registers the path it normalized rather than the one typed', async () => {
+    const { run, store } = await newCli();
+    const path = await newDirectory('project');
+
+    const { stdout } = run('workspace', 'add', 'personal', `${path}/../project/`);
+
+    expect(stdout).toEqual([`registered workspace "personal" \u2192 ${path} (manual)`]);
+    expect(readWorkspaces(store).personal?.path).toBe(path);
+  });
+
+  it('keeps the workspaces already registered', async () => {
+    const { run, store } = await newCli();
+    const personal = await newDirectory('personal');
+    const work = await newDirectory('work');
+
+    run('workspace', 'add', 'personal', personal);
+    run('workspace', 'add', 'work', work);
+
+    expect(readWorkspaces(store)).toEqual({
+      personal: { path: personal, autoLink: false },
+      work: { path: work, autoLink: false },
+    });
+  });
+
+  describe('refusals', () => {
+    it('refuses a name that is already registered, leaving its path alone', async () => {
+      const { run, store } = await newCli();
+      const taken = await newDirectory('taken');
+
+      run('workspace', 'add', 'personal', taken);
+
+      const path = join(await newDirectory('project'), 'skills');
+      const error = captureError(() => run('workspace', 'add', 'personal', path));
+
+      expect(error).toBeInstanceOf(DuplicateNameError);
+      expect(error.message).toBe('workspace "personal" is already registered');
+      expect(readWorkspaces(store).personal?.path).toBe(taken);
+      expect(existsSync(path)).toBe(false);
+    });
+
+    it('refuses a relative path, echoing it as typed', async () => {
+      const { run, store } = await newCli();
+
+      const error = captureError(() => run('workspace', 'add', 'personal', 'project/skills'));
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe('project/skills must be an absolute path or start with ~/');
+      expect(readWorkspaces(store)).toEqual({});
+    });
+
+    it('refuses a path held by a file', async () => {
+      const { run } = await newCli();
+      const path = join(await newDirectory('project'), 'notes.txt');
+
+      writeFileSync(path, '');
+
+      expect(captureError(() => run('workspace', 'add', 'personal', path)).message).toBe(
+        `${path} is not a directory`,
+      );
+    });
+
+    // Registering the link rather than what it points at would put the workspace
+    // wherever the link is repointed next.
+    it('refuses a symlinked path rather than following it', async () => {
+      const { run } = await newCli();
+      const target = await newDirectory('target');
+      const path = join(dirname(target), 'skills');
+
+      symlinkSync(target, path);
+
+      expect(captureError(() => run('workspace', 'add', 'personal', path)).message).toBe(
+        `${path} is a symlink`,
+      );
+    });
+
+    // Only the final segment is created, so a typo in the parent surfaces as one
+    // rather than materializing a tree.
+    it('refuses a missing parent by name, creating nothing', async () => {
+      const { run } = await newCli();
+      const parent = join(await newDirectory('project'), 'claude');
+
+      const error = captureError(() => run('workspace', 'add', 'personal', join(parent, 'skills')));
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${parent} does not exist`);
+      expect(existsSync(parent)).toBe(false);
+    });
+
+    it('refuses a path sitting inside the store', async () => {
+      const { run, store } = await newCli();
+      const path = join(store.paths.skills, 'personal');
+
+      const error = captureError(() => run('workspace', 'add', 'personal', path));
+
+      expect(error).toBeInstanceOf(PathCollisionError);
+      expect(error.message).toBe(`${path} sits inside the grimoire store (${store.paths.root})`);
+      expect(existsSync(path)).toBe(false);
+    });
+
+    it('refuses the store root itself', async () => {
+      const { run, store } = await newCli();
+
+      expect(captureError(() => run('workspace', 'add', 'personal', store.paths.root)).message).toBe(
+        `${store.paths.root} is the same directory as the grimoire store (${store.paths.root})`,
+      );
+    });
+
+    it('refuses a path the store sits inside', async () => {
+      const { run, store } = await newCli();
+      const path = dirname(store.paths.root);
+
+      expect(captureError(() => run('workspace', 'add', 'personal', path)).message).toBe(
+        `${path} contains the grimoire store (${store.paths.root})`,
+      );
+    });
+
+    it('refuses an invocation naming no path', async () => {
+      const { run, store } = await newCli();
+
+      const error = captureError(() => run('workspace', 'add', 'personal'));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(readWorkspaces(store)).toEqual({});
+    });
   });
 });
 
@@ -72,6 +211,24 @@ describe('workspace list', () => {
     expect(run('workspace', 'list').stdout).toEqual(['No workspaces registered.']);
   });
 
+  // state.json holds an object, so registration order is what a naive read
+  // prints; the column is sorted so a name lands in the same place every run.
+  it('sorts by name rather than by registration order', async () => {
+    const { run } = await newCli();
+    const work = await newDirectory('work');
+    const personal = await newDirectory('personal');
+
+    run('workspace', 'add', 'work', work);
+    run('workspace', 'add', 'personal', personal);
+
+    // The auto-link column is padded to the widest label, not the widest value,
+    // so the path column starts in the same place whatever is registered.
+    expect(run('workspace', 'list').stdout).toEqual([
+      `personal  manual     ${personal}`,
+      `work      manual     ${work}`,
+    ]);
+  });
+
   it('answers to ls identically', async () => {
     const { run } = await newCli();
 
@@ -91,8 +248,17 @@ describe('workspace remove', () => {
     const { stdout } = run('workspace', 'remove', 'personal');
 
     expect(stdout).toEqual([`unregistered workspace "personal" → ${path}`]);
-    expect(store.loadConfig().workspaces).toEqual({});
+    expect(readWorkspaces(store)).toEqual({});
     expect(existsSync(path)).toBe(true);
+  });
+
+  it('refuses a name that is not registered', async () => {
+    const { run } = await newCli();
+
+    const error = captureError(() => run('workspace', 'remove', 'personal'));
+
+    expect(error).toBeInstanceOf(EntityNotFoundError);
+    expect(error.message).toBe('no workspace named "personal"');
   });
 
   it('answers to rm identically', async () => {
@@ -102,13 +268,13 @@ describe('workspace remove', () => {
     run('workspace', 'add', 'personal', path);
     const viaRm = run('workspace', 'rm', 'personal');
 
-    const configAfterRm = readFileSync(store.paths.config, 'utf8');
+    const stateAfterRm = readFileSync(store.paths.state, 'utf8');
 
     run('workspace', 'add', 'personal', path);
     const viaRemove = run('workspace', 'remove', 'personal');
 
     expect(viaRm.stdout).toEqual(viaRemove.stdout);
-    expect(readFileSync(store.paths.config, 'utf8')).toBe(configAfterRm);
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(stateAfterRm);
   });
 
   it('refuses while links still point at the workspace, naming all of them', async () => {
@@ -137,7 +303,7 @@ describe('workspace remove', () => {
 
     run('workspace', 'add', 'personal', path);
     mkdirSync(join(path, 'deploy'));
-    store.saveState({ deploy: { clones: [{ workspace: 'personal' }] } });
+    recordClones(store, { deploy: [{ workspace: 'personal' }] });
 
     const { stdout } = run('workspace', 'remove', 'personal');
 
@@ -145,7 +311,7 @@ describe('workspace remove', () => {
       '1 clone now recorded by path: deploy',
       `unregistered workspace "personal" → ${path}`,
     ]);
-    expect(store.loadState().deploy?.clones).toEqual([{ path }]);
+    expect(readClones(store).deploy).toEqual([{ path }]);
   });
 
   it('reports what --hard cleared and what it left behind', async () => {
@@ -156,7 +322,7 @@ describe('workspace remove', () => {
     link({ store, workspacePath: path, skill: 'triage' });
     link({ store, workspacePath: path, skill: 'brainstorm' });
     mkdirSync(join(path, 'deploy'));
-    store.saveState({ deploy: { clones: [{ workspace: 'personal' }] } });
+    recordClones(store, { deploy: [{ workspace: 'personal' }] });
 
     const { stdout } = run('workspace', 'remove', 'personal', '--hard');
 
@@ -169,41 +335,34 @@ describe('workspace remove', () => {
     expect(existsSync(join(path, 'deploy'))).toBe(true);
   });
 
-  it("warns on stderr when the registered path turned out to be a repo's", async () => {
+  // The registry refuses to load the entry at all, so every command is stopped
+  // until it is gone. Nothing here clears it: repairing state.json is not what
+  // `remove` is for, and no command does it yet.
+  it('refuses a registered path sitting inside the store, naming the file to fix', async () => {
     const { run, store } = await newCli();
-    const repo = await newDirectory('repo');
-    const path = join(repo, 'skills');
+    const path = registerColliding(store);
 
-    mkdirSync(path);
-    store.saveConfig({
-      ...store.loadConfig(),
-      repos: { dots: { path: repo, mode: 'read-only' } },
-      workspaces: { personal: { path, autoLink: false } },
-    });
-    link({ store, workspacePath: path, skill: 'brainstorm' });
+    const error = captureError(() => run('workspace', 'remove', 'personal'));
 
-    const { stdout, stderr } = run('workspace', 'remove', 'personal', '--hard');
-
-    expect(stderr).toEqual([
-      `warning: ${path} sits inside repo "dots" (${repo}) — no links were cleared from it`,
-    ]);
-    expect(stdout).toEqual([`unregistered workspace "personal" → ${path}`]);
-    expect(existsSync(join(path, 'brainstorm'))).toBe(true);
+    expect(error).toBeInstanceOf(CollidingRegistrationError);
+    expect(error.message).toBe(
+      [
+        `workspace "personal" cannot be used: ${path} sits inside the grimoire store (${store.paths.root})`,
+        `  no command can run until it is gone from ${store.paths.state}`,
+      ].join('\n'),
+    );
   });
 
-  it('does not claim anything survived when the cleared record names a directory that is gone', async () => {
+  it('refuses every other command while the entry is registered', async () => {
     const { run, store } = await newCli();
-    const path = await newDirectory('project');
+    const workspacePath = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
-    store.saveState({ deploy: { clones: [{ workspace: 'personal' }] } });
+    registerColliding(store);
 
-    const { stdout } = run('workspace', 'remove', 'personal', '--hard');
-
-    expect(stdout).toEqual([
-      'forgot 1 clone record: deploy',
-      `unregistered workspace "personal" → ${path}`,
-    ]);
+    expect(captureError(() => run('workspace', 'list'))).toBeInstanceOf(CollidingRegistrationError);
+    expect(captureError(() => run('workspace', 'add', 'work', workspacePath))).toBeInstanceOf(
+      CollidingRegistrationError,
+    );
   });
 });
 
@@ -275,6 +434,69 @@ async function newDirectory(name: string): Promise<string> {
   const path = join(await tempRoot(), name);
 
   mkdirSync(path, { recursive: true });
+
+  return path;
+}
+
+type CloneRecord = { workspace: string } | { path: string };
+
+/** state.json as it sits on disk, carrying only the sections these tests touch. */
+type StoredDocument = {
+  workspaces?: Record<string, { path: string; autoLink: boolean }>;
+  skills?: Record<string, { clones: CloneRecord[] }>;
+};
+
+/**
+ * The registry as state.json holds it, keyed by name.
+ *
+ * Read off disk rather than through the manager, so an assertion about what was
+ * written cannot be satisfied by the code that wrote it.
+ */
+function readWorkspaces(store: GrimoireStore): Record<string, { path: string; autoLink: boolean }> {
+  return readDocument(store).workspaces ?? {};
+}
+
+/**
+ * Clone records as state.json holds them, keyed by skill — no command writes
+ * one yet.
+ */
+function recordClones(store: GrimoireStore, clonesBySkill: Record<string, CloneRecord[]>): void {
+  const skills = Object.fromEntries(
+    Object.entries(clonesBySkill).map(([skill, clones]) => [skill, { clones }]),
+  );
+
+  writeDocument(store, { skills });
+}
+
+/** The same records read back off disk, keyed by skill. */
+function readClones(store: GrimoireStore): Record<string, CloneRecord[]> {
+  const { skills = {} } = readDocument(store);
+
+  return Object.fromEntries(Object.entries(skills).map(([skill, { clones }]) => [skill, clones]));
+}
+
+/** Merged into whatever state.json already holds, the way an edit by hand would be. */
+function writeDocument(store: GrimoireStore, sections: StoredDocument): void {
+  writeFileSync(store.paths.state, JSON.stringify({ ...readDocument(store), ...sections }), 'utf8');
+}
+
+function readDocument(store: GrimoireStore): StoredDocument {
+  if (!existsSync(store.paths.state)) {
+    return {};
+  }
+
+  return JSON.parse(readFileSync(store.paths.state, 'utf8')) as StoredDocument;
+}
+
+/**
+ * A workspace registered at a path inside the store, which only a hand-edit can
+ * produce — `workspace add` refuses one.
+ */
+function registerColliding(store: GrimoireStore, name = 'personal'): string {
+  const path = join(store.paths.skills, name);
+
+  mkdirSync(path, { recursive: true });
+  writeDocument(store, { workspaces: { [name]: { path, autoLink: false } } });
 
   return path;
 }

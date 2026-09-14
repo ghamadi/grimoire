@@ -2,11 +2,10 @@
 
 | Command group                          | Status          |
 | -------------------------------------- | --------------- |
-| [`repo`](./commands/repo.md)           | Implemented     |
 | [`workspace`](./commands/workspace.md) | Implemented     |
 | `import`                               | Not implemented |
 | `export`                               | Not implemented |
-| `link`                                 | Not implemented |
+| `link`                                 | Implemented     |
 | `clone`                                | Not implemented |
 | `remove`                               | Not implemented |
 | `status`                               | Not implemented |

@@ -2,24 +2,22 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PathCollisionError, describeCollision } from '../index.ts';
-import type { Collision } from '#src/lib/paths';
+import type { Collision } from '#src/domains/grimoire-store/index';
 
 const collision: Collision = {
-  kind: 'registered',
-  registry: 'repos',
-  name: 'dots',
-  path: '~/repos/dots',
+  kind: 'grimoire-home',
+  path: '~/.grimoire',
   relation: 'contains',
 };
 
 describe('describeCollision', () => {
   it('normalizes both paths in the sentence', () => {
-    expect(describeCollision({ path: '~/repos/dots/skills', collision })).toBe(
-      `${join(homedir(), 'repos/dots/skills')} contains repo "dots" (${join(homedir(), 'repos/dots')})`,
+    expect(describeCollision({ path: '~/.grimoire/skills', collision })).toBe(
+      `${join(homedir(), '.grimoire/skills')} contains the grimoire store (${join(homedir(), '.grimoire')})`,
     );
   });
 
-  it('names the grimoire store rather than a registry entry', () => {
+  it('names the relation the path sits in', () => {
     expect(
       describeCollision({
         path: '/x/skills',
@@ -31,9 +29,9 @@ describe('describeCollision', () => {
 
 describe('PathCollisionError', () => {
   it('carries the same normalized paths it printed', () => {
-    const error = new PathCollisionError({ path: '~/repos/dots/skills', collision });
+    const error = new PathCollisionError({ path: '~/.grimoire/skills', collision });
 
-    expect(error.path).toBe(join(homedir(), 'repos/dots/skills'));
-    expect(error.collision.path).toBe(join(homedir(), 'repos/dots'));
+    expect(error.path).toBe(join(homedir(), '.grimoire/skills'));
+    expect(error.collision.path).toBe(join(homedir(), '.grimoire'));
   });
 });

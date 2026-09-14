@@ -1,13 +1,13 @@
 #!/usr/bin/env node
+import { GrimoireStore } from '#src/domains/grimoire-store/index';
 import { GrimoireError } from '#src/lib/errors/index';
 import { buildProgram } from '#src/program';
-import { GrimoireStore, resolveGrimoireHome } from '#src/store/index';
 
 try {
   // `parseAsync`, not `parse`: the moment an action returns a promise, `parse`
   // resolves before it settles and a refusal escapes this catch as an unhandled
   // rejection with a zero exit code.
-  await buildProgram(new GrimoireStore(resolveGrimoireHome())).parseAsync();
+  await buildProgram(new GrimoireStore(GrimoireStore.resolveHome())).parseAsync();
 } catch (error) {
   // Anything that is not a GrimoireError is a bug, and a bug should look like
   // one — rethrown with its stack intact rather than dressed up as a refusal.

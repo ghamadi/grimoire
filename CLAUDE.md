@@ -1,7 +1,8 @@
 # grimoire
 
-Skill management and distribution CLI. [ARCHITECTURE.md](./ARCHITECTURE.md) specifies the behavior — read the relevant
-section before implementing.
+Skill management and distribution CLI. [ARCHITECTURE.md](./ARCHITECTURE.md) holds the problem, the DDD code layout, and the
+`~/.grimoire/` shape — not command behavior. Command behavior is specified in [`docs/commands/`](./docs/commands/); anything
+not committed there is undecided — don't infer its design from git history or old docs.
 
 Verify: `pnpm typecheck && pnpm lint && pnpm test`
 

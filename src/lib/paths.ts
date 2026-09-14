@@ -1,7 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
-import type { Registry } from '#src/lib/registry';
 
 // -----------------------------------------------------------------------------
 // PATH CANONICALIZATION
@@ -111,98 +110,8 @@ function toComparablePath(rawPath: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// COLLISION SHAPES
-// -----------------------------------------------------------------------------
-
-export type Collision =
-  | { kind: 'grimoire-home'; path: string; relation: PathRelation }
-  | {
-      kind: 'registered';
-      registry: Registry;
-      name: string;
-      path: string;
-      relation: PathRelation;
-    };
-
-export type GrimoireHomeCollision = Extract<Collision, { kind: 'grimoire-home' }>;
-
-export type RegistryCollision = Extract<Collision, { kind: 'registered' }>;
-
-// -----------------------------------------------------------------------------
-// GRIMOIRE HOME PATH COLLISION CHECKING
-// -----------------------------------------------------------------------------
-
-export type GrimoireHomeCollisionQuery = {
-  home: string;
-  path: string;
-};
-
-/** Checks the provided path against the grimoire home (`~/.grimoire` by default). */
-export function findGrimoireHomeCollision(
-  query: GrimoireHomeCollisionQuery,
-): GrimoireHomeCollision | null {
-  const homeRelation = relate({ candidate: query.path, reference: query.home });
-
-  if (homeRelation) {
-    return { kind: 'grimoire-home', path: query.home, relation: homeRelation };
-  }
-
-  return null;
-}
-
-// -----------------------------------------------------------------------------
-// REGISTRY PATH COLLISION CHECKING
-// -----------------------------------------------------------------------------
-
-/** Only `path` is read, which is what keeps this module below the store. */
-type RegisteredEntries = Record<string, { path: string }>;
-
-export type RegistryCollisionQuery = {
-  storeConfig: Record<Registry, RegisteredEntries>;
-  path: string;
-};
-
-export type WorkspaceCollision = RegistryCollision & { registry: 'workspaces' };
-
-/** Checks the provided path against the registered workspaces. */
-export function findWorkspaceCollision(query: RegistryCollisionQuery): WorkspaceCollision | null {
-  return findRegistryCollision(query, 'workspaces');
-}
-
-export type RepoCollision = RegistryCollision & { registry: 'repos' };
-
-/** Checks the provided path against the registered repos. */
-export function findRepoCollision(query: RegistryCollisionQuery): RepoCollision | null {
-  return findRegistryCollision(query, 'repos');
-}
-
-// -----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
-
-/**
- * Generic rather than overloaded so the compiler verifies the caller gets the
- * collision it was promised — overload return types are never checked.
- */
-function findRegistryCollision<K extends Registry>(
-  query: RegistryCollisionQuery,
-  registry: K,
-): (RegistryCollision & { registry: K }) | null {
-  for (const [name, { path }] of sortedEntries(query.storeConfig[registry])) {
-    const relation = relate({ candidate: query.path, reference: path });
-
-    if (relation) {
-      return { kind: 'registered', registry, name, path, relation };
-    }
-  }
-
-  return null;
-}
-
-/** Sorted by name, so the same config always reports the same collision first. */
-function sortedEntries(entries: RegisteredEntries): [string, { path: string }][] {
-  return Object.entries(entries).sort(([a], [b]) => a.localeCompare(b));
-}
 
 /**
  * Every failure means the same thing here — missing, unreadable, a symlink

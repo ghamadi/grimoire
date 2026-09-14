@@ -1,8 +1,8 @@
 import { Command } from 'commander';
-import { repoCommand } from '#src/commands/repo';
+import { linkCommand } from '#src/commands/link';
 import { workspaceCommand } from '#src/commands/workspace';
+import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { getVersion } from '#src/lib/utils';
-import type { GrimoireStore } from '#src/store/index';
 
 /**
  * Assembles the CLI and hands it back unparsed.
@@ -13,13 +13,14 @@ import type { GrimoireStore } from '#src/store/index';
  */
 export function buildProgram(store: GrimoireStore): Command {
   const program = new Command();
+  const storeManager = new GrimoireStoreManager(store);
 
   program
     .name('grimoire')
     .description('Authoring and distribution for agent skills')
     .version(getVersion())
-    .addCommand(repoCommand(store))
-    .addCommand(workspaceCommand(store));
+    .addCommand(workspaceCommand({ storeManager }))
+    .addCommand(linkCommand({ storeManager }));
 
   return program;
 }

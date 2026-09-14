@@ -1,15 +1,18 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { describeCollision } from '#src/lib/errors/index';
-import type { GrimoireStore } from '#src/store/index';
+import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
+import type { Workspace } from '#src/domains/workspace/index';
+import { createAddWorkspaceUseCase } from '#src/use-cases/add-workspace-use-case/factory';
+import { createListWorkspacesUseCase } from '#src/use-cases/list-workspaces-use-case/factory';
 import {
-  addWorkspace,
-  listWorkspaces,
-  removeWorkspace,
-  type Workspace,
-  type WorkspaceRemoved,
-} from '#src/workspace/index';
+  createRemoveWorkspaceUseCase,
+  type RemoveWorkspaceResult,
+} from '#src/use-cases/remove-workspace-use-case/factory';
+
+export type WorkspaceCommandParams = {
+  storeManager: GrimoireStoreManager;
+};
 
 /**
  * The `workspace` command group: argv in, stdout out.
@@ -18,7 +21,12 @@ import {
  * The aliases are commander's own, so `rm` and `ls` reach the same action
  * rather than a second definition that can drift.
  */
-export function workspaceCommand(store: GrimoireStore): Command {
+export function workspaceCommand(params: WorkspaceCommandParams): Command {
+  const { storeManager } = params;
+  const addWorkspace = createAddWorkspaceUseCase({ storeManager });
+  const listWorkspaces = createListWorkspacesUseCase({ storeManager });
+  const removeWorkspace = createRemoveWorkspaceUseCase({ storeManager });
+
   const workspace = new Command('workspace').description('Manage the workspaces grimoire deploys to');
 
   workspace
@@ -28,7 +36,7 @@ export function workspaceCommand(store: GrimoireStore): Command {
     .argument('<path>', 'directory skills are deployed into')
     .option('--auto-link', 'link every skill in the store into this workspace')
     .action((name: string, path: string, options: { autoLink?: boolean }) => {
-      const { workspace: added, created } = addWorkspace(store, {
+      const { workspace: added, created } = addWorkspace({
         name,
         path,
         autoLink: options.autoLink,
@@ -38,7 +46,7 @@ export function workspaceCommand(store: GrimoireStore): Command {
       // stdout — on its own line, leaving the confirmation byte-identical to
       // the case where the directory was already there.
       if (created) {
-        console.log(`created ${created}`);
+        console.log(`created ${added.path}`);
       }
 
       console.log(
@@ -53,14 +61,8 @@ export function workspaceCommand(store: GrimoireStore): Command {
     .argument('<name>', 'registered name')
     .option('--hard', 'clear the links and forget the clone records still pointing at it')
     .action((name: string, options: { hard?: boolean }) => {
-      const result = removeWorkspace(store, { name, hard: options.hard });
-      const { workspace: removed, cleared, collision } = result;
-
-      if (collision) {
-        console.error(
-          `warning: ${describeCollision({ path: removed.path, collision })} — no links were cleared from it`,
-        );
-      }
+      const result = removeWorkspace({ name, hard: options.hard });
+      const { workspace: removed, forgottenClones } = result;
 
       for (const line of describeChanges(result)) {
         console.log(line);
@@ -70,7 +72,7 @@ export function workspaceCommand(store: GrimoireStore): Command {
 
       // A notice to convey that clones are now the user's responsibility.
       // We filter out the ones that don't exist on disk (regardless of whether they were still registered)
-      if (cleared.clones.some((skill) => existsSync(join(removed.path, skill)))) {
+      if (forgottenClones.some((skill) => existsSync(join(removed.path, skill)))) {
         console.log('cloned directories were left in place');
       }
     });
@@ -80,7 +82,7 @@ export function workspaceCommand(store: GrimoireStore): Command {
     .alias('ls')
     .description('List the registered workspaces')
     .action(() => {
-      const workspaces = listWorkspaces(store);
+      const workspaces = listWorkspaces();
 
       // A command that succeeded and said nothing is indistinguishable from one
       // that broke.
@@ -104,19 +106,22 @@ function describeAutoLink(autoLink: boolean): string {
   return autoLink ? autoLinkLabels.on : autoLinkLabels.off;
 }
 
-function describeChanges({ cleared, converted }: WorkspaceRemoved): string[] {
+function describeChanges(result: RemoveWorkspaceResult): string[] {
+  const { clearedLinks, forgottenClones, convertedClones } = result;
   const lines: string[] = [];
 
-  if (cleared.links.length > 0) {
-    lines.push(`removed ${count(cleared.links.length, 'link')}: ${cleared.links.join(', ')}`);
+  if (clearedLinks.length > 0) {
+    lines.push(`removed ${count(clearedLinks.length, 'link')}: ${clearedLinks.join(', ')}`);
   }
 
-  if (cleared.clones.length > 0) {
-    lines.push(`forgot ${count(cleared.clones.length, 'clone record')}: ${cleared.clones.join(', ')}`);
+  if (forgottenClones.length > 0) {
+    lines.push(`forgot ${count(forgottenClones.length, 'clone record')}: ${forgottenClones.join(', ')}`);
   }
 
-  if (converted.length > 0) {
-    lines.push(`${count(converted.length, 'clone')} now recorded by path: ${converted.join(', ')}`);
+  if (convertedClones.length > 0) {
+    lines.push(
+      `${count(convertedClones.length, 'clone')} now recorded by path: ${convertedClones.join(', ')}`,
+    );
   }
 
   return lines;

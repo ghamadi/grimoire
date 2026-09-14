@@ -1,7 +1,7 @@
 # `workspace`
 
 A workspace is a directory an agent reads skills from (e.g., `~/.claude/skills`, a project's `.agents/skills`), registered by
-name. This is the deployment target, not the place you keep your skills — that's a [repo](./repo.md).
+name.
 
 > [!NOTE]
 >
@@ -44,8 +44,8 @@ the same two labels `list` prints, so the confirmation reads as the row it just 
 
 ### The directory may not exist yet
 
-Unlike `repo add`, a missing path is not automatically a mistake: `~/.claude/skills` appears the first time a skill is
-written there. `add` creates the **final segment** and says so, on its own line above the confirmation:
+A missing path is not automatically a mistake: `~/.claude/skills` appears the first time a skill is written there. `add`
+creates the **final segment** and says so, on its own line above the confirmation:
 
 ```shell
 $ grimoire workspace add personal ~/.claude/skills
@@ -65,10 +65,10 @@ byte-identical to the run where the directory was already there.
 
 ### What `add` rejects
 
-A refusal exits 1 and registers nothing: `config.json` is left exactly as it was found, and no directory is created.
+A refusal exits 1 and registers nothing: `state.json` is left exactly as it was found, and no directory is created.
 
-The checks run in the order below, and only the first failure is reported. The order is the mirror of `repo add`'s — the name
-goes first here because the path check can create a directory, and a refused `add` must leave nothing behind.
+The checks run in the order below, and only the first failure is reported. The name goes first because the path check can
+create a directory, and a refused `add` must leave nothing behind.
 
 **1. The name is free.** Within the workspace registry.
 
@@ -77,15 +77,11 @@ $ grimoire workspace add personal ~/.config/other-agent/skills
 grimoire: workspace "personal" is already registered
 ```
 
-**2. The path does not collide** with `~/.grimoire/` or with a registered repo — see
-[the collision rule](#the-collision-rule).
+**2. The path does not collide** with `~/.grimoire/` — see [the collision rule](#the-collision-rule).
 
 ```shell
 $ grimoire workspace add personal ~/.grimoire/skills
 grimoire: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
-
-$ grimoire workspace add personal ~/skills/agents
-grimoire: /Users/me/skills/agents sits inside repo "my-repo" (/Users/me/skills)
 ```
 
 **3. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
@@ -100,8 +96,8 @@ grimoire: /Users/me/nope does not exist
 
 ### The collision rule
 
-`add` checks the path against `~/.grimoire/` and registered **repos** — never against other workspaces. Two workspaces may
-share a path, and one may be registered at an ancestor of another; both succeed.
+`add` checks the path against `~/.grimoire/` only — never against other workspaces. Two workspaces may share a path, and one
+may be registered at an ancestor of another; both succeed.
 
 | Relation | Message                    |
 | -------- | -------------------------- |
@@ -110,17 +106,13 @@ share a path, and one may be registered at an ancestor of another; both succeed.
 | contains | `contains`                 |
 
 ```
-registered repo   /home/me/skills
-                  ├─ equals    /home/me/skills
-                  ├─ inside    /home/me/skills/agents
-                  └─ contains  /home/me
+grimoire store    /Users/me/.grimoire
+                  ├─ equals    /Users/me/.grimoire
+                  ├─ inside    /Users/me/.grimoire/skills
+                  └─ contains  /Users/me
 ```
 
 Paths are compared canonically, with symlinks resolved. A refusal names the path as typed, not as resolved.
-
-This is the same rule `repo add` applies from the other side, and it is what keeps a deployment target from being read as a
-skill library: `link` replaces a directory identical to the store's copy without warning, so an `import` that auto-linked
-back into the repo it had just read would turn that repo's own skills into symlinks.
 
 ## `workspace remove <name> [--hard]` _(alias: `rm`)_
 
@@ -134,7 +126,7 @@ grimoire: no workspace named "ghost"
 
 Unregisters only. The directory is never deleted — not the workspace's, not a cloned skill's inside it — and a workspace
 whose path no longer reads as a directory — deleted by hand, replaced by a file — still unregisters cleanly. A registration
-you cannot surrender is one only a hand-edit of `config.json` can clear, so nothing about the directory's state is grounds
+you cannot surrender is one only a hand-edit of `state.json` can clear, so nothing about the directory's state is grounds
 for a refusal.
 
 What `remove` does have to deal with is what still points at the workspace. Links and clones get opposite treatment, because
@@ -178,11 +170,11 @@ so does one whose skill in the store has since been deleted, which is precisely 
 
 ### Clones convert
 
-A clone is a copy, not a link, and `.state.json` recording it is the only thing on disk that distinguishes a managed copy
+A clone is a copy, not a link, and `state.json` recording it is the only thing on disk that distinguishes a managed copy
 from a directory you wrote yourself. Deleting that record destroys information; the cloned directory itself is yours.
 
 So clones don't refuse. A record naming this workspace is rewritten to carry the workspace's **path** instead — the same
-directory it always named, reached the same way the config lookup would have reached it, except that lookup is about to start
+directory it always named, reached the same way the state lookup would have reached it, except that lookup is about to start
 failing:
 
 ```shell
@@ -192,7 +184,7 @@ unregistered workspace "personal" → /Users/me/.claude/skills
 ```
 
 ```diff
-  ".state.json"
+  "state.json"
 - "deploy": { "clones": [ { "workspace": "personal" } ] }
 + "deploy": { "clones": [ { "path": "/Users/me/.claude/skills" } ] }
 ```
@@ -213,25 +205,6 @@ The last line appears only when a forgotten record names a directory still prese
 ordinary directories: grimoire will not update them, will not report them under `status`, and will not delete them. Deleting
 a cloned directory is `remove <skill> --remove-clones`, never this command.
 
-### A path that turned out to be a repo's
-
-[The collision rule](#the-collision-rule) is checked again here, not trusted from `add`. `config.json` is last-known-intent,
-and the dotfiles layout leaves a registered workspace one `ln -s` away from being the repo that versions it — the symlink
-gets repointed, and a directory that passed at registration is a repo's own by the time `remove` reads it.
-
-Nothing inside it is grimoire's, so nothing inside it is read or deleted: no link is scanned for, none is cleared, and
-`--hard` clears none either.
-
-```shell
-$ grimoire workspace remove personal --hard
-warning: /Users/me/.claude/skills is the same directory as repo "dots" (/Users/me/dotfiles/claude/skills) — no links were cleared from it
-unregistered workspace "personal" → /Users/me/.claude/skills
-```
-
-The name is still surrendered. Unregistering is the fix a collision calls for — `status` says so under check (8) — so a
-refusal here would leave the only remedy unreachable. Clone records still convert or get forgotten as usual: those are
-grimoire's own records, and only the directory is off limits.
-
 ## `workspace list` _(alias: `ls`)_
 
 ```shell
@@ -243,5 +216,5 @@ work      manual     /Users/me/work/.agents/skills
 Sorted by name. There is no header row, so the middle column spells out which mode it is in. Empty registry prints
 `No workspaces registered.`
 
-The listing is config, not truth — a registered path that no longer exists on disk is still listed, and reporting it is
+The listing is state, not truth — a registered path that no longer exists on disk is still listed, and reporting it is
 `status`'s job.

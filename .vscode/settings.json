@@ -23,5 +23,6 @@
   "js/ts.preferences.importModuleSpecifierEnding": "js",
   "[markdown]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
-  }
+  },
+  "cSpell.words": ["Grimoire"]
 }
