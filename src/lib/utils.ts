@@ -12,3 +12,7 @@ export function getVersion() {
 
   return version;
 }
+
+export function assertUnreachable(value: never): never {
+  throw new Error(`Unreachable code: ${String(value)}`);
+}

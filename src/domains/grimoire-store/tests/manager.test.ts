@@ -171,10 +171,7 @@ describe('a registered path that touches the store', () => {
   ])('refuses a path %s', async (_, pathFor) => {
     const { manager, store } = await newManager();
 
-    writeState(
-      store,
-      document({ workspaces: { personal: { path: pathFor(store), autoLink: false } } }),
-    );
+    writeState(store, document({ workspaces: { personal: { path: pathFor(store), autoLink: false } } }));
 
     expect(() => manager.getRegistry()).toThrow(CollidingRegistrationError);
   });

@@ -1,4 +1,5 @@
 .claude/plans
+.claude/tickets
 
 node_modules
 dist

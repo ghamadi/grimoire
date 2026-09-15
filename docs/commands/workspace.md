@@ -126,8 +126,8 @@ grimoire: no workspace named "ghost"
 
 Unregisters only. The directory is never deleted — not the workspace's, not a cloned skill's inside it — and a workspace
 whose path no longer reads as a directory — deleted by hand, replaced by a file — still unregisters cleanly. A registration
-you cannot surrender is one only a hand-edit of `state.json` can clear, so nothing about the directory's state is grounds
-for a refusal.
+you cannot surrender is one only a hand-edit of `state.json` can clear, so nothing about the directory's state is grounds for
+a refusal.
 
 What `remove` does have to deal with is what still points at the workspace. Links and clones get opposite treatment, because
 only one of them is grimoire's to clean up:
@@ -165,13 +165,14 @@ Only the symlink is removed. The store's copy of the skill is untouched, which i
 link and deleting a skill.
 
 A symlink pointing anywhere else — a skill you linked in by hand from another directory — is not grimoire's, so it neither
-blocks the removal nor gets cleared. Chains are followed: a link into the store through an intermediate symlink counts, and
-so does one whose skill in the store has since been deleted, which is precisely the link you would not want left behind.
+blocks the removal nor gets cleared. Chains are followed: a link that reaches a store skill through an intermediate symlink
+counts. A link has to resolve to count, though. Once its skill is deleted from the store it resolves nowhere, so it neither
+blocks `remove` nor is cleared by `--hard`, and is left for you to delete by hand.
 
 ### Clones convert
 
-A clone is a copy, not a link, and `state.json` recording it is the only thing on disk that distinguishes a managed copy
-from a directory you wrote yourself. Deleting that record destroys information; the cloned directory itself is yours.
+A clone is a copy, not a link, and `state.json` recording it is the only thing on disk that distinguishes a managed copy from
+a directory you wrote yourself. Deleting that record destroys information; the cloned directory itself is yours.
 
 So clones don't refuse. A record naming this workspace is rewritten to carry the workspace's **path** instead — the same
 directory it always named, reached the same way the state lookup would have reached it, except that lookup is about to start

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { linkCommand } from '#src/commands/link';
+import { unlinkCommand } from '#src/commands/unlink';
 import { workspaceCommand } from '#src/commands/workspace';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { getVersion } from '#src/lib/utils';
@@ -20,7 +21,8 @@ export function buildProgram(store: GrimoireStore): Command {
     .description('Authoring and distribution for agent skills')
     .version(getVersion())
     .addCommand(workspaceCommand({ storeManager }))
-    .addCommand(linkCommand({ storeManager }));
+    .addCommand(linkCommand({ storeManager }))
+    .addCommand(unlinkCommand({ storeManager }));
 
   return program;
 }

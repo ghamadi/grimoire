@@ -97,7 +97,7 @@ describe('link', () => {
     ]);
   });
 
-  it('refuses to run with neither a skill nor --all', async () => {
+  it('refuses to run with neither a skill nor --all-skills', async () => {
     const { run } = await newCli();
 
     run('workspace', 'add', 'personal', await newDirectory('project'));

@@ -73,6 +73,7 @@ is truth.
 | --------------------------- | ------------------------------------------------------------ |
 | `workspace add/remove/list` | [`docs/commands/workspace.md`](./docs/commands/workspace.md) |
 | `link`                      | no page yet                                                  |
+| `unlink`                    | [`docs/commands/unlink.md`](./docs/commands/unlink.md)       |
 
 `docs/commands/` is the contract for command behavior — this document does not repeat it.
 

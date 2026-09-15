@@ -18,6 +18,13 @@ export {
   type LinkRefusal,
 } from './link-declined.ts';
 export {
+  UnlinkDeclinedError,
+  describeUnlinkRefusal,
+  type UnlinkDeclinedErrorProps,
+  type UnlinkRefusalReason,
+  type UnlinkRefusal,
+} from './unlink-declined.ts';
+export {
   CollidingRegistrationError,
   type CollidingRegistrationErrorProps,
 } from './colliding-registration.ts';

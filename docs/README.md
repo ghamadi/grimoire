@@ -6,6 +6,7 @@
 | `import`                               | Not implemented |
 | `export`                               | Not implemented |
 | `link`                                 | Implemented     |
+| [`unlink`](./commands/unlink.md)       | Implemented     |
 | `clone`                                | Not implemented |
 | `remove`                               | Not implemented |
 | `status`                               | Not implemented |

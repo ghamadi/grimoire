@@ -16,14 +16,14 @@ export function linkCommand(params: LinkCommandParams): Command {
 
   const link = new Command('link')
     .description('Symlink store skills into workspaces')
-    .argument('[skill]', 'skill to link, unless --all')
+    .argument('[skill]', 'skill to link, unless --all-skills')
     .argument('[workspaces...]', 'registered names (default: every auto-link workspace)')
-    .option('--all', 'link every skill the store holds')
-    .action((skill: string | undefined, workspaces: string[], options: { all?: boolean }) => {
+    .option('--all-skills', 'link every skill the store holds')
+    .action((skill: string | undefined, workspaces: string[], options: { allSkills?: boolean }) => {
       const parsedArguments = parseArguments({
         skill,
         workspaces,
-        all: options.all ?? false,
+        allSkills: options.allSkills ?? false,
         refuse: (message) => link.error(message),
       });
 
@@ -73,7 +73,7 @@ function report(result: ReturnType<LinkSkillUseCase>, options: { autoLinkExpecte
 type ParseArgumentsParams = {
   skill: string | undefined;
   workspaces: string[];
-  all: boolean;
+  allSkills: boolean;
   refuse: (message: string) => never;
 };
 
@@ -85,13 +85,13 @@ type ParsedArguments =
  * The raw commander arguments, in the shape the use case takes.
  */
 function parseArguments(params: ParseArgumentsParams): ParsedArguments {
-  const { skill, workspaces, all, refuse } = params;
+  const { skill, workspaces, allSkills, refuse } = params;
 
-  if (all) {
+  if (allSkills) {
     const workspacesClone = [...workspaces];
 
-    // `--all` leaves no skill argument, so what commander parsed as `skill` is
-    // the first workspace.
+    // `--all-skills` leaves no skill argument, so what commander parsed as
+    // `skill` is the first workspace.
     if (skill) {
       workspacesClone.push(skill);
     }
@@ -104,7 +104,7 @@ function parseArguments(params: ParseArgumentsParams): ParsedArguments {
   }
 
   if (!skill) {
-    return refuse("error: missing required argument 'skill' (or use --all)");
+    return refuse("error: missing required argument 'skill' (or use --all-skills)");
   }
 
   return {
