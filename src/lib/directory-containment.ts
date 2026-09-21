@@ -25,12 +25,6 @@ export type DirectoryContainment =
   | { kind: 'differs'; entry: string }
   | { kind: 'unportable'; root: string; entry: string };
 
-/** Whether two directories hold the same tree, or the entry that proves they do not. */
-export type DirectoryComparison =
-  | { kind: 'identical' }
-  | { kind: 'differs'; entry: string }
-  | { kind: 'unportable'; root: string; entry: string };
-
 // -----------------------------------------------------------------------------
 // THE COMPARISON
 // -----------------------------------------------------------------------------
@@ -68,27 +62,6 @@ export function compareContainment(comparators: ContainmentComparators): Directo
     referenceDirectory: comparators.reference,
     parentRel: '',
   });
-}
-
-/**
- * Whether two directories hold the same tree, or the entry that proves they
- * do not. Containment in both directions: `left` is walked against `right`
- * and, only if that holds, `right` is walked against `left`.
- *
- * @throws InvalidPathError unless both paths are existing directories.
- */
-export function compareDirectories(comparators: { left: string; right: string }): DirectoryComparison {
-  const leftInRight = compareContainment({ candidate: comparators.left, reference: comparators.right });
-  if (leftInRight.kind !== 'contained') {
-    return leftInRight;
-  }
-
-  const rightInLeft = compareContainment({ candidate: comparators.right, reference: comparators.left });
-  if (rightInLeft.kind !== 'contained') {
-    return rightInLeft;
-  }
-
-  return { kind: 'identical' };
 }
 
 // -----------------------------------------------------------------------------
