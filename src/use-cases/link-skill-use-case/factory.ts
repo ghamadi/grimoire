@@ -91,9 +91,11 @@ export function createLinkSkillUseCase(factoryParams: LinkSkillUseCaseFactoryPar
               replaced: outcome.replaced,
             });
             break;
+
           case 'already-linked':
             alreadyLinked.push({ skill: skill.name, workspace: workspace.name });
             break;
+
           case 'declined':
             declined.push(outcome.refusal);
             break;
@@ -129,7 +131,7 @@ type Destinations = {
  * directory may be gone. That does not end the run; the workspace drops out and
  * the batch proceeds.
  *
- * A missing directory is never created here. `workspace add` is the one command
+ * A missing directory is never created here. `workspaces add` is the one command
  * that creates a segment, and a registration that no longer resolves is
  * `status`'s to report.
  */

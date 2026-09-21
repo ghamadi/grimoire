@@ -64,7 +64,7 @@ type ByName<T> = Readonly<Record<string, Readonly<T>>>;
  * Everything grimoire persists about a store, in one document it alone writes.
  *
  * Registrations and clone records live together because a command that touches
- * both — `workspace remove` is the one — has to leave them agreed. Two
+ * both — `workspaces remove` is the one — has to leave them agreed. Two
  * documents means two writes and a window where a crash strands cloned
  * directories that nothing on disk still claims.
  */
@@ -168,6 +168,32 @@ export class StoreState {
    */
   withoutClonesIntoWorkspace(workspace: string): StoreState {
     return this.mapClones((record) => (isCloneInto(workspace)(record) ? undefined : record));
+  }
+
+  /**
+   * @returns the skill's clone records in the order they were written, or none
+   * when the skill has no entry.
+   *
+   * `Object.hasOwn`, because the map is keyed by user-chosen names and a name
+   * like `toString` would otherwise answer with an inherited method.
+   */
+  clonesOfSkill(name: string): readonly CloneRecord[] {
+    const skill = Object.hasOwn(this.data.skills, name) ? this.data.skills[name] : undefined;
+
+    return skill?.clones ?? [];
+  }
+
+  /**
+   * @returns a new config with the skill's whole entry dropped, or an equivalent
+   * one when it has none.
+   *
+   * Unlike `withoutClonesIntoWorkspace`, the key goes too: the skill itself is
+   * gone, not just where it was cloned.
+   */
+  withoutSkill(name: string): StoreState {
+    const { [name]: _removed, ...skills } = this.data.skills;
+
+    return this.with({ skills });
   }
 
   /**

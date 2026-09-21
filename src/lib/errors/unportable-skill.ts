@@ -1,8 +1,10 @@
 import { GrimoireError } from './grimoire-error.ts';
 
+export type UnportableSkillReason = 'nested-skill' | 'not-a-skill' | 'unexpected-file-type';
+
 export type UnportableSkillErrorProps = {
   path: string;
-  reason: 'nested-skill' | 'not-a-skill' | 'unexpected-file-type';
+  reason: UnportableSkillReason;
 };
 
 const REASON_MESSAGES = {
@@ -20,12 +22,24 @@ const REASON_MESSAGES = {
  */
 export class UnportableSkillError extends GrimoireError {
   readonly path: string;
+  readonly reason: UnportableSkillReason;
 
   constructor(props: UnportableSkillErrorProps) {
-    const { path, reason } = props;
-    super(`skill "${path}" is not portable. ${REASON_MESSAGES[reason]}`);
+    super(describeUnportableSkill(props));
 
     this.name = 'UnportableSkillError';
-    this.path = path;
+    this.path = props.path;
+    this.reason = props.reason;
   }
+}
+
+/**
+ * The sentence, without the refusal.
+ *
+ * The same fact reaches the user from two places — thrown by `Skill.verify`,
+ * and again inside an add refusal — so the sentence lives here rather than in
+ * either error, or it arrives in two voices.
+ */
+export function describeUnportableSkill(props: UnportableSkillErrorProps): string {
+  return `skill "${props.path}" is not portable. ${REASON_MESSAGES[props.reason]}`;
 }

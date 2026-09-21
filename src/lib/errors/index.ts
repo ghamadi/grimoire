@@ -11,6 +11,12 @@ export { DuplicateNameError, type DuplicateNameErrorProps } from './duplicate-na
 export { EntityNotFoundError, type Entity, type EntityNotFoundErrorProps } from './entity-not-found.ts';
 export { InvalidPathError, type InvalidPathErrorProps, type InvalidPathReason } from './invalid-path.ts';
 export {
+  AddDeclinedError,
+  describeAddRefusal,
+  type AddDeclinedErrorProps,
+  type AddRefusal,
+} from './add-declined.ts';
+export {
   LinkDeclinedError,
   describeLinkRefusal,
   type LinkDeclinedErrorProps,
@@ -34,5 +40,15 @@ export {
   type PathCollisionErrorProps,
 } from './path-collision.ts';
 export { InvalidShapeError, type InvalidShapeErrorProps } from './invalid-shape.ts';
-export { UnportableSkillError, type UnportableSkillErrorProps } from './unportable-skill.ts';
+export {
+  UnportableSkillError,
+  type UnportableSkillErrorProps,
+  type UnportableSkillReason,
+} from './unportable-skill.ts';
 export { WorkspaceInUseError, type WorkspaceInUseErrorProps } from './workspace-in-use.ts';
+export {
+  WorkspaceUnreadableError,
+  type UnreadableWorkspace,
+  type WorkspaceUnreadableErrorProps,
+} from './workspace-unreadable.ts';
+export { NoTerminalError, type NoTerminalErrorProps } from './no-terminal.ts';

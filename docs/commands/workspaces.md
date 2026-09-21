@@ -1,4 +1,4 @@
-# `workspace`
+# `workspaces`
 
 A workspace is a directory an agent reads skills from (e.g., `~/.claude/skills`, a project's `.agents/skills`), registered by
 name.
@@ -11,13 +11,13 @@ name.
 Workspaces are **flat**: an agent reads `<workspace>/<skill>/SKILL.md`, so the directory holds one entry per skill and
 nothing is nested.
 
-| Command                                                      | Purpose                    |
-| ------------------------------------------------------------ | -------------------------- |
-| [`workspace add`](#workspace-add-name-path---auto-link)      | Register a workspace       |
-| [`workspace remove`](#workspace-remove-name---hard-alias-rm) | Unregister a workspace     |
-| [`workspace list`](#workspace-list-alias-ls)                 | List registered workspaces |
+| Command                                                        | Purpose                    |
+| -------------------------------------------------------------- | -------------------------- |
+| [`workspaces add`](#workspaces-add-name-path---auto-link)      | Register a workspace       |
+| [`workspaces remove`](#workspaces-remove-name---hard-alias-rm) | Unregister a workspace     |
+| [`workspaces list`](#workspaces-list-alias-ls)                 | List registered workspaces |
 
-## `workspace add <name> <path> [--auto-link]`
+## `workspaces add <name> <path> [--auto-link]`
 
 | Argument | Meaning                            |
 | -------- | ---------------------------------- |
@@ -29,10 +29,10 @@ nothing is nested.
 | `--auto-link` | false   | when true, any new skill entering the store gets linked into the workspace automatically |
 
 ```shell
-$ grimoire workspace add personal ~/.claude/skills
+$ grimoire workspaces add personal ~/.claude/skills
 registered workspace "personal" → /Users/me/.claude/skills (manual)
 
-$ grimoire workspace add personal ~/.claude/skills --auto-link
+$ grimoire workspaces add personal ~/.claude/skills --auto-link
 registered workspace "personal" → /Users/me/.claude/skills (auto-link)
 ```
 
@@ -48,7 +48,7 @@ A missing path is not automatically a mistake: `~/.claude/skills` appears the fi
 creates the **final segment** and says so, on its own line above the confirmation:
 
 ```shell
-$ grimoire workspace add personal ~/.claude/skills
+$ grimoire workspaces add personal ~/.claude/skills
 created /Users/me/.claude/skills
 registered workspace "personal" → /Users/me/.claude/skills (manual)
 ```
@@ -56,7 +56,7 @@ registered workspace "personal" → /Users/me/.claude/skills (manual)
 One segment, never recursive — a typo in the parent should surface as one rather than materialize a tree:
 
 ```shell
-$ grimoire workspace add personal ~/.claude/skils/nested
+$ grimoire workspaces add personal ~/.claude/skils/nested
 grimoire: /Users/me/.claude/skils does not exist
 ```
 
@@ -73,24 +73,24 @@ create a directory, and a refused `add` must leave nothing behind.
 **1. The name is free.** Within the workspace registry.
 
 ```shell
-$ grimoire workspace add personal ~/.config/other-agent/skills
+$ grimoire workspaces add personal ~/.config/other-agent/skills
 grimoire: workspace "personal" is already registered
 ```
 
 **2. The path does not collide** with `~/.grimoire/` — see [the collision rule](#the-collision-rule).
 
 ```shell
-$ grimoire workspace add personal ~/.grimoire/skills
+$ grimoire workspaces add personal ~/.grimoire/skills
 grimoire: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
 **3. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
 
 ```shell
-$ grimoire workspace add personal ~/notes.md
+$ grimoire workspaces add personal ~/notes.md
 grimoire: /Users/me/notes.md is not a directory
 
-$ grimoire workspace add personal ~/nope/skills
+$ grimoire workspaces add personal ~/nope/skills
 grimoire: /Users/me/nope does not exist
 ```
 
@@ -114,13 +114,13 @@ grimoire store    /Users/me/.grimoire
 
 Paths are compared canonically, with symlinks resolved. A refusal names the path as typed, not as resolved.
 
-## `workspace remove <name> [--hard]` _(alias: `rm`)_
+## `workspaces remove <name> [--hard]` _(alias: `rm`)_
 
 ```shell
-$ grimoire workspace remove personal
+$ grimoire workspaces remove personal
 unregistered workspace "personal" → /Users/me/.claude/skills
 
-$ grimoire workspace remove ghost
+$ grimoire workspaces remove ghost
 grimoire: no workspace named "ghost"
 ```
 
@@ -144,7 +144,7 @@ answers the question — so unregistering while links remain would leave symlink
 directory grimoire has stopped tracking:
 
 ```shell
-$ grimoire workspace remove personal
+$ grimoire workspaces remove personal
 grimoire: workspace "personal" is still in use
   links: brainstorm, triage
   use --hard to clear them
@@ -156,7 +156,7 @@ stays readable at ten of them. The refusal writes nothing.
 `--hard` clears them and reports what went:
 
 ```shell
-$ grimoire workspace remove personal --hard
+$ grimoire workspaces remove personal --hard
 removed 2 links: brainstorm, triage
 unregistered workspace "personal" → /Users/me/.claude/skills
 ```
@@ -179,7 +179,7 @@ directory it always named, reached the same way the state lookup would have reac
 failing:
 
 ```shell
-$ grimoire workspace remove personal
+$ grimoire workspaces remove personal
 1 clone now recorded by path: deploy
 unregistered workspace "personal" → /Users/me/.claude/skills
 ```
@@ -190,13 +190,13 @@ unregistered workspace "personal" → /Users/me/.claude/skills
 + "deploy": { "clones": [ { "path": "/Users/me/.claude/skills" } ] }
 ```
 
-The clone stays reachable by `clone`, `remove --remove-clones`, and `status` — it has simply stopped being addressable by a
-name that no longer resolves. Records naming a **different** workspace, and ones already keyed by path, are left alone.
+The clone stays reachable by `clone`, `skills remove --remove-clones`, and `status` — it has simply stopped being addressable
+by a name that no longer resolves. Records naming a **different** workspace, and ones already keyed by path, are left alone.
 
 `--hard` forgets them instead:
 
 ```shell
-$ grimoire workspace remove personal --hard
+$ grimoire workspaces remove personal --hard
 forgot 1 clone record: deploy
 unregistered workspace "personal" → /Users/me/.claude/skills
 cloned directories were left in place
@@ -204,12 +204,12 @@ cloned directories were left in place
 
 The last line appears only when a forgotten record names a directory still present under the workspace. Those copies are now
 ordinary directories: grimoire will not update them, will not report them under `status`, and will not delete them. Deleting
-a cloned directory is `remove <skill> --remove-clones`, never this command.
+a cloned directory is [`skills remove <skill> --remove-clones`](./skills.md), never this command.
 
-## `workspace list` _(alias: `ls`)_
+## `workspaces list` _(alias: `ls`)_
 
 ```shell
-$ grimoire workspace list
+$ grimoire workspaces list
 personal  auto-link  /Users/me/.claude/skills
 work      manual     /Users/me/work/.agents/skills
 ```

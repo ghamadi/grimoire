@@ -69,11 +69,12 @@ is truth.
 
 ## Committed
 
-| Command                     | Contract                                                     |
-| --------------------------- | ------------------------------------------------------------ |
-| `workspace add/remove/list` | [`docs/commands/workspace.md`](./docs/commands/workspace.md) |
-| `link`                      | no page yet                                                  |
-| `unlink`                    | [`docs/commands/unlink.md`](./docs/commands/unlink.md)       |
+| Command                      | Contract                                                       |
+| ---------------------------- | -------------------------------------------------------------- |
+| `workspaces add/remove/list` | [`docs/commands/workspaces.md`](./docs/commands/workspaces.md) |
+| `skills add/list/remove`     | [`docs/commands/skills.md`](./docs/commands/skills.md)         |
+| `link`                       | no page yet                                                    |
+| `unlink`                     | [`docs/commands/unlink.md`](./docs/commands/unlink.md)         |
 
 `docs/commands/` is the contract for command behavior — this document does not repeat it.
 

@@ -59,6 +59,17 @@ export function relate(comparators: RelationComparators): PathRelation | null {
 }
 
 /**
+ * Where `candidate` sits under `reference`, or `null` when it does not. Non-null
+ * exactly when `relate` answers `inside`.
+ */
+export function relativeTo(comparators: RelationComparators): string | null {
+  const candidate = toComparablePath(comparators.candidate);
+  const reference = toComparablePath(comparators.reference);
+
+  return candidate.startsWith(reference + sep) ? candidate.slice(reference.length + sep.length) : null;
+}
+
+/**
  * The form two paths get compared in: normalized, then symlinks followed as
  * deep as the filesystem can confirm.
  *

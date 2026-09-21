@@ -21,6 +21,10 @@ See @CLAUDE.local.md
 - Enforce preconditions in code, not prose. A function relying on a precondition of the input at runtime (e.g., normalized
   paths) should either apply the condition itself or validate the input and fail loudly.
 - Use section banners to group related code when the file contains multiple sections.
+- Command groups are named in the plural: `skills`, `workspaces`.
+- A command factory takes its collaborators as named parameters — `storeManager`, plus anything that reads or writes outside
+  the process, such as a picker or a clock. `program.ts` supplies the real ones and tests supply fakes; no command reaches
+  for `process.stdin` or `new Date()` directly.
 
 ### Comments
 

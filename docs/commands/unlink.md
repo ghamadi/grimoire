@@ -1,7 +1,7 @@
 # `unlink`
 
-`unlink` removes one skill's link from one or more workspaces. Unlike `workspace remove --hard`, which clears every link in a
-workspace and unregisters it, `unlink` touches one skill at a time and leaves the workspace registered.
+`unlink` removes one skill's link from one or more workspaces. Unlike `workspaces remove --hard`, which clears every link in
+a workspace and unregisters it, `unlink` touches one skill at a time and leaves the workspace registered.
 
 ```shell
 grimoire unlink <skill> <workspaces...>
@@ -29,7 +29,7 @@ A registered workspace whose path does not resolve to a directory (gone, a file,
 `unlink` cannot read, so it is declined like any other destination it will not touch. The path may be an unmounted volume or
 a renamed directory with the link still intact inside it, and `unlink` will not report a link gone that it never saw.
 
-For the same reason it never unregisters the workspace. Clearing a stale registration is `workspace remove`'s job, and
+For the same reason it never unregisters the workspace. Clearing a stale registration is `workspaces remove`'s job, and
 listing them is `status`'s.
 
 `<path>` below is `<registered workspace path>/<skill>`.

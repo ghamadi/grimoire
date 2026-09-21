@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidPathError } from '#src/lib/errors/index';
 import { tempRoot } from '#test-helpers/temp-root';
-import { compareContainment } from '../directory-containment.ts';
+import { compareContainment, compareDirectories } from '../directory-containment.ts';
 
 describe('compareContainment', () => {
   describe('what it proves contained', () => {
@@ -260,6 +260,105 @@ describe('compareContainment', () => {
   });
 });
 
+describe('compareDirectories', () => {
+  it('reports two identical trees as identical', async () => {
+    const sides = await newSides();
+
+    for (const tree of [sides.left, sides.right]) {
+      tree.file('SKILL.md', '# skill');
+      tree.file('reference/notes.md', 'notes');
+      tree.directory('scripts');
+    }
+
+    expect(compareSides(sides)).toEqual({ kind: 'identical' });
+  });
+
+  it('reports disagreeing content the first pass already catches', async () => {
+    const sides = await newSides();
+
+    sides.left.file('SKILL.md', '# theirs');
+    sides.right.file('SKILL.md', '# ours');
+
+    expect(compareSides(sides)).toEqual({ kind: 'differs', entry: 'SKILL.md' });
+  });
+
+  it('reports an entry only the left holds', async () => {
+    const sides = await newSides();
+
+    sides.left.file('SKILL.md', '# skill');
+    sides.left.file('notes.md', 'notes');
+    sides.right.file('SKILL.md', '# skill');
+
+    expect(compareSides(sides)).toEqual({ kind: 'differs', entry: 'notes.md' });
+  });
+
+  it('reports an entry only the right holds, named right-relative', async () => {
+    const sides = await newSides();
+
+    sides.left.file('reference/shared.md', 'shared');
+    sides.right.file('reference/shared.md', 'shared');
+    sides.right.file('reference/notes.md', 'notes');
+
+    expect(compareSides(sides)).toEqual({ kind: 'differs', entry: 'reference/notes.md' });
+  });
+
+  it('reports a symlink held by the left, naming the left root', async () => {
+    const sides = await newSides();
+
+    sides.left.file('SKILL.md', '# skill');
+    sides.left.link('alias.md', join(sides.left.root, 'SKILL.md'));
+    sides.right.file('SKILL.md', '# skill');
+
+    expect(compareSides(sides)).toEqual({
+      kind: 'unportable',
+      root: sides.left.root,
+      entry: 'alias.md',
+    });
+  });
+
+  it('reports a symlink held by the right, naming the right root', async () => {
+    const sides = await newSides();
+
+    sides.left.file('SKILL.md', '# skill');
+    sides.right.file('SKILL.md', '# skill');
+    sides.right.link('alias.md', join(sides.right.root, 'SKILL.md'));
+
+    expect(compareSides(sides)).toEqual({
+      kind: 'unportable',
+      root: sides.right.root,
+      entry: 'alias.md',
+    });
+  });
+
+  it('reports the left side offender when both sides offend', async () => {
+    const sides = await newSides();
+
+    sides.left.file('SKILL.md', '# skill');
+    sides.left.file('left-only.md', 'left');
+
+    sides.right.file('SKILL.md', '# skill');
+    sides.right.link('alias.md', join(sides.right.root, 'SKILL.md'));
+
+    expect(compareSides(sides)).toEqual({ kind: 'differs', entry: 'left-only.md' });
+  });
+
+  it('throws on a left that does not exist', async () => {
+    const sides = await newSides();
+
+    expect(() =>
+      compareDirectories({ left: join(sides.left.root, 'gone'), right: sides.right.root }),
+    ).toThrow(InvalidPathError);
+  });
+
+  it('throws on a right that does not exist', async () => {
+    const sides = await newSides();
+
+    expect(() =>
+      compareDirectories({ left: sides.left.root, right: join(sides.right.root, 'gone') }),
+    ).toThrow(InvalidPathError);
+  });
+});
+
 // -----------------------------------------------------------------------------
 // FIXTURES
 // -----------------------------------------------------------------------------
@@ -277,6 +376,19 @@ async function newPair() {
     candidate: newTree(join(root, 'candidate')),
     reference: newTree(join(root, 'reference')),
   };
+}
+
+async function newSides() {
+  const root = await tempRoot();
+
+  return {
+    left: newTree(join(root, 'left')),
+    right: newTree(join(root, 'right')),
+  };
+}
+
+function compareSides(sides: { left: Tree; right: Tree }) {
+  return compareDirectories({ left: sides.left.root, right: sides.right.root });
 }
 
 function newTree(root: string) {

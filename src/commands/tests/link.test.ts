@@ -17,7 +17,7 @@ describe('link', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
 
     const { stdout, stderr } = run('link', 'brainstorm', 'personal');
@@ -30,7 +30,7 @@ describe('link', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     symlinkSync(storeSkill(store, 'brainstorm'), join(path, 'brainstorm'));
 
     expect(run('link', 'brainstorm', 'personal').stdout).toEqual([
@@ -44,7 +44,7 @@ describe('link', () => {
     const path = await newDirectory('project');
     const occupied = join(path, 'brainstorm');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
     writeSkillDirectory(occupied);
 
@@ -61,8 +61,8 @@ describe('link', () => {
     const work = await newDirectory('work');
     const occupied = join(personal, 'brainstorm');
 
-    run('workspace', 'add', 'personal', personal);
-    run('workspace', 'add', 'work', work);
+    run('workspaces', 'add', 'personal', personal);
+    run('workspaces', 'add', 'work', work);
     storeSkill(store, 'brainstorm');
     writeSkillDirectory(occupied, { [SKILL_MANIFEST]: 'edited' });
 
@@ -77,8 +77,8 @@ describe('link', () => {
   it('links into every auto-link workspace when none is named', async () => {
     const { run, store } = await newCli();
 
-    run('workspace', 'add', 'personal', await newDirectory('personal'), '--auto-link');
-    run('workspace', 'add', 'work', await newDirectory('work'));
+    run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
+    run('workspaces', 'add', 'work', await newDirectory('work'));
     storeSkill(store, 'brainstorm');
 
     expect(run('link', 'brainstorm').stdout).toEqual(['linked brainstorm → personal']);
@@ -89,7 +89,7 @@ describe('link', () => {
   it('says why a run with no auto-link workspace printed nothing', async () => {
     const { run, store } = await newCli();
 
-    run('workspace', 'add', 'personal', await newDirectory('project'));
+    run('workspaces', 'add', 'personal', await newDirectory('project'));
     storeSkill(store, 'brainstorm');
 
     expect(run('link', 'brainstorm').stdout).toEqual([
@@ -100,7 +100,7 @@ describe('link', () => {
   it('refuses to run with neither a skill nor --all-skills', async () => {
     const { run } = await newCli();
 
-    run('workspace', 'add', 'personal', await newDirectory('project'));
+    run('workspaces', 'add', 'personal', await newDirectory('project'));
 
     const error = captureError(() => run('link'));
 
@@ -112,7 +112,7 @@ describe('link', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
     writeFileSync(join(path, 'brainstorm'), 'not a skill', 'utf8');
 

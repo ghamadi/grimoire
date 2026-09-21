@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -439,8 +448,8 @@ describe('findLinksInWorkspace', () => {
     linkSkill({ store, workspace, skill: 'brainstorm' });
 
     expect(manager.findLinksFromWorkspace('personal')).toEqual([
-      { skill: 'brainstorm', path: join(workspace, 'brainstorm') },
-      { skill: 'triage', path: join(workspace, 'triage') },
+      { skill: 'brainstorm', storeSkill: 'brainstorm', path: join(workspace, 'brainstorm') },
+      { skill: 'triage', storeSkill: 'triage', path: join(workspace, 'triage') },
     ]);
   });
 
@@ -461,6 +470,277 @@ describe('findLinksInWorkspace', () => {
     const { manager } = await newManager();
 
     expect(() => manager.findLinksFromWorkspace('ghost')).toThrow(EntityNotFoundError);
+  });
+});
+
+describe('listSkillClones', () => {
+  it('resolves a workspace record through the registry', async () => {
+    const { manager, store, root } = await newManager();
+    const workspace = join(root, 'personal');
+    const record = { workspace: 'personal' };
+
+    writeState(
+      store,
+      document({
+        workspaces: { personal: { path: workspace, autoLink: false } },
+        skills: { triage: { clones: [record] } },
+      }),
+    );
+
+    expect(manager.listSkillClones('triage')).toEqual([
+      { origin: 'personal', path: join(workspace, 'triage'), record },
+    ]);
+  });
+
+  it('resolves a path record to the directory it names', async () => {
+    const { manager, store } = await newManager();
+    const record = { path: '/projects/app' };
+
+    writeState(store, document({ skills: { triage: { clones: [record] } } }));
+
+    expect(manager.listSkillClones('triage')).toEqual([
+      { origin: '/projects/app', path: '/projects/app/triage', record },
+    ]);
+  });
+
+  it('omits a record naming a workspace that is not registered', async () => {
+    const { manager, store } = await newManager();
+    const record = { path: '/projects/app' };
+
+    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'ghost' }, record] } } }));
+
+    expect(manager.listSkillClones('triage')).toEqual([
+      { origin: '/projects/app', path: '/projects/app/triage', record },
+    ]);
+  });
+
+  it('answers nothing for a skill with no entry', async () => {
+    const { manager } = await newManager();
+
+    expect(manager.listSkillClones('triage')).toEqual([]);
+  });
+
+  // Every object answers to `toString`, so a lookup rather than `Object.hasOwn`
+  // reads an empty document as holding the skill.
+  it('answers nothing for a skill named after an inherited property', async () => {
+    const { manager } = await newManager();
+
+    expect(manager.listSkillClones('toString')).toEqual([]);
+  });
+
+  it('keeps the order the records were written in', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(
+      store,
+      document({ skills: { triage: { clones: [{ path: '/b' }, { path: '/a' }] } } }),
+    );
+
+    expect(manager.listSkillClones('triage').map(({ origin }) => origin)).toEqual(['/b', '/a']);
+  });
+});
+
+describe('trashSkill', () => {
+  const at = new Date(2026, 8, 15, 12, 45, 30);
+  const stamp = 'triage-20260915T124530';
+
+  it('moves the store copy into <bin>/store and returns the bin', async () => {
+    const { manager, store } = await newManager();
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'), { 'SKILL.md': '# triage\n' });
+
+    const bin = manager.trashSkill({ name: 'triage', clones: [], at });
+
+    expect(bin).toBe(join(store.paths.trash, stamp));
+    expect(readFileSync(join(bin, 'store', 'SKILL.md'), 'utf8')).toBe('# triage\n');
+    expect(existsSync(join(store.paths.skills, 'triage'))).toBe(false);
+  });
+
+  it('creates no clones directory when no clone was given', async () => {
+    const { manager, store } = await newManager();
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    const bin = manager.trashSkill({ name: 'triage', clones: [], at });
+
+    expect(existsSync(join(bin, 'clones'))).toBe(false);
+  });
+
+  it('moves a clone to <bin>/clones/<label>', async () => {
+    const { manager, store, root } = await newManager();
+    const clone = writeSkillDirectory(join(root, 'app', 'triage'), { 'SKILL.md': '# clone\n' });
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    const bin = manager.trashSkill({ name: 'triage', clones: [{ path: clone, label: 'app' }], at });
+
+    expect(readFileSync(join(bin, 'clones', 'app', 'SKILL.md'), 'utf8')).toBe('# clone\n');
+    expect(existsSync(clone)).toBe(false);
+  });
+
+  it('takes the next free suffix when the bin already exists', async () => {
+    const { manager, store } = await newManager();
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+    const first = manager.trashSkill({ name: 'triage', clones: [], at });
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+    const second = manager.trashSkill({ name: 'triage', clones: [], at });
+
+    expect(second).toBe(`${first}-2`);
+  });
+
+  it('skips a clone whose directory is gone and still moves the store copy', async () => {
+    const { manager, store, root } = await newManager();
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    const bin = manager.trashSkill({
+      name: 'triage',
+      clones: [{ path: join(root, 'gone', 'triage'), label: 'gone' }],
+      at,
+    });
+
+    expect(existsSync(join(bin, 'store'))).toBe(true);
+    expect(existsSync(join(bin, 'clones'))).toBe(false);
+  });
+
+  it('refuses a skill the store does not hold, leaving no bin behind', async () => {
+    const { manager, store } = await newManager();
+
+    expect(() => manager.trashSkill({ name: 'triage', clones: [], at })).toThrow(EntityNotFoundError);
+    expect(readdirSync(store.paths.trash)).toEqual([]);
+  });
+});
+
+describe('forgetSkill', () => {
+  it('drops the skill entry whole', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ skills: { triage: { clones: [{ path: '/a' }] } } }));
+    manager.forgetSkill('triage');
+
+    expect(manager.getRegistry().skills).toEqual({});
+  });
+
+  // Unlike forgetting a workspace's clones, which leaves `clones: []` behind.
+  it('leaves no key behind, unlike forgetting the clones into a workspace', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'personal' }] } } }));
+    manager.forgetSkillsClonedIntoWorkspace('personal');
+
+    expect(manager.getRegistry().skills).toEqual({ triage: { clones: [] } });
+
+    manager.forgetSkill('triage');
+
+    expect(manager.getRegistry().skills).toEqual({});
+  });
+
+  it('leaves other skills and the workspaces alone', async () => {
+    const { manager, store } = await newManager();
+    const workspaces = { personal: { path: '/ws', autoLink: false } };
+
+    writeState(
+      store,
+      document({
+        workspaces,
+        skills: { triage: { clones: [] }, deploy: { clones: [{ path: '/a' }] } },
+      }),
+    );
+    manager.forgetSkill('triage');
+
+    expect(manager.getRegistry().skills).toEqual({ deploy: { clones: [{ path: '/a' }] } });
+    expect(manager.getRegistry().workspaces).toEqual(workspaces);
+  });
+
+  it('writes nothing when the skill has no entry', async () => {
+    const { manager, store } = await newManager();
+    const contents = document({ skills: { deploy: { clones: [] } } });
+
+    writeState(store, contents);
+    manager.forgetSkill('triage');
+    manager.forgetSkill('toString');
+
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+  });
+});
+
+describe('skillPath', () => {
+  it('joins the name onto the skills root, creating nothing', async () => {
+    const { manager, store } = await newManager();
+
+    expect(manager.skillPath('brainstorm')).toBe(join(store.paths.skills, 'brainstorm'));
+    expect(existsSync(store.paths.skills)).toBe(false);
+  });
+});
+
+describe('assertOutsideStore', () => {
+  it.each([
+    ['equal to the store root', (store: GrimoireStore) => store.paths.root],
+    ['inside the store', (store: GrimoireStore) => join(store.paths.skills, 'triage')],
+    ['containing the store', (store: GrimoireStore) => dirname(store.paths.root)],
+  ])('refuses a path %s', async (_, pathFor) => {
+    const { manager, store } = await newManager();
+
+    expect(() => manager.assertOutsideStore(pathFor(store))).toThrow(PathCollisionError);
+  });
+
+  it('accepts a path unrelated to the store', async () => {
+    const { manager, root } = await newManager();
+
+    expect(() => manager.assertOutsideStore(join(root, 'dev', 'triage'))).not.toThrow();
+  });
+});
+
+describe('addSkill', () => {
+  it('copies a tree verbatim and reports where it landed', async () => {
+    const { manager, store, root } = await newManager();
+    const source = join(root, 'dev', 'brainstorm');
+
+    writeSkillDirectory(source, {
+      '.gitignore': 'ignored',
+      'reference/notes.md': 'notes',
+      'scripts/run.sh': '#!/bin/sh\n',
+    });
+    chmodSync(join(source, 'scripts', 'run.sh'), 0o755);
+    symlinkSync(join(source, 'SKILL.md'), join(source, 'alias.md'));
+
+    const destination = manager.addSkill({ name: 'brainstorm', sourcePath: source });
+
+    expect(destination).toBe(join(store.paths.skills, 'brainstorm'));
+    expect(readFileSync(join(destination, 'SKILL.md'), 'utf8')).toBe('# skill\n');
+    expect(readFileSync(join(destination, '.gitignore'), 'utf8')).toBe('ignored');
+    expect(readFileSync(join(destination, 'reference', 'notes.md'), 'utf8')).toBe('notes');
+    expect(lstatSync(join(destination, 'scripts', 'run.sh')).mode & 0o111).not.toBe(0);
+    expect(lstatSync(join(destination, 'alias.md')).isSymbolicLink()).toBe(true);
+  });
+
+  it('creates the store layout when none exists yet', async () => {
+    const { manager, store, root } = await newManager();
+    const source = writeSkillDirectory(join(root, 'dev', 'brainstorm'));
+
+    manager.addSkill({ name: 'brainstorm', sourcePath: source });
+
+    expect(existsSync(join(store.paths.skills, 'brainstorm', 'SKILL.md'))).toBe(true);
+  });
+
+  it('refuses a source sitting inside the store, writing nothing', async () => {
+    const { manager, store } = await newManager();
+    const source = writeSkillDirectory(join(store.paths.skills, 'existing'));
+
+    expect(() => manager.addSkill({ name: 'triage', sourcePath: source })).toThrow(PathCollisionError);
+    expect(existsSync(join(store.paths.skills, 'triage'))).toBe(false);
+  });
+
+  it('throws when the destination is already there, leaving it unchanged', async () => {
+    const { manager, store, root } = await newManager();
+    const source = writeSkillDirectory(join(root, 'dev', 'triage'), { 'SKILL.md': 'source version' });
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'), { 'SKILL.md': 'store version' });
+
+    expect(() => manager.addSkill({ name: 'triage', sourcePath: source })).toThrow();
+    expect(readFileSync(join(store.paths.skills, 'triage', 'SKILL.md'), 'utf8')).toBe('store version');
   });
 });
 
@@ -493,6 +773,19 @@ function linkSkill(params: { store: GrimoireStore; workspace: string; skill: str
 /** A whole state.json, as text, carrying only the sections a test cares about. */
 function document(sections: { workspaces?: unknown; skills?: unknown; ignore?: unknown }): string {
   return JSON.stringify({ workspaces: {}, skills: {}, ignore: ['.DS_Store'], ...sections });
+}
+
+/** A skill directory holding a manifest, and whatever `files` overrides or adds. */
+function writeSkillDirectory(path: string, files: Record<string, string> = {}): string {
+  const contents = { 'SKILL.md': '# skill\n', ...files };
+
+  for (const [name, content] of Object.entries(contents)) {
+    const filePath = join(path, name);
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, content, 'utf8');
+  }
+
+  return path;
 }
 
 /** A GrimoireError is what keeps cli.ts from printing a stack trace. */

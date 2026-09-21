@@ -1,11 +1,14 @@
 import { readdirSync, type Dirent } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { isErrnoException } from '#src/lib/fs';
-import { relate } from '#src/lib/paths';
+import { relativeTo } from '#src/lib/paths';
 
 /** A symlink in a workspace pointing at a skill in the store. */
 export type StoreLink = {
+  /** The workspace entry's own name. */
   skill: string;
+  /** The store skill the link resolves into — not always `skill`. */
+  storeSkill: string;
   path: string;
 };
 
@@ -26,8 +29,12 @@ export type StoreLinkQuery = {
 export function findStoreLinks(query: StoreLinkQuery): StoreLink[] {
   return readEntries(query.workspacePath)
     .filter((entry) => entry.isSymbolicLink())
-    .map((entry) => ({ skill: entry.name, path: join(query.workspacePath, entry.name) }))
-    .filter(({ path }) => isLinkPointingToStore({ link: path, storeSkills: query.storeSkills }))
+    .flatMap((entry) => {
+      const path = join(query.workspacePath, entry.name);
+      const storeSkill = storeSkillOf({ link: path, storeSkills: query.storeSkills });
+
+      return storeSkill === undefined ? [] : [{ skill: entry.name, storeSkill, path }];
+    })
     .sort((a, b) => a.skill.localeCompare(b.skill));
 }
 
@@ -59,13 +66,11 @@ function readEntries(workspacePath: string): Dirent[] {
 }
 
 /**
- * Whether the link resolves to a skill in the store.
- *
- * A broken link or a link pointing outside the store equally answer `false`.
+ * The store skill the link resolves into, or `undefined` when there is none: the
+ * link points outside the store, at the skills root itself, or nowhere.
  */
-function isLinkPointingToStore(query: { link: string; storeSkills: string }): boolean {
-  // We don't need to resolve the link here. `relate` does it internally before comparing.
-  const relation = relate({ candidate: query.link, reference: query.storeSkills });
+function storeSkillOf(query: { link: string; storeSkills: string }): string | undefined {
+  const relativePath = relativeTo({ candidate: query.link, reference: query.storeSkills });
 
-  return relation === 'equals' || relation === 'inside';
+  return relativePath?.split(sep)[0];
 }

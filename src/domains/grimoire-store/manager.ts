@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '../../lib/utils/files.ts';
 import type { GrimoireStore } from './entity.ts';
-import { StoreState } from './value-objects/store-state.ts';
+import { StoreState, type CloneRecord } from './value-objects/store-state.ts';
 import { DuplicateNameError } from '../../lib/errors/duplicate-name.ts';
 import { toRegisteredPath } from './helpers/registered-path.ts';
 import {
@@ -13,11 +13,22 @@ import { join } from 'node:path';
 import { InvalidShapeError } from '../../lib/errors/invalid-shape.ts';
 import { findStoreLinks, type StoreLink } from '#src/domains/grimoire-store/helpers/store-links';
 import { Skill } from '../skill/entity.ts';
+import { copyTree, movePath } from '#src/lib/fs';
+import { trashBinName } from '#src/domains/grimoire-store/helpers/trash';
 
 type RegisterWorkspaceParams = {
   name: string;
   path: string;
   autoLink?: boolean;
+};
+
+/** A directory a skill was cloned into, as its clone record resolves. */
+export type SkillClone = {
+  /** What the record names — a workspace's name or a path. */
+  origin: string;
+  /** The cloned skill's directory. */
+  path: string;
+  record: CloneRecord;
 };
 
 /** A workspace as `state.json` holds it, carrying the name it is filed under. */
@@ -164,17 +175,43 @@ export class GrimoireStoreManager {
     });
   }
 
+  /** The store's path for a skill, whether or not it exists. */
+  skillPath(name: string): string {
+    return join(this.store.paths.skills, name);
+  }
+
   /**
    * The store's path for a skill.
    * @throws EntityNotFoundError if the store does not hold it.
    */
   requireSkillPath(name: string) {
     this.ensureLayout();
-    const path = join(this.store.paths.skills, name);
+    const path = this.skillPath(name);
     if (!existsSync(path)) {
       throw new EntityNotFoundError({ entity: 'skill', name });
     }
     return path;
+  }
+
+  /** @throws PathCollisionError if the path equals, contains, or sits inside the store. */
+  assertOutsideStore(path: string): void {
+    const collision = this.store.findCollisionWith(path);
+
+    if (collision) {
+      throw new PathCollisionError({ path, collision });
+    }
+  }
+
+  /** Copies a skill directory into the store verbatim, and returns where it landed. */
+  addSkill(params: { name: string; sourcePath: string }): string {
+    this.ensureLayout();
+    this.assertOutsideStore(params.sourcePath);
+
+    const destination = this.skillPath(params.name);
+
+    copyTree({ from: params.sourcePath, to: destination });
+
+    return destination;
   }
 
   /**
@@ -190,6 +227,66 @@ export class GrimoireStoreManager {
     return readdirSync(this.store.paths.skills)
       .filter((name) => Skill.isSkillDirectory(join(this.store.paths.skills, name)))
       .sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * Every directory the skill is recorded as cloned into, in record order.
+   *
+   * A record naming a workspace that is no longer registered resolves nowhere
+   * and is left out. The recorded path is joined as-is, not normalized, so
+   * `origin` prints the path the action takes.
+   */
+  listSkillClones(name: string): SkillClone[] {
+    const state = this.loadState();
+
+    return state.clonesOfSkill(name).flatMap((record): SkillClone[] => {
+      if ('path' in record) {
+        return [{ origin: record.path, path: join(record.path, name), record }];
+      }
+
+      const workspace = findRegisteredWorkspace(state, record.workspace);
+
+      return workspace ? [{ origin: record.workspace, path: join(workspace.path, name), record }] : [];
+    });
+  }
+
+  /**
+   * Moves the store copy, then each clone it is given, into a fresh bin under
+   * `.trash/`, and returns the bin's path.
+   *
+   * A clone whose directory is already gone is skipped: it is as trashed as it
+   * can be.
+   *
+   * @throws EntityNotFoundError if the store does not hold the skill.
+   */
+  trashSkill(params: { name: string; clones: { path: string; label: string }[]; at: Date }): string {
+    const storePath = this.requireSkillPath(params.name);
+    const binPath = this.freeBinPath(trashBinName({ skill: params.name, at: params.at }));
+
+    mkdirSync(binPath, { recursive: true });
+    movePath({ from: storePath, to: join(binPath, 'store') });
+
+    for (const clone of params.clones) {
+      if (!existsSync(clone.path)) {
+        continue;
+      }
+
+      mkdirSync(join(binPath, 'clones'), { recursive: true });
+      movePath({ from: clone.path, to: join(binPath, 'clones', clone.label) });
+    }
+
+    return binPath;
+  }
+
+  /** Drops the skill's whole entry from `state.json`, writing nothing when it has none. */
+  forgetSkill(name: string): void {
+    const state = this.loadState();
+
+    if (!Object.hasOwn(state.skillsByName, name)) {
+      return;
+    }
+
+    this.saveState(state.withoutSkill(name));
   }
 
   // --------------------------------------------------------------------------
@@ -220,6 +317,17 @@ export class GrimoireStoreManager {
   private saveState(state: StoreState): void {
     this.ensureLayout();
     writeAtomic(this.store.paths.state, JSON.stringify(state.toJSON(), null, 2));
+  }
+
+  /** `<trash>/<binName>`, suffixed `-2`, `-3`, … until it names nothing. */
+  private freeBinPath(binName: string): string {
+    let candidate = join(this.store.paths.trash, binName);
+
+    for (let suffix = 2; existsSync(candidate); suffix++) {
+      candidate = join(this.store.paths.trash, `${binName}-${suffix}`);
+    }
+
+    return candidate;
   }
 
   /**

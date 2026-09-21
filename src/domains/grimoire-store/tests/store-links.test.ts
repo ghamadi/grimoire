@@ -11,7 +11,7 @@ describe('findStoreLinks', () => {
     link({ skill: 'brainstorm' });
 
     expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
-      { skill: 'brainstorm', path: join(workspace, 'brainstorm') },
+      { skill: 'brainstorm', storeSkill: 'brainstorm', path: join(workspace, 'brainstorm') },
     ]);
   });
 
@@ -32,7 +32,7 @@ describe('findStoreLinks', () => {
     link({ skill: 'brainstorm', relative: true });
 
     expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
-      { skill: 'brainstorm', path: join(workspace, 'brainstorm') },
+      { skill: 'brainstorm', storeSkill: 'brainstorm', path: join(workspace, 'brainstorm') },
     ]);
   });
 
@@ -42,7 +42,7 @@ describe('findStoreLinks', () => {
     chain({ skill: 'brainstorm' });
 
     expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
-      { skill: 'brainstorm', path: join(workspace, 'brainstorm') },
+      { skill: 'brainstorm', storeSkill: 'brainstorm', path: join(workspace, 'brainstorm') },
     ]);
   });
 
@@ -60,7 +60,7 @@ describe('findStoreLinks', () => {
     chain({ skill: 'brainstorm', relative: true });
 
     expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
-      { skill: 'brainstorm', path: join(workspace, 'brainstorm') },
+      { skill: 'brainstorm', storeSkill: 'brainstorm', path: join(workspace, 'brainstorm') },
     ]);
   });
 
@@ -78,6 +78,36 @@ describe('findStoreLinks', () => {
 
     mkdirSync(elsewhere);
     symlinkSync(elsewhere, join(workspace, 'triage'));
+
+    expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('reports the store skill a renamed entry resolves into', async () => {
+    const { workspace, storeSkills, link } = await newFixture();
+
+    link({ skill: 'triage', entry: 'tri' });
+
+    expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { skill: 'tri', storeSkill: 'triage', path: join(workspace, 'tri') },
+    ]);
+  });
+
+  it('reports the store skill a link pointing below it resolves into', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    mkdirSync(join(storeSkills, 'triage', 'references'), { recursive: true });
+    symlinkSync(join(storeSkills, 'triage', 'references'), join(workspace, 'x'));
+
+    expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { skill: 'x', storeSkill: 'triage', path: join(workspace, 'x') },
+    ]);
+  });
+
+  // There is no skill to attribute it to.
+  it('ignores a link pointing at the skills root itself', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    symlinkSync(storeSkills, join(workspace, 'all'));
 
     expect(findStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
   });
@@ -153,14 +183,17 @@ async function newFixture() {
   mkdirSync(workspace, { recursive: true });
   mkdirSync(storeSkills, { recursive: true });
 
-  function link(options: { skill: string; create?: boolean; relative?: boolean }): void {
+  function link(options: { skill: string; entry?: string; create?: boolean; relative?: boolean }): void {
     const target = join(storeSkills, options.skill);
 
     if (options.create !== false) {
       mkdirSync(target);
     }
 
-    symlinkSync(options.relative ? relative(workspace, target) : target, join(workspace, options.skill));
+    symlinkSync(
+      options.relative ? relative(workspace, target) : target,
+      join(workspace, options.entry ?? options.skill),
+    );
   }
 
   /**

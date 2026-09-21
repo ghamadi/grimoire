@@ -2,7 +2,7 @@ import { mkdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { normalizePath, relate } from '../paths.ts';
+import { normalizePath, relate, relativeTo } from '../paths.ts';
 import { tempRoot } from '#test-helpers/temp-root';
 
 describe('normalizePath', () => {
@@ -106,6 +106,38 @@ describe('relate', () => {
     expect(
       relate({ candidate: join(root, 'link/team/../skills/'), reference: join(root, 'repos/skills') }),
     ).toBe('equals');
+  });
+});
+
+describe('relativeTo', () => {
+  it('returns the segment a candidate one level inside the reference sits at', () => {
+    expect(relativeTo({ candidate: '/repos/bar/skills', reference: '/repos/bar' })).toBe('skills');
+  });
+
+  it('returns every segment of a candidate several levels deep', () => {
+    expect(relativeTo({ candidate: '/repos/bar/skills/triage/references', reference: '/repos/bar' })).toBe(
+      join('skills', 'triage', 'references'),
+    );
+  });
+
+  it('answers null for equal, containing and unrelated paths', () => {
+    expect(relativeTo({ candidate: '/repos/bar', reference: '/repos/bar' })).toBeNull();
+    expect(relativeTo({ candidate: '/repos', reference: '/repos/bar' })).toBeNull();
+    expect(relativeTo({ candidate: '/repos/bar', reference: '/projects/app' })).toBeNull();
+  });
+
+  // The dotfiles layout: the two share no lexical prefix at all.
+  it('follows a symlink standing in either side', async () => {
+    const root = await realRoot();
+    const real = join(root, 'dotfiles/claude/skills');
+
+    mkdirSync(join(real, 'triage'), { recursive: true });
+    symlinkSync(join(root, 'dotfiles/claude'), join(root, '.claude'));
+
+    expect(relativeTo({ candidate: join(real, 'triage'), reference: join(root, '.claude/skills') })).toBe(
+      'triage',
+    );
+    expect(relativeTo({ candidate: join(root, '.claude/skills/triage'), reference: real })).toBe('triage');
   });
 });
 

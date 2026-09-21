@@ -2,12 +2,11 @@ import { lstatSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import {
-  InvalidPathError,
   UnlinkDeclinedError,
   type UnlinkRefusal,
   type UnlinkRefusalReason,
 } from '#src/lib/errors/index';
-import { tryStatSync } from '#src/lib/fs';
+import { isResolvableDirectory } from '#src/lib/fs';
 import { relate } from '#src/lib/paths';
 import { assertUnreachable } from '#src/lib/utils';
 
@@ -58,7 +57,7 @@ export function createUnlinkSkillUseCase(
     const { skillName, workspaces } = params;
 
     const skillPath = storeManager.requireSkillPath(skillName);
-    const registrations =
+    const registeredWorkspaces =
       workspaces === 'all'
         ? storeManager.listRegisteredWorkspaces()
         : [...new Set(workspaces)].map((name) => storeManager.requireRegisteredWorkspace(name));
@@ -67,7 +66,7 @@ export function createUnlinkSkillUseCase(
     const notLinked: UnlinkPair[] = [];
     const declined: UnlinkRefusal[] = [];
 
-    for (const workspace of registrations) {
+    for (const workspace of registeredWorkspaces) {
       const outcome = unlinkSkillFromWorkspace({ workspace, skillName, skillPath });
       const outcomeKind = outcome.kind;
 
@@ -75,12 +74,15 @@ export function createUnlinkSkillUseCase(
         case 'unlinked':
           unlinked.push({ skill: skillName, workspace: workspace.name });
           break;
+
         case 'not-linked':
           notLinked.push({ skill: skillName, workspace: workspace.name });
           break;
+
         case 'declined':
           declined.push(outcome.refusal);
           break;
+
         default:
           assertUnreachable(outcomeKind);
       }
@@ -159,16 +161,4 @@ function unlinkSkillFromWorkspace(params: UnlinkSkillFromWorkspaceParams): PairO
   }
 
   return decline('not-a-link');
-}
-
-function isResolvableDirectory(path: string): boolean {
-  try {
-    return !!tryStatSync(path)?.isDirectory();
-  } catch (error) {
-    if (error instanceof InvalidPathError) {
-      return false;
-    }
-
-    throw error;
-  }
 }

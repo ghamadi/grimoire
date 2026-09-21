@@ -20,7 +20,7 @@ type AddWorkspaceResult = {
 type AddWorkspaceUseCase = (params: AddWorkspaceUseCaseParams) => AddWorkspaceResult;
 
 /**
- * Registers a workspace in the grimoire store — what `grimoire workspace add` runs.
+ * Registers a workspace in the grimoire store — what `grimoire workspaces add` runs.
  *
  * `autoLink` is recorded and nothing else: it names where a skill goes when it
  * enters the store, so registering a workspace links nothing into it, not even

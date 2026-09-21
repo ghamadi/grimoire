@@ -27,7 +27,7 @@ export type RemoveWorkspaceUseCase = (params: RemoveWorkspaceUseCaseParams) => R
 
 /**
  * Unregisters a workspace, or refuses while links still point at it — what
- * `grimoire workspace remove` runs.
+ * `grimoire workspaces remove` runs.
  *
  * The directory and everything in it outlive the call. Clearing links is a
  * deletion, so it takes `--hard`; without one, a workspace still holding them is

@@ -10,26 +10,26 @@ import {
   type RemoveWorkspaceResult,
 } from '#src/use-cases/remove-workspace-use-case/factory';
 
-export type WorkspaceCommandParams = {
+export type WorkspacesCommandParams = {
   storeManager: GrimoireStoreManager;
 };
 
 /**
- * The `workspace` command group: argv in, stdout out.
+ * The `workspaces` command group: argv in, stdout out.
  *
  * Everything this file does beyond calling a domain function is formatting.
  * The aliases are commander's own, so `rm` and `ls` reach the same action
  * rather than a second definition that can drift.
  */
-export function workspaceCommand(params: WorkspaceCommandParams): Command {
+export function workspacesCommand(params: WorkspacesCommandParams): Command {
   const { storeManager } = params;
   const addWorkspace = createAddWorkspaceUseCase({ storeManager });
   const listWorkspaces = createListWorkspacesUseCase({ storeManager });
   const removeWorkspace = createRemoveWorkspaceUseCase({ storeManager });
 
-  const workspace = new Command('workspace').description('Manage the workspaces grimoire deploys to');
+  const command = new Command('workspaces').description('Manage the workspaces grimoire deploys to');
 
-  workspace
+  command
     .command('add')
     .description('Register a workspace')
     .argument('<name>', 'name to register it under')
@@ -54,7 +54,7 @@ export function workspaceCommand(params: WorkspaceCommandParams): Command {
       );
     });
 
-  workspace
+  command
     .command('remove')
     .alias('rm')
     .description('Unregister a workspace, leaving its directory alone')
@@ -77,7 +77,7 @@ export function workspaceCommand(params: WorkspaceCommandParams): Command {
       }
     });
 
-  workspace
+  command
     .command('list')
     .alias('ls')
     .description('List the registered workspaces')
@@ -96,7 +96,7 @@ export function workspaceCommand(params: WorkspaceCommandParams): Command {
       }
     });
 
-  return workspace;
+  return command;
 }
 
 /** `list` has no header row, so the column has to describe itself. */

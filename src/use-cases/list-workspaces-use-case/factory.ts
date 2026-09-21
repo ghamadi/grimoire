@@ -8,7 +8,7 @@ type ListWorkspacesUseCaseFactoryParams = {
 type ListWorkspacesUseCase = () => Workspace[];
 
 /**
- * Every workspace the store has registered — what `grimoire workspace list` runs.
+ * Every workspace the store has registered — what `grimoire workspaces list` runs.
  *
  * The registry is the whole answer: the entities come back unverified, so a
  * workspace whose directory was deleted or has come to sit inside the store is

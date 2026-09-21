@@ -1,9 +1,26 @@
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { InvalidPathError } from '#src/lib/errors/index';
-import { tryStatSync } from '#src/lib/fs';
+import { isResolvableDirectory, movePath, tryStatSync } from '#src/lib/fs';
 import { tempRoot } from '#test-helpers/temp-root';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+
+  return { ...actual, renameSync: vi.fn(actual.renameSync) };
+});
 
 describe('tryStat', () => {
   it('answers with the stats of what sits at the path', async () => {
@@ -103,6 +120,133 @@ describe('tryStat', () => {
       expect(refusal(() => tryStatSync(path)).message).toBe(
         `${path} cannot be resolved: too many levels of symbolic links`,
       );
+    });
+  });
+});
+
+describe('isResolvableDirectory', () => {
+  it('answers true for a directory', async () => {
+    const root = await tempRoot();
+    const path = join(root, 'workspace');
+
+    mkdirSync(path);
+
+    expect(isResolvableDirectory(path)).toBe(true);
+  });
+
+  it('answers true for a symlink to a directory', async () => {
+    const root = await tempRoot();
+    const target = join(root, 'target');
+    const link = join(root, 'link');
+
+    mkdirSync(target);
+    symlinkSync(target, link);
+
+    expect(isResolvableDirectory(link)).toBe(true);
+  });
+
+  it('answers false for a file', async () => {
+    const root = await tempRoot();
+    const file = join(root, 'notes.txt');
+
+    writeFileSync(file, '', 'utf8');
+
+    expect(isResolvableDirectory(file)).toBe(false);
+  });
+
+  it('answers false when nothing is at the path', async () => {
+    const root = await tempRoot();
+
+    expect(isResolvableDirectory(join(root, 'gone'))).toBe(false);
+  });
+
+  it('answers false for a symlink cycle rather than throwing', async () => {
+    const root = await tempRoot();
+    const first = join(root, 'a');
+
+    symlinkSync(join(root, 'b'), first);
+    symlinkSync(first, join(root, 'b'));
+
+    expect(isResolvableDirectory(first)).toBe(false);
+  });
+});
+
+describe('movePath', () => {
+  it('moves a directory tree and leaves nothing at the source', async () => {
+    const root = await tempRoot();
+    const from = join(root, 'from');
+    const to = join(root, 'to');
+
+    mkdirSync(join(from, 'nested'), { recursive: true });
+    writeFileSync(join(from, 'nested', 'a.txt'), 'a', 'utf8');
+
+    movePath({ from, to });
+
+    expect(readFileSync(join(to, 'nested', 'a.txt'), 'utf8')).toBe('a');
+    expect(existsSync(from)).toBe(false);
+  });
+
+  it('moves a single file', async () => {
+    const root = await tempRoot();
+    const from = join(root, 'from.txt');
+    const to = join(root, 'to.txt');
+
+    writeFileSync(from, 'a', 'utf8');
+
+    movePath({ from, to });
+
+    expect(readFileSync(to, 'utf8')).toBe('a');
+    expect(existsSync(from)).toBe(false);
+  });
+
+  it('throws when the source does not exist', async () => {
+    const root = await tempRoot();
+
+    expect(() => movePath({ from: join(root, 'gone'), to: join(root, 'to') })).toThrow(/ENOENT/);
+  });
+
+  describe('across filesystems', () => {
+    function crossDevice(): void {
+      vi.mocked(renameSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('cross-device link'), { code: 'EXDEV' });
+      });
+    }
+
+    it('copies a tree with its contents, dotfiles, execute bits and symlinks intact, then removes the source', async () => {
+      const root = await tempRoot();
+      const from = join(root, 'from');
+      const to = join(root, 'to');
+
+      mkdirSync(join(from, 'nested'), { recursive: true });
+      writeFileSync(join(from, 'nested', 'a.txt'), 'a', 'utf8');
+      writeFileSync(join(from, '.hidden'), 'h', 'utf8');
+      writeFileSync(join(from, 'run.sh'), '#!/bin/sh\n', 'utf8');
+      chmodSync(join(from, 'run.sh'), 0o755);
+      symlinkSync('nested/a.txt', join(from, 'link'));
+
+      crossDevice();
+      movePath({ from, to });
+
+      expect(readFileSync(join(to, 'nested', 'a.txt'), 'utf8')).toBe('a');
+      expect(readFileSync(join(to, '.hidden'), 'utf8')).toBe('h');
+      expect(statSync(join(to, 'run.sh')).mode & 0o111).toBe(0o111);
+      expect(lstatSync(join(to, 'link')).isSymbolicLink()).toBe(true);
+      expect(readlinkSync(join(to, 'link'))).toBe('nested/a.txt');
+      expect(existsSync(from)).toBe(false);
+    });
+
+    it('moves a single file', async () => {
+      const root = await tempRoot();
+      const from = join(root, 'from.txt');
+      const to = join(root, 'to.txt');
+
+      writeFileSync(from, 'a', 'utf8');
+
+      crossDevice();
+      movePath({ from, to });
+
+      expect(readFileSync(to, 'utf8')).toBe('a');
+      expect(existsSync(from)).toBe(false);
     });
   });
 });

@@ -17,7 +17,7 @@ describe('unlink', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     symlinkSync(storeSkill(store, 'brainstorm'), join(path, 'brainstorm'));
 
     const { stdout, stderr } = run('unlink', 'brainstorm', 'personal');
@@ -31,12 +31,10 @@ describe('unlink', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
 
-    expect(run('unlink', 'brainstorm', 'personal').stdout).toEqual([
-      'not linked brainstorm → personal',
-    ]);
+    expect(run('unlink', 'brainstorm', 'personal').stdout).toEqual(['not linked brainstorm → personal']);
   });
 
   it('groups unlinked and not-linked lines by outcome, not argument order', async () => {
@@ -45,9 +43,9 @@ describe('unlink', () => {
     const club = await newDirectory('club');
     const personal = await newDirectory('personal');
 
-    run('workspace', 'add', 'work', work);
-    run('workspace', 'add', 'club', club);
-    run('workspace', 'add', 'personal', personal);
+    run('workspaces', 'add', 'work', work);
+    run('workspaces', 'add', 'club', club);
+    run('workspaces', 'add', 'personal', personal);
     storeSkill(store, 'brainstorm');
     mkdirSync(join(club, 'brainstorm'));
     symlinkSync(storeSkill(store, 'brainstorm'), join(personal, 'brainstorm'));
@@ -64,7 +62,7 @@ describe('unlink', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
     mkdirSync(join(path, 'brainstorm'));
 
@@ -77,7 +75,7 @@ describe('unlink', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspace', 'add', 'personal', path);
+    run('workspaces', 'add', 'personal', path);
     symlinkSync(storeSkill(store, 'brainstorm'), join(path, 'brainstorm'));
 
     const error = captureError(() => run('unlink', 'brainstorm'));
@@ -92,7 +90,7 @@ describe('unlink', () => {
   it('lets an unknown skill escape as a refusal', async () => {
     const { run } = await newCli();
 
-    run('workspace', 'add', 'personal', await newDirectory('project'));
+    run('workspaces', 'add', 'personal', await newDirectory('project'));
 
     expect(captureError(() => run('unlink', 'brainstorm', 'personal'))).toBeInstanceOf(
       EntityNotFoundError,
@@ -106,9 +104,9 @@ describe('unlink', () => {
       const personal = await newDirectory('personal');
       const club = await newDirectory('club');
 
-      run('workspace', 'add', 'work', work);
-      run('workspace', 'add', 'personal', personal);
-      run('workspace', 'add', 'club', club);
+      run('workspaces', 'add', 'work', work);
+      run('workspaces', 'add', 'personal', personal);
+      run('workspaces', 'add', 'club', club);
       const skillPath = storeSkill(store, 'brainstorm');
       symlinkSync(skillPath, join(work, 'brainstorm'));
       symlinkSync(skillPath, join(personal, 'brainstorm'));
@@ -126,8 +124,8 @@ describe('unlink', () => {
       const { run, store } = await newCli();
       const work = await newDirectory('work');
 
-      run('workspace', 'add', 'personal', await newDirectory('personal'));
-      run('workspace', 'add', 'work', work);
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('workspaces', 'add', 'work', work);
       symlinkSync(storeSkill(store, 'brainstorm'), join(work, 'brainstorm'));
 
       expect(run('unlink', 'brainstorm', '--all-workspaces').stdout).toEqual([
@@ -151,7 +149,7 @@ describe('unlink', () => {
       const { run, store } = await newCli();
       const path = await newDirectory('project');
 
-      run('workspace', 'add', 'personal', path);
+      run('workspaces', 'add', 'personal', path);
       const linkPath = join(path, 'brainstorm');
       symlinkSync(storeSkill(store, 'brainstorm'), linkPath);
 
