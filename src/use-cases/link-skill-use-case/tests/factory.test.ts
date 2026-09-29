@@ -146,6 +146,72 @@ describe('link-skill-use-case factory', () => {
       expect(lstatSync(join(work, 'brainstorm')).isSymbolicLink()).toBe(true);
     });
 
+    it('declines a directory the store records as a clone, even when it matches the store copy', async () => {
+      const { linkSkill, manager, store, workspace } = await newUseCase();
+      const personal = workspace('personal');
+      const work = workspace('work');
+      const path = join(personal, 'brainstorm');
+
+      storeSkill(store, 'brainstorm');
+      writeSkillDirectory(path);
+      manager.recordClone({ skill: 'brainstorm', workspace: 'personal' });
+
+      const report = linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal', 'work'] });
+
+      expect(report.declined).toEqual([
+        {
+          kind: 'occupied',
+          skill: 'brainstorm',
+          workspace: 'personal',
+          path,
+          occupant: { kind: 'clone' },
+        },
+      ]);
+      expect(lstatSync(path).isDirectory()).toBe(true);
+      expect(lstatSync(join(work, 'brainstorm')).isSymbolicLink()).toBe(true);
+    });
+
+    it('declines a clone recorded by path, not only by workspace name', async () => {
+      const { linkSkill, manager, store, workspace } = await newUseCase();
+      const personal = workspace('personal');
+      const path = join(personal, 'brainstorm');
+
+      storeSkill(store, 'brainstorm');
+      writeSkillDirectory(path);
+      manager.recordClone({ skill: 'brainstorm', workspace: 'personal' });
+      manager.recordClonesByPath({ workspace: 'personal', path: personal });
+
+      const error = refusal(() => linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal'] }));
+
+      expect(error).toBeInstanceOf(LinkDeclinedError);
+      expect((error as LinkDeclinedError).refusals).toEqual([
+        {
+          kind: 'occupied',
+          skill: 'brainstorm',
+          workspace: 'personal',
+          path,
+          occupant: { kind: 'clone' },
+        },
+      ]);
+      expect(lstatSync(path).isDirectory()).toBe(true);
+    });
+
+    it('names the clone rather than the difference when a recorded clone has drifted', async () => {
+      const { linkSkill, manager, store, workspace } = await newUseCase();
+      const personal = workspace('personal');
+      const path = join(personal, 'brainstorm');
+
+      storeSkill(store, 'brainstorm');
+      writeSkillDirectory(path, { [SKILL_MANIFEST]: 'edited' });
+      manager.recordClone({ skill: 'brainstorm', workspace: 'personal' });
+
+      const error = refusal(() => linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal'] }));
+
+      expect(error.message).toBe(
+        `could not link brainstorm → personal: ${path} is a clone — unclone it first with \`grimoire unclone brainstorm personal\``,
+      );
+    });
+
     it('declines a plain file at the destination', async () => {
       const { linkSkill, store, workspace } = await newUseCase();
       const personal = workspace('personal');

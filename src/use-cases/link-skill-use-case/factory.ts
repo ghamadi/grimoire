@@ -2,14 +2,9 @@ import { lstatSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { Skill } from '#src/domains/skill/index';
-import { Workspace, type WorkspaceParams } from '#src/domains/workspace/index';
+import { Workspace } from '#src/domains/workspace/index';
 import { compareContainment } from '#src/lib/directory-containment';
-import {
-  InvalidPathError,
-  LinkDeclinedError,
-  type LinkOccupant,
-  type LinkRefusal,
-} from '#src/lib/errors/index';
+import { LinkDeclinedError, type LinkOccupant, type LinkRefusal } from '#src/lib/errors/index';
 import { relate } from '#src/lib/paths';
 
 // ----------------------------------------------------------------------------
@@ -81,7 +76,7 @@ export function createLinkSkillUseCase(factoryParams: LinkSkillUseCaseFactoryPar
 
     for (const skill of skills) {
       for (const workspace of destinations.resolved) {
-        const outcome = linkSkillToWorkspace(skill, workspace);
+        const outcome = linkSkillToWorkspace({ skill, workspace, storeManager });
 
         switch (outcome.kind) {
           case 'linked':
@@ -155,11 +150,11 @@ function resolveDestinations(query: {
   const resolved: Workspace[] = [];
   const declined: LinkRefusal[] = [];
 
-  for (const { name, path, autoLink } of registeredWorkspaces) {
-    const workspace = toReachableWorkspace({ name, path, autoLink });
+  for (const entry of registeredWorkspaces) {
+    const workspace = new Workspace(entry);
 
-    if (!workspace) {
-      declined.push({ kind: 'workspace-unreachable', workspace: name, path });
+    if (!workspace.isReachable()) {
+      declined.push({ kind: 'workspace-unreachable', workspace: workspace.name, path: workspace.path });
       continue;
     }
 
@@ -167,25 +162,6 @@ function resolveDestinations(query: {
   }
 
   return { resolved, declined };
-}
-
-/**
- * The entity, or `null` when its path is not a directory to write into.
- *
- * Every way a registered path can fail to resolve — gone, buried under a file, a
- * symlink cycle — arrives as one `InvalidPathError`, and costs this destination
- * rather than the run.
- */
-function toReachableWorkspace(params: WorkspaceParams): Workspace | null {
-  try {
-    return Workspace.createVerified(params);
-  } catch (error) {
-    if (error instanceof InvalidPathError) {
-      return null;
-    }
-
-    throw error;
-  }
 }
 
 // ----------------------------------------------------------------------------
@@ -203,7 +179,13 @@ type PairOutcome =
  * The link's target is the lexical store path rather than a realpath, so `ls -l`
  * reads back the path the user knows their store by.
  */
-function linkSkillToWorkspace(skill: Skill, workspace: Workspace): PairOutcome {
+function linkSkillToWorkspace(params: {
+  skill: Skill;
+  workspace: Workspace;
+  storeManager: GrimoireStoreManager;
+}): PairOutcome {
+  const { skill, workspace, storeManager } = params;
+
   const destinationPath = join(workspace.path, skill.name);
 
   // A destination that is already occupied is declined.
@@ -235,6 +217,12 @@ function linkSkillToWorkspace(skill: Skill, workspace: Workspace): PairOutcome {
   // link to the store would be declined as `not-a-directory`.
   if (!status.isDirectory()) {
     return occupied({ kind: 'not-a-directory' });
+  }
+
+  // Keep before the containment comparison: a clone that has not drifted yet
+  // compares as `contained`, and would be swapped for a link.
+  if (storeManager.findSkillClone({ skill: skill.name, directory: workspace.path })) {
+    return occupied({ kind: 'clone' });
   }
 
   // Get the containment result of the destination directory against the store's skill directory

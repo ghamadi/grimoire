@@ -7,6 +7,7 @@ import { toRegisteredPath } from './helpers/registered-path.ts';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
+  InvalidWorkspaceNameError,
   PathCollisionError,
 } from '../../lib/errors/index.ts';
 import { join } from 'node:path';
@@ -14,7 +15,9 @@ import { InvalidShapeError } from '../../lib/errors/invalid-shape.ts';
 import { findStoreLinks, type StoreLink } from '#src/domains/grimoire-store/helpers/store-links';
 import { Skill } from '../skill/entity.ts';
 import { copyTree, movePath } from '#src/lib/fs';
+import { Workspace } from '#src/domains/workspace/index';
 import { trashBinName } from '#src/domains/grimoire-store/helpers/trash';
+import { relate } from '#src/lib/paths';
 
 type RegisterWorkspaceParams = {
   name: string;
@@ -53,6 +56,11 @@ export class GrimoireStoreManager {
 
   registerWorkspace(params: RegisterWorkspaceParams) {
     const { name, autoLink = false } = params;
+
+    if (!Workspace.isValidName(name)) {
+      throw new InvalidWorkspaceNameError({ name });
+    }
+
     const storeState = this.loadState();
 
     if (Object.hasOwn(storeState.workspacesRegistry, name)) {
@@ -251,29 +259,61 @@ export class GrimoireStoreManager {
   }
 
   /**
-   * Moves the store copy, then each clone it is given, into a fresh bin under
-   * `.trash/`, and returns the bin's path.
+   * The skill's recorded clone whose directory is `<directory>/<skill>`, by either record arm,
+   * compared canonically; the first in record order, or `undefined`. Built on `listSkillClones`,
+   * so a record naming an unregistered workspace never matches.
+   */
+  findSkillClone(params: { skill: string; directory: string }): SkillClone | undefined {
+    const target = join(params.directory, params.skill);
+
+    return this.listSkillClones(params.skill).find(
+      (clone) => relate({ candidate: clone.path, reference: target }) === 'equals',
+    );
+  }
+
+  /**
+   * Adds `{ workspace }` to the skill's records, creating its entry; writes nothing when the
+   * workspace's directory is already recorded, by either arm — see `findSkillClone`.
    *
-   * A clone whose directory is already gone is skipped: it is as trashed as it
-   * can be.
+   * @throws EntityNotFoundError if `workspace` is not registered.
+   */
+  recordClone(params: { skill: string; workspace: string }): void {
+    const workspace = this.requireRegisteredWorkspace(params.workspace);
+
+    if (this.findSkillClone({ skill: params.skill, directory: workspace.path })) {
+      return;
+    }
+
+    const state = this.loadState();
+
+    this.saveState(
+      state.withCloneOfSkill({ skill: params.skill, record: { workspace: params.workspace } }),
+    );
+  }
+
+  /** Drops exactly this record. The skill's entry stays, with `clones: []` if it was the last. */
+  forgetClone(params: { skill: string; record: CloneRecord }): void {
+    const state = this.loadState();
+
+    if (!state.holdsCloneRecord(params)) {
+      return;
+    }
+
+    this.saveState(state.withoutCloneOfSkill(params));
+  }
+
+  /**
+   * Moves the store copy into a fresh bin under `.trash/`, and returns the
+   * bin's path.
    *
    * @throws EntityNotFoundError if the store does not hold the skill.
    */
-  trashSkill(params: { name: string; clones: { path: string; label: string }[]; at: Date }): string {
+  trashSkill(params: { name: string; at: Date }): string {
     const storePath = this.requireSkillPath(params.name);
     const binPath = this.freeBinPath(trashBinName({ skill: params.name, at: params.at }));
 
     mkdirSync(binPath, { recursive: true });
     movePath({ from: storePath, to: join(binPath, 'store') });
-
-    for (const clone of params.clones) {
-      if (!existsSync(clone.path)) {
-        continue;
-      }
-
-      mkdirSync(join(binPath, 'clones'), { recursive: true });
-      movePath({ from: clone.path, to: join(binPath, 'clones', clone.label) });
-    }
 
     return binPath;
   }

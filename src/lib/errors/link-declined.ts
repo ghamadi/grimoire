@@ -8,7 +8,8 @@ import { GrimoireError } from './grimoire-error.ts';
 export type LinkOccupant =
   | { kind: 'differing-directory'; entry: string }
   | { kind: 'not-a-directory' }
-  | { kind: 'foreign-symlink' };
+  | { kind: 'foreign-symlink' }
+  | { kind: 'clone' };
 
 /**
  * One thing `link` stepped over: a fact about the filesystem, not a mistake in
@@ -31,7 +32,7 @@ export function describeLinkRefusal(refusal: LinkRefusal): string {
     case 'workspace-unreachable':
       return `workspace "${refusal.workspace}" was skipped: ${refusal.path} is not an existing directory`;
     case 'occupied':
-      return `${describePair(refusal)}: ${describeOccupant(refusal.occupant, refusal.path)}`;
+      return `${describePair(refusal)}: ${describeOccupant(refusal)}`;
     case 'unportable':
       return `${describePair(refusal)}: ${refusal.path} holds the symlink "${refusal.entry}", so the two copies cannot be compared`;
   }
@@ -81,13 +82,19 @@ function describePair(refusal: { skill: string; workspace: string }): string {
   return `could not link ${refusal.skill} → ${refusal.workspace}`;
 }
 
-function describeOccupant(occupant: LinkOccupant, path: string): string {
+type OccupiedRefusal = Extract<LinkRefusal, { kind: 'occupied' }>;
+
+function describeOccupant(refusal: OccupiedRefusal): string {
+  const { occupant, path, skill, workspace } = refusal;
+
   switch (occupant.kind) {
     case 'differing-directory':
-      return `${path} holds a directory that differs from the store copy at "${occupant.entry}" — keep it with \`clone\`, or delete it yourself`;
+      return `${path} holds a directory that differs from the store copy at "${occupant.entry}" — keep it with \`grimoire clone ${skill} ${workspace} --adopt\`, or delete it yourself`;
     case 'not-a-directory':
       return `${path} is not a directory`;
     case 'foreign-symlink':
       return `${path} is a symlink pointing elsewhere`;
+    case 'clone':
+      return `${path} is a clone — unclone it first with \`grimoire unclone ${skill} ${workspace}\``;
   }
 }

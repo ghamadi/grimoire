@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normalizePath } from '#src/lib/paths';
 import { canBeRegistered } from '../helpers/registered-path.ts';
+import { Workspace } from '#src/domains/workspace/index';
 import { InvalidShapeError } from '../../../lib/errors/invalid-shape.ts';
 
 // ----------------------------------------------------------------------------
@@ -14,6 +15,13 @@ const registeredPath = z
   .refine(canBeRegistered, { error: 'must be an absolute path or start with ~/' })
   .transform(normalizePath);
 
+const INVALID_WORKSPACE_NAME =
+  'workspace name must start with a letter or digit and contain only letters, digits, "-" and "_"';
+
+const workspaceNameSchema = z
+  .string()
+  .refine((name) => Workspace.isValidName(name), { error: INVALID_WORKSPACE_NAME });
+
 const workspaceConfigSchema = z.strictObject({
   path: registeredPath,
   autoLink: z.boolean(),
@@ -26,7 +34,7 @@ const workspaceConfigSchema = z.strictObject({
  * sentence rather than zod's default `Invalid input`.
  */
 const cloneRecordSchema = z.union(
-  [z.strictObject({ workspace: z.string().min(1) }), z.strictObject({ path: z.string().min(1) })],
+  [z.strictObject({ workspace: workspaceNameSchema }), z.strictObject({ path: z.string().min(1) })],
   { error: 'a clone entry must have exactly one of "workspace" or "path"' },
 );
 
@@ -44,8 +52,20 @@ const skillSchema = z.strictObject({
  * `workspaces` and `skills` are records rather than strict objects: their keys
  * are names the user chose, so there is no such thing as an unrecognized one.
  */
+/**
+ * The names are checked on the record rather than through its key schema: zod
+ * reports a failed key as `Invalid key in record` and drops the refine's message.
+ */
+const workspacesSchema = z.record(z.string(), workspaceConfigSchema).superRefine((workspaces, ctx) => {
+  for (const name of Object.keys(workspaces)) {
+    if (!Workspace.isValidName(name)) {
+      ctx.addIssue({ code: 'custom', path: [name], message: INVALID_WORKSPACE_NAME });
+    }
+  }
+});
+
 const stateDataSchema = z.strictObject({
-  workspaces: z.record(z.string(), workspaceConfigSchema).default({}),
+  workspaces: workspacesSchema.default({}),
   skills: z.record(z.string(), skillSchema).default({}),
   ignore: z.array(z.string()).default(['.DS_Store']),
 });
@@ -170,17 +190,48 @@ export class StoreState {
     return this.mapClones((record) => (isCloneInto(workspace)(record) ? undefined : record));
   }
 
+  /** Whether the skill's records hold this exact record. */
+  holdsCloneRecord(params: { skill: string; record: CloneRecord }): boolean {
+    return this.clonesOfSkill(params.skill).some((record) => sameCloneRecord(record, params.record));
+  }
+
+  /** @returns a new state with the record appended to the skill's records, creating its entry. */
+  withCloneOfSkill(params: { skill: string; record: CloneRecord }): StoreState {
+    const record = parseOrThrow(cloneRecordSchema, params.record);
+
+    return this.withSkillClones({
+      skillName: params.skill,
+      clones: [...this.clonesOfSkill(params.skill), record],
+    });
+  }
+
+  /**
+   * @returns a new state with every record equal to this one dropped, keeping the skill's key,
+   * or an equivalent state when the skill has no entry.
+   *
+   * The no-entry case is handled here rather than left to the caller: `withSkillClones` always
+   * writes an entry, so skipping this check would materialize `{ clones: [] }` for a skill that
+   * was never cloned — even one named `toString`.
+   */
+  withoutCloneOfSkill(params: { skill: string; record: CloneRecord }): StoreState {
+    if (!Object.hasOwn(this.data.skills, params.skill)) {
+      return this;
+    }
+
+    return this.withSkillClones({
+      skillName: params.skill,
+      clones: this.clonesOfSkill(params.skill).filter(
+        (record) => !sameCloneRecord(record, params.record),
+      ),
+    });
+  }
+
   /**
    * @returns the skill's clone records in the order they were written, or none
    * when the skill has no entry.
-   *
-   * `Object.hasOwn`, because the map is keyed by user-chosen names and a name
-   * like `toString` would otherwise answer with an inherited method.
    */
   clonesOfSkill(name: string): readonly CloneRecord[] {
-    const skill = Object.hasOwn(this.data.skills, name) ? this.data.skills[name] : undefined;
-
-    return skill?.clones ?? [];
+    return this.skillRecord(name)?.clones ?? [];
   }
 
   /**
@@ -229,6 +280,26 @@ export class StoreState {
       ),
     });
   }
+
+  /** @returns a new config with the skill's entry holding exactly these records. */
+  private withSkillClones(params: { skillName: string; clones: readonly CloneRecord[] }): StoreState {
+    return this.with({
+      skills: {
+        ...this.data.skills,
+        [params.skillName]: { ...this.skillRecord(params.skillName), clones: [...params.clones] },
+      },
+    });
+  }
+
+  /**
+   * The entry filed under `name`, or `undefined`.
+   *
+   * `Object.hasOwn`, because the map is keyed by user-chosen names and a name
+   * like `toString` would otherwise answer with an inherited method.
+   */
+  private skillRecord(name: string): SkillRecord | undefined {
+    return Object.hasOwn(this.data.skills, name) ? this.data.skills[name] : undefined;
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -249,6 +320,13 @@ function parseOrThrow<T extends z.ZodType>(schema: T, input: unknown): z.infer<T
 /** Matches the records a workspace name owns, which unregistering it invalidates. */
 function isCloneInto(workspace: string): (record: CloneRecord) => boolean {
   return (record) => 'workspace' in record && record.workspace === workspace;
+}
+
+/** Whether two records name the same arm and value — not whether they resolve to the same directory. */
+function sameCloneRecord(a: CloneRecord, b: CloneRecord): boolean {
+  return 'workspace' in a
+    ? 'workspace' in b && a.workspace === b.workspace
+    : 'path' in b && a.path === b.path;
 }
 
 function isRecord(record: CloneRecord | undefined): record is CloneRecord {

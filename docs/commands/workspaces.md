@@ -6,7 +6,7 @@ name.
 > [!NOTE]
 >
 > Skills managed by grimoire reach a workspace in one of two ways: `link` symlinks the store's copy in, so edits to the store
-> are visible immediately; `clone` copies it, allowing for drifts and tweaks based on the workspace's needs.
+> are visible immediately; [`clone`](./clone.md) copies it, allowing for drifts and tweaks based on the workspace's needs.
 
 Workspaces are **flat**: an agent reads `<workspace>/<skill>/SKILL.md`, so the directory holds one entry per skill and
 nothing is nested.
@@ -70,21 +70,29 @@ A refusal exits 1 and registers nothing: `state.json` is left exactly as it was 
 The checks run in the order below, and only the first failure is reported. The name goes first because the path check can
 create a directory, and a refused `add` must leave nothing behind.
 
-**1. The name is free.** Within the workspace registry.
+**1. The name uses only letters, digits, `-` and `_`,** and starts with a letter or digit. ASCII only. That's how
+[`unclone`](./unclone.md) tells a workspace name from a recorded path.
+
+```shell
+$ grimoire workspaces add a/b ~/.claude/skills
+grimoire: workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"
+```
+
+**2. The name is free.** Within the workspace registry.
 
 ```shell
 $ grimoire workspaces add personal ~/.config/other-agent/skills
 grimoire: workspace "personal" is already registered
 ```
 
-**2. The path does not collide** with `~/.grimoire/` — see [the collision rule](#the-collision-rule).
+**3. The path does not collide** with `~/.grimoire/` — see [the collision rule](#the-collision-rule).
 
 ```shell
 $ grimoire workspaces add personal ~/.grimoire/skills
 grimoire: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
-**3. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
+**4. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
 
 ```shell
 $ grimoire workspaces add personal ~/notes.md
@@ -190,8 +198,10 @@ unregistered workspace "personal" → /Users/me/.claude/skills
 + "deploy": { "clones": [ { "path": "/Users/me/.claude/skills" } ] }
 ```
 
-The clone stays reachable by `clone`, `skills remove --remove-clones`, and `status` — it has simply stopped being addressable
-by a name that no longer resolves. Records naming a **different** workspace, and ones already keyed by path, are left alone.
+The clone stays reachable by [`unclone`](./unclone.md),
+[`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm), and `status` — it has simply
+stopped being addressable by a name that no longer resolves. Records naming a **different** workspace, and ones already keyed
+by path, are left alone.
 
 `--hard` forgets them instead:
 
@@ -203,8 +213,10 @@ cloned directories were left in place
 ```
 
 The last line appears only when a forgotten record names a directory still present under the workspace. Those copies are now
-ordinary directories: grimoire will not update them, will not report them under `status`, and will not delete them. Deleting
-a cloned directory is [`skills remove <skill> --remove-clones`](./skills.md), never this command.
+ordinary directories: grimoire will not update them, will not report them under `status`, and will not delete them. No
+grimoire command deletes a cloned directory — `--hard` here and
+[`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm) both stop at the record;
+removing the copy is yours to do by hand.
 
 ## `workspaces list` _(alias: `ls`)_
 

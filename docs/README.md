@@ -6,5 +6,6 @@
 | [`skills`](./commands/skills.md)         | Implemented     |
 | `link`                                   | Implemented     |
 | [`unlink`](./commands/unlink.md)         | Implemented     |
-| `clone`                                  | Not implemented |
+| [`clone`](./commands/clone.md)           | Implemented     |
+| [`unclone`](./commands/unclone.md)       | Implemented     |
 | `status`                                 | Not implemented |

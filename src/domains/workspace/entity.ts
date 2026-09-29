@@ -1,14 +1,10 @@
-import { InvalidPathError } from '../../lib/errors/index.ts';
-import { tryStatSync } from '../../lib/fs.ts';
+import { InvalidWorkspaceNameError } from '#src/lib/errors/index';
+import { isResolvableDirectory } from '#src/lib/fs';
 
 export type WorkspaceParams = {
   name: string;
   path: string;
   autoLink: boolean;
-};
-
-export type WorkspaceVerifyOptions = {
-  throw?: boolean;
 };
 
 export class Workspace {
@@ -17,44 +13,26 @@ export class Workspace {
   readonly autoLink: boolean;
 
   constructor(params: WorkspaceParams) {
+    if (!Workspace.isValidName(params.name)) {
+      throw new InvalidWorkspaceNameError({ name: params.name });
+    }
+
     this.name = params.name;
     this.path = params.path;
     this.autoLink = params.autoLink;
   }
 
   /**
-   * Creates a workspace with a verified path.
-   * @throws InvalidPathError if the path does not exist or is not a directory.
+   * Whether `name` can be registered: ASCII letters, digits, `-` and `_`,
+   * starting with a letter or digit. `unclone` reads any target failing this
+   * as a path, so no registered name can be mistaken for one.
    */
-  static createVerified(params: WorkspaceParams): Workspace {
-    const workspace = new Workspace(params);
-    workspace.verify({ throw: true });
-    return workspace;
+  static isValidName(name: string): boolean {
+    return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name);
   }
 
-  /**
-   * Confirms that this workspace's path exists and is a directory.
-   * When `throw` is true, fails with InvalidPathError; otherwise returns a boolean.
-   *
-   * TODO: Remove support for `throw` option. Always throw when validation fails.
-   */
-  verify(options?: WorkspaceVerifyOptions): boolean {
-    const { throw: shouldThrow = false } = options ?? {};
-    const path = this.path;
-
-    const status = tryStatSync(path);
-    let error: InvalidPathError | undefined;
-
-    if (!status) {
-      error = new InvalidPathError({ path, reason: 'missing' });
-    } else if (!status.isDirectory()) {
-      error = new InvalidPathError({ path, reason: 'not-a-directory' });
-    }
-
-    if (error && shouldThrow) {
-      throw error;
-    }
-
-    return !error;
+  /** Whether the path resolves to a directory. Gone, under a file, or a symlink cycle answers false. */
+  isReachable(): boolean {
+    return isResolvableDirectory(this.path);
   }
 }

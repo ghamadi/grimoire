@@ -9,11 +9,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  cloneTrashLabel,
-  GrimoireStore,
-  GrimoireStoreManager,
-} from '#src/domains/grimoire-store/index';
+import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '#src/domains/skill/index';
 import { EntityNotFoundError, WorkspaceUnreadableError } from '#src/lib/errors/index';
 import { tempRoot } from '#test-helpers/temp-root';
@@ -31,9 +27,7 @@ describe('remove-skills-use-case factory', () => {
       storeSkill('triage');
       const linkPath = link({ workspace: 'work', skill: 'triage' });
 
-      expect(refusal(() => removeSkills({ skillNames: ['ghost'] }))).toBeInstanceOf(
-        EntityNotFoundError,
-      );
+      expect(refusal(() => removeSkills({ skillNames: ['ghost'] }))).toBeInstanceOf(EntityNotFoundError);
       expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
       expect(existsSync(linkPath)).toBe(true);
       expect(readdirSync(store.paths.trash)).toEqual([]);
@@ -60,9 +54,7 @@ describe('remove-skills-use-case factory', () => {
       const error = refusal(() => removeSkills({ skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(WorkspaceUnreadableError);
-      expect((error as WorkspaceUnreadableError).workspaces).toEqual([
-        { name: 'gone', path: gonePath },
-      ]);
+      expect((error as WorkspaceUnreadableError).workspaces).toEqual([{ name: 'gone', path: gonePath }]);
       expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
       expect(existsSync(linkPath)).toBe(true);
       expect(readdirSync(store.paths.trash)).toEqual([]);
@@ -179,7 +171,6 @@ describe('remove-skills-use-case factory', () => {
     });
   });
 
-
   describe('the store copy it trashes', () => {
     it('moves it into a bin named for the skill and the moment', async () => {
       const { removeSkills, store, storeSkill } = await newUseCase();
@@ -209,7 +200,6 @@ describe('remove-skills-use-case factory', () => {
     });
   });
 
-
   describe('the clones it keeps', () => {
     it('reports every recorded clone and leaves all of them alone', async () => {
       const { removeSkills, store, root, workspace, storeSkill, cloneDirectory, recordClone } =
@@ -227,7 +217,7 @@ describe('remove-skills-use-case factory', () => {
       const removed = onlyRemoval(removeSkills({ skillNames: ['triage'] }));
 
       expect(removed.keptClones).toEqual(['work', join(root, 'dev')]);
-      expect(removed.removedClones).toEqual([]);
+      expect(removed.forgottenClones).toEqual([]);
       expect(existsSync(join(inWorkspace, SKILL_MANIFEST))).toBe(true);
       expect(existsSync(join(byPath, SKILL_MANIFEST))).toBe(true);
       expect(readdirSync(removed.binPath)).toEqual(['store']);
@@ -238,34 +228,28 @@ describe('remove-skills-use-case factory', () => {
     });
   });
 
-
-  describe('the clones it removes', () => {
-    it('moves each one into the bin under the name its record gives it', async () => {
-      const { removeSkills, root, workspace, storeSkill, cloneDirectory, recordClone } =
+  describe('the clone records it forgets', () => {
+    it('forgets every record, leaving both directories where they are', async () => {
+      const { removeSkills, store, root, workspace, storeSkill, cloneDirectory, recordClone } =
         await newUseCase();
 
       const work = workspace('work');
       storeSkill('triage');
 
-      cloneDirectory(join(work, 'triage'));
-      cloneDirectory(join(root, 'dev', 'triage'));
+      const inWorkspace = cloneDirectory(join(work, 'triage'));
+      const byPath = cloneDirectory(join(root, 'dev', 'triage'));
 
       recordClone('triage', { workspace: 'work' });
       recordClone('triage', { path: join(root, 'dev') });
 
-      const removed = onlyRemoval(removeSkills({ skillNames: ['triage'], removeClones: true }));
-      const byPathLabel = cloneTrashLabel({ path: join(root, 'dev') });
+      const removed = onlyRemoval(removeSkills({ skillNames: ['triage'], forgetClones: true }));
 
-      expect(readFileSync(join(removed.binPath, 'clones', 'work', SKILL_MANIFEST), 'utf8')).toBe(
-        '# skill\n',
-      );
-      expect(
-        readFileSync(join(removed.binPath, 'clones', byPathLabel, SKILL_MANIFEST), 'utf8'),
-      ).toBe('# skill\n');
-      expect(existsSync(join(work, 'triage'))).toBe(false);
-      expect(existsSync(join(root, 'dev', 'triage'))).toBe(false);
-      expect(removed.removedClones).toEqual(['work', join(root, 'dev')]);
+      expect(existsSync(join(inWorkspace, SKILL_MANIFEST))).toBe(true);
+      expect(existsSync(join(byPath, SKILL_MANIFEST))).toBe(true);
+      expect(readdirSync(removed.binPath)).toEqual(['store']);
+      expect(removed.forgottenClones).toEqual(['work', join(root, 'dev')]);
       expect(removed.keptClones).toEqual([]);
+      expect(readState(store).skills?.['triage']).toBeUndefined();
     });
 
     it('forgets the skill, leaving every other skill recorded', async () => {
@@ -280,17 +264,15 @@ describe('remove-skills-use-case factory', () => {
       recordClone('triage', { workspace: 'work' });
       recordClone('other', { workspace: 'work' });
 
-      removeSkills({ skillNames: ['triage'], removeClones: true });
+      removeSkills({ skillNames: ['triage'], forgetClones: true });
 
       expect(readState(store).skills).toEqual({ other: { clones: [{ workspace: 'work' }] } });
     });
 
-    // `trashSkill` answers with the bin and nothing else, so a clone that was
-    // already gone cannot be told from one it moved. Reported either way: the
-    // record named that directory, and the record is being forgotten.
-    it('reports a clone whose directory was already deleted', async () => {
-      const { removeSkills, workspace, storeSkill, cloneDirectory, recordClone } =
-        await newUseCase();
+    // Nothing stats the destination, so a record whose directory is already
+    // gone is forgotten like any other.
+    it('forgets a record whose directory is already gone', async () => {
+      const { removeSkills, workspace, storeSkill, cloneDirectory, recordClone } = await newUseCase();
 
       const work = workspace('work');
       storeSkill('triage');
@@ -298,13 +280,11 @@ describe('remove-skills-use-case factory', () => {
       rmSync(cloneDirectory(join(work, 'triage')), { recursive: true });
       recordClone('triage', { workspace: 'work' });
 
-      const removed = onlyRemoval(removeSkills({ skillNames: ['triage'], removeClones: true }));
+      const removed = onlyRemoval(removeSkills({ skillNames: ['triage'], forgetClones: true }));
 
-      expect(removed.removedClones).toEqual(['work']);
-      expect(existsSync(join(removed.binPath, 'clones'))).toBe(false);
+      expect(removed.forgottenClones).toEqual(['work']);
     });
   });
-
 
   describe('the batch', () => {
     it('removes every name in argument order, into bins sharing one timestamp', async () => {
@@ -358,7 +338,6 @@ describe('remove-skills-use-case factory', () => {
       expect(basename(removed.binPath)).toMatch(/^triage-\d{8}T\d{6}$/);
     });
   });
-
 });
 
 // ----------------------------------------------------------------------------

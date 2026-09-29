@@ -1,7 +1,9 @@
 import { Command } from 'commander';
+import { cloneCommand } from '#src/commands/clone';
 import { clackSkillPicker, type SkillPicker } from '#src/commands/prompts/skill-picker';
 import { linkCommand } from '#src/commands/link';
 import { skillsCommand } from '#src/commands/skills';
+import { uncloneCommand } from '#src/commands/unclone';
 import { unlinkCommand } from '#src/commands/unlink';
 import { workspacesCommand } from '#src/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
@@ -28,7 +30,9 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(workspacesCommand({ storeManager }))
     .addCommand(skillsCommand({ storeManager, skillPicker }))
     .addCommand(linkCommand({ storeManager }))
-    .addCommand(unlinkCommand({ storeManager }));
+    .addCommand(unlinkCommand({ storeManager }))
+    .addCommand(cloneCommand({ storeManager }))
+    .addCommand(uncloneCommand({ storeManager }));
 
   return program;
 }

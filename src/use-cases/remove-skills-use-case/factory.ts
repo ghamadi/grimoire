@@ -1,9 +1,5 @@
 import { unlinkSync } from 'node:fs';
-import {
-  cloneTrashLabel,
-  type GrimoireStoreManager,
-  type RegisteredWorkspace,
-} from '#src/domains/grimoire-store/index';
+import type { GrimoireStoreManager, RegisteredWorkspace } from '#src/domains/grimoire-store/index';
 import { WorkspaceUnreadableError } from '#src/lib/errors/index';
 import { isResolvableDirectory } from '#src/lib/fs';
 
@@ -19,8 +15,8 @@ type RemoveSkillsUseCaseFactoryParams = {
 
 export type RemoveSkillsUseCaseParams = {
   skillNames: string[];
-  /** Trash the cloned directories and forget their records. */
-  removeClones?: boolean;
+  /** Forget the skill's clone records. The cloned directories are never touched. */
+  forgetClones?: boolean;
 };
 
 export type ClearedLink = {
@@ -38,8 +34,8 @@ export type RemovedSkill = {
   /** `<store>/.trash/<skill>-<timestamp>`. */
   binPath: string;
   clearedLinks: ClearedLink[];
-  /** Clones trashed, by origin. `--remove-clones` only. */
-  removedClones: string[];
+  /** Clone records forgotten, by origin. `--forget-clones` only. */
+  forgottenClones: string[];
   /** Clones left where they are, by origin. */
   keptClones: string[];
 };
@@ -53,8 +49,8 @@ export type RemoveSkillsUseCase = (params: RemoveSkillsUseCaseParams) => Removed
 /**
  * Clears every link into a store skill, then moves the store copy into the trash.
  *
- * Clones are kept by default: the record is dropped and the directories trashed
- * only under `removeClones`.
+ * Cloned directories are never touched. Their records are dropped only under
+ * `forgetClones`; otherwise they are kept.
  */
 export function createRemoveSkillsUseCase(
   factoryParams: RemoveSkillsUseCaseFactoryParams,
@@ -62,7 +58,7 @@ export function createRemoveSkillsUseCase(
   const { storeManager, now = () => new Date() } = factoryParams;
 
   return (params: RemoveSkillsUseCaseParams) => {
-    const shouldRemoveClones = params.removeClones ?? false;
+    const shouldForgetClones = params.forgetClones ?? false;
     const skillNames = [...new Set(params.skillNames)];
 
     // Ensure all the skills exist
@@ -93,31 +89,19 @@ export function createRemoveSkillsUseCase(
           };
         });
 
-      const clones = storeManager.listSkillClones(name);
-      const clonesToRemove = shouldRemoveClones ? [...clones] : [];
+      const clones = storeManager.listSkillClones(name).map(({ origin }) => origin);
+      const binPath = storeManager.trashSkill({ name, at });
 
-      const trashedClones = clonesToRemove.map(({ path, record }) => ({
-        path,
-        label: cloneTrashLabel(record),
-      }));
-
-      const binPath = storeManager.trashSkill({ name, clones: trashedClones, at });
-
-      if (shouldRemoveClones) {
+      if (shouldForgetClones) {
         storeManager.forgetSkill(name);
       }
-
-      const removedClonesOriginsSet = new Set(clonesToRemove.map(({ origin }) => origin));
-      const keptClonesOrigins = clones
-        .filter(({ origin }) => !removedClonesOriginsSet.has(origin))
-        .map(({ origin }) => origin);
 
       return {
         skill: name,
         binPath,
         clearedLinks,
-        keptClones: keptClonesOrigins,
-        removedClones: [...removedClonesOriginsSet],
+        forgottenClones: shouldForgetClones ? clones : [],
+        keptClones: shouldForgetClones ? [] : clones,
       };
     });
   };

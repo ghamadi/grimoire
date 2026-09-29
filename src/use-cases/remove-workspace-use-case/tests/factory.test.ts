@@ -114,7 +114,7 @@ describe('remove-workspace-use-case factory', () => {
       const { workspace } = removeWorkspace({ name: 'personal' });
 
       expect(workspace.path).toBe(path);
-      expect(workspace.verify()).toBe(false);
+      expect(workspace.isReachable()).toBe(false);
     });
   });
 

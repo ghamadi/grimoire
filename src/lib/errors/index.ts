@@ -9,6 +9,10 @@
 export { GrimoireError } from './grimoire-error.ts';
 export { DuplicateNameError, type DuplicateNameErrorProps } from './duplicate-name.ts';
 export { EntityNotFoundError, type Entity, type EntityNotFoundErrorProps } from './entity-not-found.ts';
+export {
+  InvalidWorkspaceNameError,
+  type InvalidWorkspaceNameErrorProps,
+} from './invalid-workspace-name.ts';
 export { InvalidPathError, type InvalidPathErrorProps, type InvalidPathReason } from './invalid-path.ts';
 export {
   AddDeclinedError,
@@ -16,6 +20,13 @@ export {
   type AddDeclinedErrorProps,
   type AddRefusal,
 } from './add-declined.ts';
+export {
+  CloneDeclinedError,
+  describeCloneRefusal,
+  type CloneDeclinedErrorProps,
+  type CloneOccupant,
+  type CloneRefusal,
+} from './clone-declined.ts';
 export {
   LinkDeclinedError,
   describeLinkRefusal,

@@ -1,8 +1,8 @@
-import { mkdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
+import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '#src/domains/skill/index';
 import { LinkDeclinedError } from '#src/lib/errors/index';
 import { buildProgram } from '#src/program';
@@ -70,8 +70,29 @@ describe('link', () => {
 
     expect(stdout).toEqual(['linked brainstorm → work']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${occupied} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`clone\`, or delete it yourself`,
+      `warning: could not link brainstorm → personal: ${occupied} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm personal --adopt\`, or delete it yourself`,
     ]);
+  });
+
+  it('warns that it left a recorded clone alone, and links the rest', async () => {
+    const { run, manager, store } = await newCli();
+    const personal = await newDirectory('personal');
+    const work = await newDirectory('work');
+    const cloned = join(personal, 'brainstorm');
+
+    run('workspaces', 'add', 'personal', personal);
+    run('workspaces', 'add', 'work', work);
+    storeSkill(store, 'brainstorm');
+    writeSkillDirectory(cloned);
+    manager.recordClone({ skill: 'brainstorm', workspace: 'personal' });
+
+    const { stdout, stderr } = run('link', 'brainstorm', 'personal', 'work');
+
+    expect(stdout).toEqual(['linked brainstorm → work']);
+    expect(stderr).toEqual([
+      `warning: could not link brainstorm → personal: ${cloned} is a clone — unclone it first with \`grimoire unclone brainstorm personal\``,
+    ]);
+    expect(lstatSync(cloned).isDirectory()).toBe(true);
   });
 
   it('links into every auto-link workspace when none is named', async () => {
@@ -129,6 +150,7 @@ describe('link', () => {
  */
 async function newCli() {
   const store = new GrimoireStore(await tempRoot());
+  const manager = new GrimoireStoreManager(store);
   const program = silence(buildProgram(store));
 
   function run(...argv: string[]) {
@@ -151,7 +173,7 @@ async function newCli() {
     return { stdout, stderr };
   }
 
-  return { run, store };
+  return { run, manager, store };
 }
 
 /**

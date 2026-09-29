@@ -31,6 +31,17 @@ See [Future: repos](#future-repos) for where version-controlled skill libraries 
 
 ## Design
 
+### The rule: grimoire never loses content outside its store
+
+Outside `~/.grimoire/`, grimoire writes only two things: copies, and its own symlinks. It removes only two: its own symlinks,
+and a directory the store is proven to already hold in full. Anything else you put in a workspace stays exactly as you left
+it.
+
+That is why a clone is never refreshed or overwritten, why `unclone` and `skills remove --forget-clones` forget records and
+leave directories, and why `clone` can adopt a directory it finds but never replace one.
+
+### Code layout
+
 The code is organized DDD-flavored, in layers that only call downward:
 
 ```
@@ -51,7 +62,7 @@ commands → use-cases → domains → lib
 ```
 ~/.grimoire/
 ├── skills/<skill>/SKILL.md   # the store — flat, one directory per skill
-├── .trash/                   # reserved; nothing writes to it yet
+├── .trash/                   # store copies `skills remove` moves aside, one timestamped bin per skill per removal
 ├── .backup/                  # reserved; nothing writes to it yet
 └── state.json                # everything grimoire persists
 ```
@@ -75,6 +86,8 @@ is truth.
 | `skills add/list/remove`     | [`docs/commands/skills.md`](./docs/commands/skills.md)         |
 | `link`                       | no page yet                                                    |
 | `unlink`                     | [`docs/commands/unlink.md`](./docs/commands/unlink.md)         |
+| `clone`                      | [`docs/commands/clone.md`](./docs/commands/clone.md)           |
+| `unclone`                    | [`docs/commands/unclone.md`](./docs/commands/unclone.md)       |
 
 `docs/commands/` is the contract for command behavior — this document does not repeat it.
 

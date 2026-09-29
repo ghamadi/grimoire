@@ -1,5 +1,6 @@
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -9,10 +10,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { type Command } from 'commander';
+import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SkillPicker } from '#src/commands/prompts/skill-picker';
-import { cloneTrashLabel, GrimoireStore } from '#src/domains/grimoire-store/index';
+import { GrimoireStore } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST, type SkillSource } from '#src/domains/skill/index';
 import {
   AddDeclinedError,
@@ -288,9 +289,28 @@ describe('skills add', () => {
 
     expect(stdout).toEqual(['added brainstorm']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${join(personal, 'brainstorm')} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`clone\`, or delete it yourself`,
+      `warning: could not link brainstorm → personal: ${join(personal, 'brainstorm')} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm personal --adopt\`, or delete it yourself`,
     ]);
     expect(existsSync(join(store.paths.skills, 'brainstorm'))).toBe(true);
+  });
+
+  it('warns that it left a recorded clone alone, and still succeeds', async () => {
+    const { run, store } = await newCli();
+    const personal = await newDirectory('personal');
+    const container = await newContainer('brainstorm');
+    const cloned = join(personal, 'brainstorm');
+
+    writeSkillDirectory(cloned);
+    await registerAutoLink(run, 'personal', personal);
+    recordClone(store, 'brainstorm', { workspace: 'personal' });
+
+    const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+    expect(stdout).toEqual(['added brainstorm']);
+    expect(stderr).toEqual([
+      `warning: could not link brainstorm → personal: ${cloned} is a clone — unclone it first with \`grimoire unclone brainstorm personal\``,
+    ]);
+    expect(lstatSync(cloned).isDirectory()).toBe(true);
   });
 
   it('prints the add and link groups in their pinned order', async () => {
@@ -489,10 +509,10 @@ describe('skills remove', () => {
       expect(readdirSync(bin)).toEqual(['store']);
     });
 
-    it('trashes them under --remove-clones and forgets the skill', async () => {
+    it('forgets their records under --forget-clones and leaves the directories alone', async () => {
       const { run, store, work, dev } = await clonedSkill();
 
-      const { stdout } = await run('skills', 'remove', 'triage', '--remove-clones');
+      const { stdout } = await run('skills', 'remove', 'triage', '--forget-clones');
       const bin = onlyBin(store);
       const state = JSON.parse(readFileSync(store.paths.state, 'utf8')) as {
         skills?: Record<string, unknown>;
@@ -500,15 +520,24 @@ describe('skills remove', () => {
 
       expect(stdout).toEqual([
         `trashed triage → ${bin}`,
-        'removed clone triage → work',
-        `removed clone triage → ${dev}`,
+        'forgot clone triage → work',
+        `forgot clone triage → ${dev}`,
       ]);
-      expect(existsSync(join(work, 'triage'))).toBe(false);
-      expect(existsSync(join(dev, 'triage'))).toBe(false);
-      expect(readdirSync(join(bin, 'clones')).sort()).toEqual(
-        ['work', cloneTrashLabel({ path: dev })].sort(),
-      );
+      expect(existsSync(join(work, 'triage', SKILL_MANIFEST))).toBe(true);
+      expect(existsSync(join(dev, 'triage', SKILL_MANIFEST))).toBe(true);
+      expect(readdirSync(bin)).toEqual(['store']);
       expect(state.skills?.['triage']).toBeUndefined();
+    });
+
+    it('rejects --remove-clones as an unknown option', async () => {
+      const { run, store } = await clonedSkill();
+
+      const error = await captureError(() => run('skills', 'remove', 'triage', '--remove-clones'));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect((error as CommanderError).message).toContain("unknown option '--remove-clones'");
+      expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
+      expect(trashEntries(store)).toEqual([]);
     });
   });
 

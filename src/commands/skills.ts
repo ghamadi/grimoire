@@ -94,9 +94,9 @@ export function skillsCommand(params: SkillsCommandParams): Command {
     .alias('rm')
     .description('Remove a skill from the store')
     .argument('<skills...>', 'skill names in the store')
-    .option('--remove-clones', 'also trash every cloned copy and forget its record')
-    .action((skillNames: string[], options: { removeClones?: boolean }) =>
-      logRemoveReport(removeSkills({ skillNames, removeClones: options.removeClones })),
+    .option('--forget-clones', 'forget the clone records, leaving every cloned directory where it is')
+    .action((skillNames: string[], options: { forgetClones?: boolean }) =>
+      logRemoveReport(removeSkills({ skillNames, forgetClones: options.forgetClones })),
     );
 
   return command;
@@ -160,15 +160,15 @@ function logLinkReport(link: LinkSkillReport): void {
 }
 
 function logRemoveReport(removals: RemovedSkill[]): void {
-  for (const { skill, binPath, clearedLinks, removedClones, keptClones } of removals) {
+  for (const { skill, binPath, clearedLinks, forgottenClones, keptClones } of removals) {
     for (const { workspace, filedAs } of clearedLinks) {
       console.log(`unlinked ${skill} → ${workspace}${filedAs ? ` (entry "${filedAs}")` : ''}`);
     }
 
     console.log(`trashed ${skill} → ${binPath}`);
 
-    for (const origin of removedClones) {
-      console.log(`removed clone ${skill} → ${origin}`);
+    for (const origin of forgottenClones) {
+      console.log(`forgot clone ${skill} → ${origin}`);
     }
 
     for (const origin of keptClones) {

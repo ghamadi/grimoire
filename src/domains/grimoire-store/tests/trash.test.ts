@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cloneTrashLabel, trashBinName } from '../helpers/trash.ts';
+import { trashBinName } from '../helpers/trash.ts';
 
 describe('trashBinName', () => {
   it('stamps the skill with its local date and time', () => {
@@ -19,38 +19,5 @@ describe('trashBinName', () => {
     const at = new Date(2026, 8, 15, 23, 59, 59);
 
     expect(trashBinName({ skill: 'triage', at })).toBe('triage-20260915T235959');
-  });
-});
-
-describe('cloneTrashLabel', () => {
-  it('uses a workspace name verbatim', () => {
-    expect(cloneTrashLabel({ workspace: 'personal' })).toBe('personal');
-  });
-
-  it('turns a path into one directory name', () => {
-    expect(cloneTrashLabel({ path: '/Users/me/x' })).toBe('Users-me-x');
-  });
-
-  it('leaves no empty segment for a trailing separator', () => {
-    expect(cloneTrashLabel({ path: '/Users/me/x/' })).toBe('Users-me-x');
-  });
-
-  it('leaves a slug of exactly 200 characters unchanged', () => {
-    const path = `/${'a'.repeat(200)}`;
-
-    expect(cloneTrashLabel({ path })).toBe('a'.repeat(200));
-  });
-
-  it('cuts a longer slug to 200 characters plus a hash of the path', () => {
-    const label = cloneTrashLabel({ path: `/${'a'.repeat(201)}` });
-
-    expect(label).toMatch(/^a{200}-[0-9a-f]{8}$/);
-    expect(label).toHaveLength(209);
-  });
-
-  it('keeps two paths agreeing on their first 200 characters apart', () => {
-    const shared = 'a'.repeat(200);
-
-    expect(cloneTrashLabel({ path: `/${shared}/one` })).not.toBe(cloneTrashLabel({ path: `/${shared}/two` }));
   });
 });

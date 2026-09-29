@@ -76,7 +76,7 @@ describe('add-workspace-use-case factory', () => {
       const { workspace } = addWorkspace({ name: 'personal', path });
 
       expect(workspace).toBeInstanceOf(Workspace);
-      expect(workspace.verify()).toBe(true);
+      expect(workspace.isReachable()).toBe(true);
     });
 
     // The registration normalizes, and the entity is what the caller prints, so a
@@ -102,7 +102,7 @@ describe('add-workspace-use-case factory', () => {
       const { workspace } = addWorkspace({ name: 'personal', path });
 
       expect(workspace.path).toBe(path);
-      expect(workspace.verify()).toBe(true);
+      expect(workspace.isReachable()).toBe(true);
     });
   });
 

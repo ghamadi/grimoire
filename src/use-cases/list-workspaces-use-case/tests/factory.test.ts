@@ -153,7 +153,7 @@ describe('list-workspaces-use-case factory', () => {
       const [workspace] = listWorkspaces();
 
       expect(workspace?.name).toBe('personal');
-      expect(workspace?.verify()).toBe(false);
+      expect(workspace?.isReachable()).toBe(false);
     });
 
     it('lists a workspace whose path is now held by a file', async () => {
@@ -163,7 +163,7 @@ describe('list-workspaces-use-case factory', () => {
       rmSync(path, { recursive: true });
       writeFileSync(path, 'not a directory', 'utf8');
 
-      expect(listWorkspaces()[0]?.verify()).toBe(false);
+      expect(listWorkspaces()[0]?.isReachable()).toBe(false);
     });
   });
 

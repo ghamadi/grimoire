@@ -6,7 +6,7 @@ The store at `~/.grimoire/skills/` is flat — one directory per skill. This gro
 | ----------------------------------------------------------------- | --------------------------------------------------- |
 | [`skills add`](#skills-add-path---all)                            | Add a skill, or a directory of skills, to the store |
 | [`skills list`](#skills-list-alias-ls)                            | List what the store holds                           |
-| [`skills remove`](#skills-remove-skills---remove-clones-alias-rm) | Remove a skill from the store                       |
+| [`skills remove`](#skills-remove-skills---forget-clones-alias-rm) | Remove a skill from the store                       |
 
 ## `skills add <path> [--all]`
 
@@ -103,25 +103,25 @@ belongs to `link`'s own contract; this page only reports the outcome.
 
 ### When the name is taken
 
-A source whose name is already in the store is decided by asking whether the store copy already holds everything the
-source does — not whether the two are equal:
+A source whose name is already in the store is decided by asking whether the store copy already holds everything the source
+does — not whether the two are equal:
 
-| Store copy vs. source | Outcome                                                    | Stream |
-| --------------------- | ---------------------------------------------------------- | ------ |
-| identical             | `already in the store: triage`                              | stdout |
-| holds more            | `already in the store: triage (also holds "notes.md")`      | stdout |
-| differs               | `warning: could not add …`                                  | stderr |
+| Store copy vs. source | Outcome                                                | Stream |
+| --------------------- | ------------------------------------------------------ | ------ |
+| identical             | `already in the store: triage`                         | stdout |
+| holds more            | `already in the store: triage (also holds "notes.md")` | stdout |
+| differs               | `warning: could not add …`                             | stderr |
 
 ```shell
 warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
 ```
 
-The middle row is what containment buys over equality. A store copy carrying a file the source lacks still holds every
-byte of the skill being added, so there is nothing to refuse and nothing to warn about — the add is already done. Only
-the other direction is a refusal: an entry the source holds and the store doesn't means the store isn't the thing being
-added, and neither is a file whose contents, type, or execute bit disagree. Refusing over the store's extras instead
-would strand a plain copy in an auto-link workspace that no re-run could ever adopt, because auto-link only fires for
-what `add` copied or found already there.
+The middle row is what containment buys over equality. A store copy carrying a file the source lacks still holds every byte
+of the skill being added, so there is nothing to refuse and nothing to warn about — the add is already done. Only the other
+direction is a refusal: an entry the source holds and the store doesn't means the store isn't the thing being added, and
+neither is a file whose contents, type, or execute bit disagree. Refusing over the store's extras instead would strand a
+plain copy in an auto-link workspace that no re-run could ever adopt, because auto-link only fires for what `add` copied or
+found already there.
 
 The note is parenthetical because the extra is almost never part of the skill — a manifest referencing it would itself
 differ, and that's a refusal. It names the first entry the walk reaches rather than every one, in the same voice as the
@@ -131,15 +131,14 @@ Nothing here ever overwrites — there's no `--force`. The store copy is the use
 silently replaced it would destroy whatever edits made it differ. The warning names the remedy: edit the store copy, or
 `grimoire skills remove <skill>` first.
 
-The comparison itself can fail to run at all, when a symlink the two trees share a path for means they can't be
-compared:
+The comparison itself can fail to run at all, when a symlink the two trees share a path for means they can't be compared:
 
 ```shell
 warning: could not add notes: /Users/me/dev/notes holds the symlink "ref", so the two copies cannot be compared
 ```
 
-A symlink only the store copy holds is not that case — it's one more thing the store holds and the source doesn't, and
-reads as the middle row above.
+A symlink only the store copy holds is not that case — it's one more thing the store holds and the source doesn't, and reads
+as the middle row above.
 
 ### What `add` refuses
 
@@ -188,15 +187,15 @@ triage
 Sorted by name. The listing is the store's directory itself, not `state.json` — a skill with no links or clones anywhere
 still shows up here. Empty store prints `No skills in the store.`
 
-## `skills remove <skills...> [--remove-clones]` _(alias: `rm`)_
+## `skills remove <skills...> [--forget-clones]` _(alias: `rm`)_
 
 | Argument | Meaning                              |
 | -------- | ------------------------------------ |
 | `skills` | One or more skill names in the store |
 
-| Flag              | Default | Effect                                                             |
-| ----------------- | ------- | ------------------------------------------------------------------ |
-| `--remove-clones` | false   | also trash every cloned copy, and forget the skill's clone records |
+| Flag              | Default | Effect                                                                            |
+| ----------------- | ------- | --------------------------------------------------------------------------------- |
+| `--forget-clones` | false   | also forget the skill's whole `state.json` entry — no cloned directory is touched |
 
 ```shell
 $ grimoire skills remove triage
@@ -229,10 +228,7 @@ The store copy is moved, not deleted, into one timestamped bin per skill per rem
 ```
 ~/.grimoire/.trash/
 └── triage-20260915T124530/
-    ├── store/                 the store copy
-    └── clones/
-        ├── personal/          clone recorded by workspace name
-        └── Users-me-x/        clone recorded by path, slugified
+    └── store/                 the store copy
 ```
 
 There is no restore command. Recovery is `mv`, from the exact path the removal just printed:
@@ -243,19 +239,23 @@ trashed triage → /Users/me/.grimoire/.trash/triage-20260915T124530
 
 ### Clones are kept
 
-Without `--remove-clones`, cloned directories and their records are left exactly where they are — the store copy is gone, but
-the workspaces that cloned it keep their own drifted version, and grimoire keeps the record of where it went:
+Neither with nor without the flag does `skills remove` touch a cloned directory —
+[grimoire never deletes one](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store). Without
+`--forget-clones`, records and directories are both left exactly where they are — the store copy is gone, but the workspaces
+that cloned it keep their own drifted version, and grimoire keeps the record of where it went:
 
 ```shell
 clones left in place: triage → work
 ```
 
-`--remove-clones` trashes those directories too, and drops the skill's whole `state.json` entry — by then nothing it
-described exists anymore:
+`--forget-clones` drops the skill's whole `state.json` entry — by then nothing it described exists in the store anymore —
+while touching no directory:
 
 ```shell
-removed clone triage → work
+forgot clone triage → work
 ```
+
+Forgetting one record at a time, for a skill still in the store, is [`unclone`](./unclone.md)'s job.
 
 ### What `remove` refuses
 

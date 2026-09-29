@@ -7,6 +7,7 @@ import {
   CollidingRegistrationError,
   DuplicateNameError,
   EntityNotFoundError,
+  InvalidWorkspaceNameError,
   InvalidPathError,
   PathCollisionError,
   WorkspaceInUseError,
@@ -94,6 +95,20 @@ describe('workspaces add', () => {
   });
 
   describe('refusals', () => {
+    it('refuses a name outside the allowed alphabet, leaving its path alone', async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('project');
+
+      const error = captureError(() => run('workspaces', 'add', 'a/b', path));
+
+      expect(error).toBeInstanceOf(InvalidWorkspaceNameError);
+      expect(error.message).toBe(
+        'workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"',
+      );
+      expect(readWorkspaces(store)).toEqual({});
+      expect(existsSync(path)).toBe(true);
+    });
+
     it('refuses a name that is already registered, leaving its path alone', async () => {
       const { run, store } = await newCli();
       const taken = await newDirectory('taken');

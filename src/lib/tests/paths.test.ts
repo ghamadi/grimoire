@@ -115,9 +115,9 @@ describe('relativeTo', () => {
   });
 
   it('returns every segment of a candidate several levels deep', () => {
-    expect(relativeTo({ candidate: '/repos/bar/skills/triage/references', reference: '/repos/bar' })).toBe(
-      join('skills', 'triage', 'references'),
-    );
+    expect(
+      relativeTo({ candidate: '/repos/bar/skills/triage/references', reference: '/repos/bar' }),
+    ).toBe(join('skills', 'triage', 'references'));
   });
 
   it('answers null for equal, containing and unrelated paths', () => {
@@ -134,10 +134,12 @@ describe('relativeTo', () => {
     mkdirSync(join(real, 'triage'), { recursive: true });
     symlinkSync(join(root, 'dotfiles/claude'), join(root, '.claude'));
 
-    expect(relativeTo({ candidate: join(real, 'triage'), reference: join(root, '.claude/skills') })).toBe(
+    expect(
+      relativeTo({ candidate: join(real, 'triage'), reference: join(root, '.claude/skills') }),
+    ).toBe('triage');
+    expect(relativeTo({ candidate: join(root, '.claude/skills/triage'), reference: real })).toBe(
       'triage',
     );
-    expect(relativeTo({ candidate: join(root, '.claude/skills/triage'), reference: real })).toBe('triage');
   });
 });
 

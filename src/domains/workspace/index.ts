@@ -1,1 +1,1 @@
-export { Workspace, type WorkspaceParams, type WorkspaceVerifyOptions } from './entity.ts';
+export { Workspace, type WorkspaceParams } from './entity.ts';
