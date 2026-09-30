@@ -60,9 +60,10 @@ export function workspacesCommand(params: WorkspacesCommandParams): Command {
     .description('Unregister a workspace, leaving its directory alone')
     .argument('<name>', 'registered name')
     .option('--hard', 'clear the links and forget the clone records still pointing at it')
-    .action((name: string, options: { hard?: boolean }) => {
-      const result = removeWorkspace({ name, hard: options.hard });
-      const { workspace: removed, forgottenClones } = result;
+    .option('--force', 'unregister even when its directory cannot be read')
+    .action((name: string, options: { hard?: boolean; force?: boolean }) => {
+      const result = removeWorkspace({ name, hard: options.hard, force: options.force });
+      const { workspace: removed, forgottenClones, linksUnchecked } = result;
 
       for (const line of describeChanges(result)) {
         console.log(line);
@@ -74,6 +75,10 @@ export function workspacesCommand(params: WorkspacesCommandParams): Command {
       // We filter out the ones that don't exist on disk (regardless of whether they were still registered)
       if (forgottenClones.some((skill) => existsSync(join(removed.path, skill)))) {
         console.log('cloned directories were left in place');
+      }
+
+      if (linksUnchecked) {
+        console.log(`links in ${removed.path} could not be checked and were left in place`);
       }
     });
 

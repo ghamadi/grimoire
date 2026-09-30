@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -12,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '#src/domains/skill/index';
 import { EntityNotFoundError, WorkspaceUnreadableError } from '#src/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createRemoveSkillsUseCase, type RemovedSkill } from '../factory.ts';
 
@@ -54,7 +56,9 @@ describe('remove-skills-use-case factory', () => {
       const error = refusal(() => removeSkills({ skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(WorkspaceUnreadableError);
-      expect((error as WorkspaceUnreadableError).workspaces).toEqual([{ name: 'gone', path: gonePath }]);
+      expect((error as WorkspaceUnreadableError).workspaces).toEqual([
+        { name: 'gone', path: gonePath, access: 'unresolvable' },
+      ]);
       expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
       expect(existsSync(linkPath)).toBe(true);
       expect(readdirSync(store.paths.trash)).toEqual([]);
@@ -74,9 +78,34 @@ describe('remove-skills-use-case factory', () => {
       const error = refusal(() => removeSkills({ skillNames: ['triage'] }));
 
       expect((error as WorkspaceUnreadableError).workspaces).toEqual([
-        { name: 'buried', path: buried },
-        { name: 'gone', path: gone },
+        { name: 'buried', path: buried, access: 'unresolvable' },
+        { name: 'gone', path: gone, access: 'unresolvable' },
       ]);
+    });
+
+    describe.skipIf(runsAsRoot)('a registered workspace that cannot be read', () => {
+      it('throws and removes nothing', async () => {
+        const { removeSkills, store, workspace, storeSkill, link } = await newUseCase();
+
+        const locked = workspace('locked');
+        storeSkill('triage');
+        const linkPath = link({ workspace: 'locked', skill: 'triage' });
+
+        lockDirectory({ path: locked });
+
+        const error = refusal(() => removeSkills({ skillNames: ['triage'] }));
+
+        expect(error).toBeInstanceOf(WorkspaceUnreadableError);
+        expect((error as WorkspaceUnreadableError).workspaces).toEqual([
+          { name: 'locked', path: locked, access: 'unreadable' },
+        ]);
+        expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
+        expect(readdirSync(store.paths.trash)).toEqual([]);
+
+        chmodSync(locked, 0o755);
+
+        expect(existsSync(linkPath)).toBe(true);
+      });
     });
   });
 

@@ -8,4 +8,5 @@
 | [`unlink`](./commands/unlink.md)         | Implemented     |
 | [`clone`](./commands/clone.md)           | Implemented     |
 | [`unclone`](./commands/unclone.md)       | Implemented     |
-| `status`                                 | Not implemented |
+| [`status`](./commands/status.md)         | Implemented     |
+| `doctor`                                 | Not implemented |

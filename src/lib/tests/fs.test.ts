@@ -13,7 +13,8 @@ import {
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { InvalidPathError } from '#src/lib/errors/index';
-import { isResolvableDirectory, movePath, tryStatSync } from '#src/lib/fs';
+import { getDirectoryAccess, movePath, tryStatSync } from '#src/lib/fs';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -124,17 +125,17 @@ describe('tryStat', () => {
   });
 });
 
-describe('isResolvableDirectory', () => {
-  it('answers true for a directory', async () => {
+describe('getDirectoryAccess', () => {
+  it('answers accessible for a directory', async () => {
     const root = await tempRoot();
     const path = join(root, 'workspace');
 
     mkdirSync(path);
 
-    expect(isResolvableDirectory(path)).toBe(true);
+    expect(getDirectoryAccess(path)).toBe('accessible');
   });
 
-  it('answers true for a symlink to a directory', async () => {
+  it('answers accessible for a symlink to a directory', async () => {
     const root = await tempRoot();
     const target = join(root, 'target');
     const link = join(root, 'link');
@@ -142,32 +143,84 @@ describe('isResolvableDirectory', () => {
     mkdirSync(target);
     symlinkSync(target, link);
 
-    expect(isResolvableDirectory(link)).toBe(true);
+    expect(getDirectoryAccess(link)).toBe('accessible');
   });
 
-  it('answers false for a file', async () => {
+  it('answers unresolvable for a file', async () => {
     const root = await tempRoot();
     const file = join(root, 'notes.txt');
 
     writeFileSync(file, '', 'utf8');
 
-    expect(isResolvableDirectory(file)).toBe(false);
+    expect(getDirectoryAccess(file)).toBe('unresolvable');
   });
 
-  it('answers false when nothing is at the path', async () => {
+  it('answers unresolvable when nothing is at the path', async () => {
     const root = await tempRoot();
 
-    expect(isResolvableDirectory(join(root, 'gone'))).toBe(false);
+    expect(getDirectoryAccess(join(root, 'gone'))).toBe('unresolvable');
   });
 
-  it('answers false for a symlink cycle rather than throwing', async () => {
+  it('answers unresolvable for a path under a file', async () => {
+    const root = await tempRoot();
+    const file = join(root, 'notes.txt');
+
+    writeFileSync(file, '', 'utf8');
+
+    expect(getDirectoryAccess(join(file, 'skills'))).toBe('unresolvable');
+  });
+
+  it('answers unresolvable for a symlink cycle rather than throwing', async () => {
     const root = await tempRoot();
     const first = join(root, 'a');
 
     symlinkSync(join(root, 'b'), first);
     symlinkSync(first, join(root, 'b'));
 
-    expect(isResolvableDirectory(first)).toBe(false);
+    expect(getDirectoryAccess(first)).toBe('unresolvable');
+  });
+
+  describe.skipIf(runsAsRoot)('a directory that cannot be used', () => {
+    it('answers unreadable for a directory with no permissions', async () => {
+      const root = await tempRoot();
+      const path = join(root, 'workspace');
+
+      mkdirSync(path);
+      lockDirectory({ path });
+
+      expect(getDirectoryAccess(path)).toBe('unreadable');
+    });
+
+    it('answers unreadable for a directory that can be listed but not entered', async () => {
+      const root = await tempRoot();
+      const path = join(root, 'workspace');
+
+      mkdirSync(path);
+      lockDirectory({ path, mode: 0o444 });
+
+      expect(getDirectoryAccess(path)).toBe('unreadable');
+    });
+
+    it('answers unreadable for a directory that can be entered but not listed', async () => {
+      const root = await tempRoot();
+      const path = join(root, 'workspace');
+
+      mkdirSync(path);
+      lockDirectory({ path, mode: 0o111 });
+
+      expect(getDirectoryAccess(path)).toBe('unreadable');
+    });
+
+    it('answers unreadable for a directory under one that cannot be entered', async () => {
+      const root = await tempRoot();
+      const parent = join(root, 'parent');
+      const path = join(parent, 'workspace');
+
+      mkdirSync(path, { recursive: true });
+      lockDirectory({ path: parent });
+
+      expect(getDirectoryAccess(path)).toBe('unreadable');
+    });
   });
 });
 

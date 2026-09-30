@@ -562,6 +562,9 @@ describe('skills remove', () => {
     const error = await captureError(() => run('skills', 'remove', 'triage'));
 
     expect(error).toBeInstanceOf(WorkspaceUnreadableError);
+    expect((error as WorkspaceUnreadableError).workspaces).toEqual([
+      { name: 'work', path: work, access: 'unresolvable' },
+    ]);
     expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
     expect(trashEntries(store)).toEqual([]);
   });

@@ -9,7 +9,7 @@ record of where the copies went. Grimoire keeps a single editing surface (`~/.gr
 It is not a discovery or package-manager tool. It ships no skills of its own. Installers for other people's skill repos
 already exist — **they install other people's skills; grimoire maintains your own.**
 
-> **Early stage.** `workspaces add/remove/list`, `skills add/list/remove`, `link`, `unlink`, `clone`, and `unclone` work;
-> nothing else is implemented yet.
+> **Early stage.** `workspaces add/remove/list`, `skills add/list/remove`, `link`, `unlink`, `clone`, `unclone`, and `status`
+> work; nothing else is implemented yet.
 
 Command reference: [`docs/`](./docs/README.md). Vision and layout: [`ARCHITECTURE.md`](./ARCHITECTURE.md)

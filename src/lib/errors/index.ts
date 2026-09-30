@@ -58,6 +58,10 @@ export {
 } from './unportable-skill.ts';
 export { WorkspaceInUseError, type WorkspaceInUseErrorProps } from './workspace-in-use.ts';
 export {
+  UnreadableWorkspaceRemovalError,
+  type UnreadableWorkspaceRemovalErrorProps,
+} from './unreadable-workspace-removal.ts';
+export {
   WorkspaceUnreadableError,
   type UnreadableWorkspace,
   type WorkspaceUnreadableErrorProps,

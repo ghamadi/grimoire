@@ -18,6 +18,7 @@ import {
   LinkDeclinedError,
   UnportableSkillError,
 } from '#src/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createLinkSkillUseCase } from '../factory.ts';
 
@@ -363,6 +364,25 @@ describe('link-skill-use-case factory', () => {
       expect((error as LinkDeclinedError).refusals).toEqual([
         { kind: 'workspace-unreachable', workspace: 'personal', path },
       ]);
+    });
+
+    describe.skipIf(runsAsRoot)('a workspace that cannot be read', () => {
+      it('declines it rather than throwing, and links the rest', async () => {
+        const { linkSkill, store, workspace } = await newUseCase();
+        const personal = workspace('personal');
+        const work = workspace('work');
+
+        storeSkill(store, 'brainstorm');
+        lockDirectory({ path: personal });
+
+        const report = linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal', 'work'] });
+
+        expect(report.declined).toEqual([
+          { kind: 'workspace-unreadable', workspace: 'personal', path: personal },
+        ]);
+        expect(report.linked).toEqual([{ skill: 'brainstorm', workspace: 'work', replaced: false }]);
+        expect(existsSync(join(work, 'brainstorm'))).toBe(true);
+      });
     });
   });
 

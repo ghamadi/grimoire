@@ -17,6 +17,7 @@ export type LinkOccupant =
  */
 export type LinkRefusal =
   | { kind: 'workspace-unreachable'; workspace: string; path: string }
+  | { kind: 'workspace-unreadable'; workspace: string; path: string }
   | { kind: 'occupied'; skill: string; workspace: string; path: string; occupant: LinkOccupant }
   | { kind: 'unportable'; skill: string; workspace: string; path: string; entry: string };
 
@@ -31,6 +32,8 @@ export function describeLinkRefusal(refusal: LinkRefusal): string {
   switch (refusal.kind) {
     case 'workspace-unreachable':
       return `workspace "${refusal.workspace}" was skipped: ${refusal.path} is not an existing directory`;
+    case 'workspace-unreadable':
+      return `workspace "${refusal.workspace}" was skipped: ${refusal.path} cannot be read`;
     case 'occupied':
       return `${describePair(refusal)}: ${describeOccupant(refusal)}`;
     case 'unportable':

@@ -16,6 +16,8 @@ export type CloneOccupant =
 export type CloneRefusal =
   /** `path` is the workspace path that did not resolve. */
   | { kind: 'workspace-unreachable'; skill: string; workspace: string; path: string }
+  /** `path` is the workspace path that cannot be read. */
+  | { kind: 'workspace-unreadable'; skill: string; workspace: string; path: string }
   /** `path` is `<dest>` — `<workspace path>/<skill>`. */
   | { kind: 'occupied'; skill: string; workspace: string; path: string; occupant: CloneOccupant };
 
@@ -30,6 +32,8 @@ export function describeCloneRefusal(refusal: CloneRefusal): string {
   switch (refusal.kind) {
     case 'workspace-unreachable':
       return `${describePair(refusal)}: ${refusal.path} is not an existing directory`;
+    case 'workspace-unreadable':
+      return `${describePair(refusal)}: ${refusal.path} cannot be read`;
     case 'occupied':
       return `${describePair(refusal)}: ${describeOccupant(refusal.occupant, refusal.path)}`;
   }

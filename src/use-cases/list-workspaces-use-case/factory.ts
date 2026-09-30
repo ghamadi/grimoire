@@ -11,9 +11,9 @@ type ListWorkspacesUseCase = () => Workspace[];
  * Every workspace the store has registered — what `grimoire workspaces list` runs.
  *
  * The registry is the whole answer: the entities come back unverified, so a
- * workspace whose directory was deleted or has come to sit inside the store is
- * still listed. Filtering those out would leave the user with no way to see the
- * registration they have to remove, and reporting on them is `status`'s job.
+ * workspace whose directory was deleted is still listed. Filtering those out
+ * would leave the user with no way to see the registration they have to remove,
+ * and reporting on them is `status`'s job.
  */
 export function createListWorkspacesUseCase(
   factoryParams: ListWorkspacesUseCaseFactoryParams,

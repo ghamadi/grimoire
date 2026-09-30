@@ -7,8 +7,10 @@ import {
   CollidingRegistrationError,
   EntityNotFoundError,
   GrimoireError,
+  UnreadableWorkspaceRemovalError,
   WorkspaceInUseError,
 } from '#src/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createRemoveWorkspaceUseCase } from '../factory.ts';
 
@@ -114,7 +116,7 @@ describe('remove-workspace-use-case factory', () => {
       const { workspace } = removeWorkspace({ name: 'personal' });
 
       expect(workspace.path).toBe(path);
-      expect(workspace.isReachable()).toBe(false);
+      expect(workspace.getDirectoryAccess()).toBe('unresolvable');
     });
   });
 
@@ -289,6 +291,113 @@ describe('remove-workspace-use-case factory', () => {
 
       expect(result.convertedClones).toEqual([]);
       expect(result.forgottenClones).toEqual([]);
+    });
+  });
+
+  describe('a workspace whose directory cannot be read', () => {
+    describe.skipIf(runsAsRoot)('without --force', () => {
+      it('refuses, naming the workspace and path, and leaves state.json byte-identical', async () => {
+        const { removeWorkspace, register, recordClones, store } = await newUseCase();
+        const path = register('personal');
+
+        recordClones({ deploy: [{ workspace: 'personal' }] });
+
+        const before = readFileSync(store.paths.state, 'utf8');
+
+        lockDirectory({ path });
+
+        const error = refusal(() => removeWorkspace({ name: 'personal' }));
+
+        expect(error).toBeInstanceOf(UnreadableWorkspaceRemovalError);
+        expect(error).toMatchObject({ entryName: 'personal', path, hard: false });
+        expect(readFileSync(store.paths.state, 'utf8')).toBe(before);
+      });
+
+      it('refuses under --hard too, carrying hard, and leaves state.json byte-identical', async () => {
+        const { removeWorkspace, register, recordClones, store } = await newUseCase();
+        const path = register('personal');
+
+        recordClones({ deploy: [{ workspace: 'personal' }] });
+
+        const before = readFileSync(store.paths.state, 'utf8');
+
+        lockDirectory({ path });
+
+        const error = refusal(() => removeWorkspace({ name: 'personal', hard: true }));
+
+        expect(error).toBeInstanceOf(UnreadableWorkspaceRemovalError);
+        expect(error).toMatchObject({ hard: true });
+        expect(readFileSync(store.paths.state, 'utf8')).toBe(before);
+      });
+    });
+
+    describe.skipIf(runsAsRoot)('with --force', () => {
+      it('unregisters, reports the links as unchecked, and converts the clone records to paths', async () => {
+        const { removeWorkspace, register, recordClones, readClones, manager } = await newUseCase();
+        const path = register('personal');
+
+        recordClones({ deploy: [{ workspace: 'personal' }] });
+        lockDirectory({ path });
+
+        const result = removeWorkspace({ name: 'personal', force: true });
+
+        expect(result.linksUnchecked).toBe(true);
+        expect(result.clearedLinks).toEqual([]);
+        expect(result.convertedClones).toEqual(['deploy']);
+        expect(manager.getRegistry().workspaces).toEqual({});
+        expect(readClones()).toEqual({ deploy: [{ path }] });
+      });
+
+      it('forgets the clone records under --hard', async () => {
+        const { removeWorkspace, register, recordClones, readClones } = await newUseCase();
+        const path = register('personal');
+
+        recordClones({ deploy: [{ workspace: 'personal' }] });
+        lockDirectory({ path });
+
+        const result = removeWorkspace({ name: 'personal', hard: true, force: true });
+
+        expect(result.linksUnchecked).toBe(true);
+        expect(result.forgottenClones).toEqual(['deploy']);
+        expect(readClones()).toEqual({ deploy: [] });
+      });
+    });
+
+    describe('--force on a workspace that can be read', () => {
+      it('still refuses while links point at it', async () => {
+        const { removeWorkspace, register, link, manager } = await newUseCase();
+
+        register('personal');
+        link({ workspace: 'personal', skill: 'triage' });
+
+        expect(refusal(() => removeWorkspace({ name: 'personal', force: true }))).toBeInstanceOf(
+          WorkspaceInUseError,
+        );
+        expect(manager.getRegistry().workspaces.personal).toBeDefined();
+      });
+
+      it('unregisters one holding no links, with nothing unchecked', async () => {
+        const { removeWorkspace, register } = await newUseCase();
+
+        register('personal');
+
+        expect(removeWorkspace({ name: 'personal', force: true }).linksUnchecked).toBe(false);
+      });
+    });
+
+    // The link scan runs only for a directory that can be read, and a cycle is not one.
+    it('unregisters a path that is a symlink cycle, with nothing unchecked', async () => {
+      const { removeWorkspace, writeRegistry, manager, root } = await newUseCase();
+      const cycle = join(root, 'a');
+
+      symlinkSync(join(root, 'b'), cycle);
+      symlinkSync(cycle, join(root, 'b'));
+      writeRegistry({ personal: { path: cycle, autoLink: false } });
+
+      const result = removeWorkspace({ name: 'personal' });
+
+      expect(result.linksUnchecked).toBe(false);
+      expect(manager.getRegistry().workspaces).toEqual({});
     });
   });
 

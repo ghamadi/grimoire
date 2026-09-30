@@ -82,9 +82,11 @@ export function createCloneSkillUseCase(
     for (const entry of registeredWorkspaces) {
       const workspace = new Workspace(entry);
 
-      if (!workspace.isReachable()) {
+      const access = workspace.getDirectoryAccess();
+
+      if (access !== 'accessible') {
         declined.push({
-          kind: 'workspace-unreachable',
+          kind: access === 'unresolvable' ? 'workspace-unreachable' : 'workspace-unreadable',
           skill: skill.name,
           workspace: entry.name,
           path: entry.path,

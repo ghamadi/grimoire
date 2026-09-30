@@ -3,13 +3,14 @@ import { GrimoireError } from './grimoire-error.ts';
 
 /**
  * Why `unlink` left `<workspace path>/<skill>` alone — what sits there instead
- * of the link, or that the workspace holding it could not be read at all.
+ * of the link, or that the workspace holding it does not resolve or cannot be
+ * read.
  *
  * A plain string union, not `link-declined.ts`'s `{ kind: ... }` objects: no
  * reason here carries data beyond its name.
  */
 export type UnlinkRefusalReason =
-  'directory' | 'not-a-link' | 'foreign-symlink' | 'workspace-unreachable';
+  'directory' | 'not-a-link' | 'foreign-symlink' | 'workspace-unreachable' | 'workspace-unreadable';
 
 /**
  * One pair `unlink` stepped over: a fact about the filesystem, not a mistake
@@ -41,6 +42,8 @@ export function describeUnlinkRefusal(refusal: UnlinkRefusal): string {
       return `${prefix} is a symlink pointing elsewhere`;
     case 'workspace-unreachable':
       return `${prefix} workspace path does not resolve`;
+    case 'workspace-unreadable':
+      return `${prefix} workspace path cannot be read`;
     default:
       assertUnreachable(refusal.reason);
   }

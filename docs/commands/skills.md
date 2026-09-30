@@ -281,3 +281,14 @@ grimoire: cannot remove a skill while a workspace is unreadable
 
 The escape is one of the two ordinary commands named above: make the path resolve again and rerun, or unregister the
 workspace with `grimoire workspaces remove work` if it's gone for good.
+
+A workspace whose path is a directory that can't be listed or entered, or that sits under one that can't be entered, is
+listed as `cannot be read` instead. The remedy line follows the first workspace listed. When that one is unreadable, it
+points at `--force`:
+
+```shell
+$ grimoire skills remove triage
+grimoire: cannot remove a skill while a workspace is unreadable
+  work: /Volumes/ext/skills cannot be read
+  make it readable, or unregister it anyway with `grimoire workspaces remove work --force`
+```

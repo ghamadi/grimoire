@@ -2,7 +2,7 @@ import { lstatSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { safeFlattenDirectory } from '#src/lib/directories';
 import { InvalidPathError, UnportableSkillError } from '#src/lib/errors/index';
-import { tryStatSync } from '#src/lib/fs';
+import { isErrnoException, tryStatSync } from '#src/lib/fs';
 
 export const SKILL_MANIFEST = 'SKILL.md';
 
@@ -31,8 +31,21 @@ export class Skill {
     return skill.verify();
   }
 
+  /** A path that loops or cannot be entered holds no SKILL.md that can be shown, so it is not a skill directory. */
   static isSkillDirectory(path: string): boolean {
-    return statSync(join(path, SKILL_MANIFEST), { throwIfNoEntry: false })?.isFile() ?? false;
+    try {
+      return statSync(join(path, SKILL_MANIFEST), { throwIfNoEntry: false })?.isFile() ?? false;
+    } catch (error) {
+      if (
+        isErrnoException(error, 'ELOOP') ||
+        isErrnoException(error, 'EACCES') ||
+        isErrnoException(error, 'EPERM')
+      ) {
+        return false;
+      }
+
+      throw error;
+    }
   }
 
   /**

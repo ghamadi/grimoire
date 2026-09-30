@@ -153,8 +153,14 @@ function resolveDestinations(query: {
   for (const entry of registeredWorkspaces) {
     const workspace = new Workspace(entry);
 
-    if (!workspace.isReachable()) {
-      declined.push({ kind: 'workspace-unreachable', workspace: workspace.name, path: workspace.path });
+    const access = workspace.getDirectoryAccess();
+
+    if (access !== 'accessible') {
+      declined.push({
+        kind: access === 'unresolvable' ? 'workspace-unreachable' : 'workspace-unreadable',
+        workspace: workspace.name,
+        path: workspace.path,
+      });
       continue;
     }
 

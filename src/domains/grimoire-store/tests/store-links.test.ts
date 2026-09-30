@@ -1,7 +1,7 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findStoreLinks } from '../helpers/store-links.ts';
+import { findDanglingStoreLinks, findStoreLinks } from '../helpers/store-links.ts';
 import { tempRoot } from '#test-helpers/temp-root';
 
 describe('findStoreLinks', () => {
@@ -168,6 +168,141 @@ describe('findStoreLinks', () => {
     writeFileSync(file, '# notes', 'utf8');
 
     expect(findStoreLinks({ workspacePath: join(file, 'skills'), storeSkills })).toEqual([]);
+  });
+});
+
+describe('findDanglingStoreLinks', () => {
+  it('reports a link whose skill in the store is gone', async () => {
+    const { workspace, storeSkills, link } = await newFixture();
+
+    link({ skill: 'brainstorm', create: false });
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { entry: 'brainstorm', target: join(storeSkills, 'brainstorm') },
+    ]);
+  });
+
+  it('reports a link recorded with a relative target, made absolute against the workspace', async () => {
+    const { workspace, storeSkills, link } = await newFixture();
+
+    link({ skill: 'brainstorm', create: false, relative: true });
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { entry: 'brainstorm', target: join(storeSkills, 'brainstorm') },
+    ]);
+  });
+
+  it('reports a renamed entry under its own name', async () => {
+    const { workspace, storeSkills, link } = await newFixture();
+
+    link({ skill: 'triage', entry: 'tri', create: false });
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { entry: 'tri', target: join(storeSkills, 'triage') },
+    ]);
+  });
+
+  it('reports a link pointing below a skill that is gone', async () => {
+    const { workspace, storeSkills } = await newFixture();
+    const target = join(storeSkills, 'gone', 'references');
+
+    symlinkSync(target, join(workspace, 'x'));
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { entry: 'x', target },
+    ]);
+  });
+
+  it('reports a link into a store reached through a symlinked root, when its skill is gone', async () => {
+    const root = await tempRoot();
+    const workspace = join(root, 'workspace');
+    const storeSkills = join(root, 'real', 'skills');
+
+    mkdirSync(workspace);
+    mkdirSync(storeSkills, { recursive: true });
+    symlinkSync(join(root, 'real'), join(root, 'store'));
+    symlinkSync(join(root, 'store', 'skills', 'x'), join(workspace, 'x'));
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { entry: 'x', target: join(root, 'store', 'skills', 'x') },
+    ]);
+  });
+
+  it('reports a link into the store whose target is a symlink cycle', async () => {
+    const { workspace, storeSkills } = await newFixture();
+    const loop = join(storeSkills, 'loop');
+
+    symlinkSync(loop, loop);
+    symlinkSync(loop, join(workspace, 'loop'));
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([
+      { entry: 'loop', target: loop },
+    ]);
+  });
+
+  it('ignores a link that resolves into the store', async () => {
+    const { workspace, storeSkills, link } = await newFixture();
+
+    link({ skill: 'brainstorm' });
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('ignores a dangling link aimed outside the store', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    symlinkSync(join(await tempRoot(), 'nowhere'), join(workspace, 'triage'));
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('ignores a link that names the store only through another link, even when that skill is gone', async () => {
+    const { workspace, storeSkills, chain } = await newFixture();
+
+    chain({ skill: 'brainstorm', create: false });
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('ignores a link that points at itself', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    symlinkSync(join(workspace, 'brainstorm'), join(workspace, 'brainstorm'));
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('ignores a plain directory', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    mkdirSync(join(workspace, 'brainstorm'));
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('ignores a regular file', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    writeFileSync(join(workspace, 'notes.md'), '# notes', 'utf8');
+
+    expect(findDanglingStoreLinks({ workspacePath: workspace, storeSkills })).toEqual([]);
+  });
+
+  it('sorts by entry name', async () => {
+    const { workspace, storeSkills, link } = await newFixture();
+
+    link({ skill: 'triage', create: false });
+    link({ skill: 'brainstorm', create: false });
+
+    expect(
+      findDanglingStoreLinks({ workspacePath: workspace, storeSkills }).map(({ entry }) => entry),
+    ).toEqual(['brainstorm', 'triage']);
+  });
+
+  it('treats a workspace directory that is gone as holding no links', async () => {
+    const { workspace, storeSkills } = await newFixture();
+
+    expect(findDanglingStoreLinks({ workspacePath: join(workspace, 'nope'), storeSkills })).toEqual([]);
   });
 });
 

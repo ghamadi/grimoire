@@ -33,6 +33,12 @@ describe('describeUnlinkRefusal', () => {
       'could not unlink brainstorm → personal: /ws/personal/brainstorm workspace path does not resolve',
     );
   });
+
+  it('describes a workspace that cannot be read', () => {
+    expect(describeUnlinkRefusal(refusal('workspace-unreadable'))).toBe(
+      'could not unlink brainstorm → personal: /ws/personal/brainstorm workspace path cannot be read',
+    );
+  });
 });
 
 describe('UnlinkDeclinedError', () => {

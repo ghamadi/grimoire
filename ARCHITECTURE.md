@@ -88,6 +88,7 @@ is truth.
 | `unlink`                     | [`docs/commands/unlink.md`](./docs/commands/unlink.md)         |
 | `clone`                      | [`docs/commands/clone.md`](./docs/commands/clone.md)           |
 | `unclone`                    | [`docs/commands/unclone.md`](./docs/commands/unclone.md)       |
+| `status`                     | [`docs/commands/status.md`](./docs/commands/status.md)         |
 
 `docs/commands/` is the contract for command behavior — this document does not repeat it.
 

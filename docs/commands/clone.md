@@ -24,9 +24,9 @@ like one you wrote by hand. `<dest>` below is `<workspace path>/<skill>`.
 
 The record's identity is the directory it resolves to, compared canonically — not which of two arms it uses: a
 `{ workspace }` record, or a `{ path }` record left behind by
-[`workspaces remove`](./workspaces.md#workspaces-remove-name---hard-alias-rm). So a record `workspaces remove` left keyed by
-path still counts as already cloned once a workspace is re-registered at that path, and [`unclone`](./unclone.md) finds it
-too. `clone` itself only ever writes `{ workspace }` records — it never creates a new kind.
+[`workspaces remove`](./workspaces.md#workspaces-remove-name---hard---force-alias-rm). So a record `workspaces remove` left
+keyed by path still counts as already cloned once a workspace is re-registered at that path, and [`unclone`](./unclone.md)
+finds it too. `clone` itself only ever writes `{ workspace }` records — it never creates a new kind.
 
 ## `clone <skill> <workspaces...> [--adopt]`
 
@@ -35,6 +35,7 @@ Each pair gets one outcome, decided by what sits at `<dest>`:
 | At `<dest>`                                       | Outcome                                                  | Output                                                                                                                                 |
 | ------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | workspace path does not resolve                   | declined `workspace-unreachable`                         | stderr `warning: could not clone <skill> → <workspace>: <workspace path> is not an existing directory`                                 |
+| workspace path cannot be read                     | declined `workspace-unreadable`                          | stderr `warning: could not clone <skill> → <workspace>: <workspace path> cannot be read`                                               |
 | nothing                                           | copy, record → `cloned`                                  | stdout `cloned <skill> → <workspace>`                                                                                                  |
 | a symlink resolving to this store skill           | remove link, copy, record → `cloned (replaced the link)` | stdout `cloned <skill> → <workspace> (replaced the link)`                                                                              |
 | any other symlink                                 | declined `foreign-symlink`                               | stderr `warning: could not clone <skill> → <workspace>: <dest> is a symlink pointing elsewhere`                                        |

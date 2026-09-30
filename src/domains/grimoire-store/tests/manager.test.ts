@@ -8,6 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -19,6 +20,7 @@ import {
   InvalidShapeError,
   PathCollisionError,
 } from '#src/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { GrimoireStore, GrimoireStoreManager } from '../index.ts';
 
@@ -541,6 +543,40 @@ describe('findLinksInWorkspace', () => {
   });
 });
 
+describe('findDanglingLinksFromWorkspace', () => {
+  it("answers with the workspace's links into the store that resolve nowhere, sorted by entry", async () => {
+    const { manager, store, root } = await newManager();
+    const workspace = join(root, 'project');
+
+    mkdirSync(workspace, { recursive: true });
+    manager.registerWorkspace({ name: 'personal', path: workspace });
+    symlinkSync(join(store.paths.skills, 'triage'), join(workspace, 'triage'));
+    symlinkSync(join(store.paths.skills, 'brainstorm'), join(workspace, 'brainstorm'));
+
+    expect(manager.findDanglingLinksFromWorkspace('personal')).toEqual([
+      { entry: 'brainstorm', target: join(store.paths.skills, 'brainstorm') },
+      { entry: 'triage', target: join(store.paths.skills, 'triage') },
+    ]);
+  });
+
+  it('leaves out a live link', async () => {
+    const { manager, store, root } = await newManager();
+    const workspace = join(root, 'project');
+
+    mkdirSync(workspace, { recursive: true });
+    manager.registerWorkspace({ name: 'personal', path: workspace });
+    linkSkill({ store, workspace, skill: 'triage' });
+
+    expect(manager.findDanglingLinksFromWorkspace('personal')).toEqual([]);
+  });
+
+  it('refuses a name registered nowhere', async () => {
+    const { manager } = await newManager();
+
+    expect(() => manager.findDanglingLinksFromWorkspace('ghost')).toThrow(EntityNotFoundError);
+  });
+});
+
 describe('listSkillClones', () => {
   it('resolves a workspace record through the registry', async () => {
     const { manager, store, root } = await newManager();
@@ -602,6 +638,83 @@ describe('listSkillClones', () => {
     writeState(store, document({ skills: { triage: { clones: [{ path: '/b' }, { path: '/a' }] } } }));
 
     expect(manager.listSkillClones('triage').map(({ origin }) => origin)).toEqual(['/b', '/a']);
+  });
+});
+
+describe('listFiledClones', () => {
+  it('resolves a workspace record through the registry', async () => {
+    const { manager, store, root } = await newManager();
+    const workspace = join(root, 'personal');
+    const record = { workspace: 'personal' };
+
+    writeState(
+      store,
+      document({
+        workspaces: { personal: { path: workspace, autoLink: false } },
+        skills: { triage: { clones: [record] } },
+      }),
+    );
+
+    expect(manager.listFiledClones()).toEqual([
+      { skill: 'triage', record, path: join(workspace, 'triage') },
+    ]);
+  });
+
+  it('normalizes a path record spelled with a trailing separator', async () => {
+    const { manager, store } = await newManager();
+    const record = { path: `/projects/app${sep}` };
+
+    writeState(store, document({ skills: { triage: { clones: [record] } } }));
+
+    expect(manager.listFiledClones()).toEqual([
+      { skill: 'triage', record, path: join('/projects/app', 'triage') },
+    ]);
+  });
+
+  it('expands a path record that starts with ~', async () => {
+    const { manager, store } = await newManager();
+    const record = { path: '~/old' };
+
+    writeState(store, document({ skills: { triage: { clones: [record] } } }));
+
+    expect(manager.listFiledClones()).toEqual([
+      { skill: 'triage', record, path: join(homedir(), 'old', 'triage') },
+    ]);
+  });
+
+  it('keeps a record naming a workspace that is not registered, with no path', async () => {
+    const { manager, store } = await newManager();
+    const record = { workspace: 'ghost' };
+
+    writeState(store, document({ skills: { triage: { clones: [record] } } }));
+
+    expect(manager.listFiledClones()).toEqual([{ skill: 'triage', record, path: undefined }]);
+  });
+
+  it('sorts by skill name and keeps record order within a skill', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(
+      store,
+      document({
+        skills: {
+          triage: { clones: [{ path: '/b' }, { path: '/a' }] },
+          deploy: { clones: [{ path: '/c' }] },
+        },
+      }),
+    );
+
+    expect(manager.listFiledClones().map(({ skill, path }) => [skill, path])).toEqual([
+      ['deploy', join('/c', 'deploy')],
+      ['triage', join('/b', 'triage')],
+      ['triage', join('/a', 'triage')],
+    ]);
+  });
+
+  it('answers nothing when the document holds no skills', async () => {
+    const { manager } = await newManager();
+
+    expect(manager.listFiledClones()).toEqual([]);
   });
 });
 
@@ -1017,6 +1130,16 @@ describe('skillPath', () => {
   });
 });
 
+describe('skillsDirectory and statePath', () => {
+  it("answer the store's own paths, creating nothing", async () => {
+    const { manager, store } = await newManager();
+
+    expect(manager.skillsDirectory()).toBe(store.paths.skills);
+    expect(manager.statePath()).toBe(store.paths.state);
+    expect(existsSync(store.paths.root)).toBe(false);
+  });
+});
+
 describe('assertOutsideStore', () => {
   it.each([
     ['equal to the store root', (store: GrimoireStore) => store.paths.root],
@@ -1083,6 +1206,128 @@ describe('addSkill', () => {
 
     expect(() => manager.addSkill({ name: 'triage', sourcePath: source })).toThrow();
     expect(readFileSync(join(store.paths.skills, 'triage', 'SKILL.md'), 'utf8')).toBe('store version');
+  });
+});
+
+describe('listStrayEntryNames', () => {
+  it('returns nothing for a store never written to', async () => {
+    const { manager } = await newManager();
+
+    expect(manager.listStrayEntryNames()).toEqual([]);
+  });
+
+  it('reports a file, a directory without a manifest, and a directory whose manifest is a directory', async () => {
+    const { manager, store } = await newManager();
+
+    mkdirSync(join(store.paths.skills, 'drafts'), { recursive: true });
+    mkdirSync(join(store.paths.skills, 'hollow', 'SKILL.md'), { recursive: true });
+    writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
+
+    expect(manager.listStrayEntryNames()).toEqual(['drafts', 'hollow', 'notes.txt']);
+  });
+
+  it('leaves out skill directories, including a symlink to one outside the store', async () => {
+    const { manager, store, root } = await newManager();
+    const outsideSkill = writeSkillDirectory(join(root, 'dev', 'outside'));
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+    symlinkSync(outsideSkill, join(store.paths.skills, 'linked'));
+
+    expect(manager.listStrayEntryNames()).toEqual([]);
+  });
+
+  it('reports a dangling symlink', async () => {
+    const { manager, store, root } = await newManager();
+
+    mkdirSync(store.paths.skills, { recursive: true });
+    symlinkSync(join(root, 'nowhere'), join(store.paths.skills, 'dangling'));
+
+    expect(manager.listStrayEntryNames()).toEqual(['dangling']);
+  });
+
+  it('hides .DS_Store under the default ignore', async () => {
+    const { manager, store } = await newManager();
+
+    mkdirSync(store.paths.skills, { recursive: true });
+    writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
+
+    expect(manager.listStrayEntryNames()).toEqual([]);
+  });
+
+  it('reports .git under the default ignore, since dot entries have no exemption', async () => {
+    const { manager, store } = await newManager();
+
+    mkdirSync(join(store.paths.skills, '.git'), { recursive: true });
+
+    expect(manager.listStrayEntryNames()).toEqual(['.git']);
+  });
+
+  it('honors custom ignore globs', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ ignore: ['*.txt', '.git'] }));
+    mkdirSync(join(store.paths.skills, '.git'), { recursive: true });
+    mkdirSync(join(store.paths.skills, 'drafts'), { recursive: true });
+    writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
+
+    expect(manager.listStrayEntryNames()).toEqual(['drafts']);
+  });
+
+  it('reports .DS_Store once an empty ignore list replaces the default', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ ignore: [] }));
+    mkdirSync(store.paths.skills, { recursive: true });
+    writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
+
+    expect(manager.listStrayEntryNames()).toEqual(['.DS_Store']);
+  });
+
+  it('does not hide dot entries with an ignore of *, since * does not match a leading dot', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ ignore: ['*'] }));
+    mkdirSync(join(store.paths.skills, '.git'), { recursive: true });
+    writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
+
+    expect(manager.listStrayEntryNames()).toEqual(['.git']);
+  });
+
+  it('returns names sorted', async () => {
+    const { manager, store } = await newManager();
+
+    mkdirSync(store.paths.skills, { recursive: true });
+
+    for (const name of ['zebra.txt', 'alpha.txt', 'mid.txt']) {
+      writeFileSync(join(store.paths.skills, name), '', 'utf8');
+    }
+
+    expect(manager.listStrayEntryNames()).toEqual(['alpha.txt', 'mid.txt', 'zebra.txt']);
+  });
+});
+
+describe('store entries that loop or cannot be read', () => {
+  it('leaves a self-referencing symlink out of the skills and reports it as stray', async () => {
+    const { manager, store } = await newManager();
+    const loop = join(store.paths.skills, 'loop');
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+    symlinkSync(loop, loop);
+
+    expect(manager.listSkillNames()).toEqual(['triage']);
+    expect(manager.listStrayEntryNames()).toEqual(['loop']);
+  });
+
+  describe.skipIf(runsAsRoot)('a skill directory with no permissions', () => {
+    it('is left out of the skills and reported as stray', async () => {
+      const { manager, store } = await newManager();
+
+      writeSkillDirectory(join(store.paths.skills, 'triage'));
+      lockDirectory({ path: writeSkillDirectory(join(store.paths.skills, 'locked')) });
+
+      expect(manager.listSkillNames()).toEqual(['triage']);
+      expect(manager.listStrayEntryNames()).toEqual(['locked']);
+    });
   });
 });
 

@@ -11,11 +11,11 @@ name.
 Workspaces are **flat**: an agent reads `<workspace>/<skill>/SKILL.md`, so the directory holds one entry per skill and
 nothing is nested.
 
-| Command                                                        | Purpose                    |
-| -------------------------------------------------------------- | -------------------------- |
-| [`workspaces add`](#workspaces-add-name-path---auto-link)      | Register a workspace       |
-| [`workspaces remove`](#workspaces-remove-name---hard-alias-rm) | Unregister a workspace     |
-| [`workspaces list`](#workspaces-list-alias-ls)                 | List registered workspaces |
+| Command                                                                | Purpose                    |
+| ---------------------------------------------------------------------- | -------------------------- |
+| [`workspaces add`](#workspaces-add-name-path---auto-link)              | Register a workspace       |
+| [`workspaces remove`](#workspaces-remove-name---hard---force-alias-rm) | Unregister a workspace     |
+| [`workspaces list`](#workspaces-list-alias-ls)                         | List registered workspaces |
 
 ## `workspaces add <name> <path> [--auto-link]`
 
@@ -122,7 +122,7 @@ grimoire store    /Users/me/.grimoire
 
 Paths are compared canonically, with symlinks resolved. A refusal names the path as typed, not as resolved.
 
-## `workspaces remove <name> [--hard]` _(alias: `rm`)_
+## `workspaces remove <name> [--hard] [--force]` _(alias: `rm`)_
 
 ```shell
 $ grimoire workspaces remove personal
@@ -132,10 +132,12 @@ $ grimoire workspaces remove ghost
 grimoire: no workspace named "ghost"
 ```
 
-Unregisters only. The directory is never deleted — not the workspace's, not a cloned skill's inside it — and a workspace
-whose path no longer reads as a directory — deleted by hand, replaced by a file — still unregisters cleanly. A registration
-you cannot surrender is one only a hand-edit of `state.json` can clear, so nothing about the directory's state is grounds for
-a refusal.
+Unregisters only. The directory is never deleted — not the workspace's, not a cloned skill's inside it. A workspace whose
+path no longer resolves to a directory — deleted by hand, replaced by a file — still unregisters cleanly.
+
+A directory that exists but cannot be read refuses, because the links inside it cannot be seen, and unregistering would
+strand them. [`--force`](#an-unreadable-workspace-refuses) is the way out, so a registration never needs a hand-edit of
+`state.json` to clear.
 
 What `remove` does have to deal with is what still points at the workspace. Links and clones get opposite treatment, because
 only one of them is grimoire's to clean up:
@@ -144,6 +146,42 @@ only one of them is grimoire's to clean up:
 | ---------- | --------------------------- | -------------------- |
 | Links      | refuses, naming every one   | deletes the symlinks |
 | Clones     | records rewritten to a path | records forgotten    |
+
+### An unreadable workspace refuses
+
+A workspace whose path is a directory grimoire cannot list or enter, or that sits under one it cannot enter, refuses. This is
+the same condition [`status`](./status.md) reports as `workspace-unreadable`. The refusal writes nothing, and it applies with
+`--hard` too, because links that cannot be seen cannot be cleared:
+
+```shell
+$ grimoire workspaces remove work
+grimoire: cannot remove workspace "work": /Volumes/ext/skills cannot be read
+  make it readable, then run this again, or unregister it anyway with `grimoire workspaces remove work --force`
+
+$ grimoire workspaces remove work --hard
+grimoire: cannot remove workspace "work": /Volumes/ext/skills cannot be read
+  make it readable, then run this again, or unregister it anyway with `grimoire workspaces remove work --hard --force`
+```
+
+The suggested command repeats `--hard` when the refused run had it. Otherwise following the fix would convert clone records
+the run meant to forget.
+
+`--force` skips the link scan and unregisters. Clone records are converted to path records, or forgotten with `--hard`, as
+usual. The last line says the links were not looked at:
+
+```shell
+$ grimoire workspaces remove work --force
+1 clone now recorded by path: deploy
+unregistered workspace "work" → /Volumes/ext/skills
+links in /Volumes/ext/skills could not be checked and were left in place
+```
+
+The links notice comes after the `unregistered` line, and after the `cloned directories were left in place` notice when both
+apply.
+
+`--force` changes nothing for a workspace grimoire can read. Its links are read as usual, and without `--hard` they still
+block the removal, so the flag can never leave links in a readable workspace untracked. It changes nothing for a path that
+does not resolve either, which already unregisters.
 
 ### Links refuse
 
@@ -175,7 +213,8 @@ link and deleting a skill.
 A symlink pointing anywhere else — a skill you linked in by hand from another directory — is not grimoire's, so it neither
 blocks the removal nor gets cleared. Chains are followed: a link that reaches a store skill through an intermediate symlink
 counts. A link has to resolve to count, though. Once its skill is deleted from the store it resolves nowhere, so it neither
-blocks `remove` nor is cleared by `--hard`, and is left for you to delete by hand.
+blocks `remove` nor is cleared by `--hard`, and is left for you to delete by hand. [`status`](./status.md) reports these
+links, and the planned `doctor` command is meant to clear them.
 
 ### Clones convert
 
@@ -199,9 +238,9 @@ unregistered workspace "personal" → /Users/me/.claude/skills
 ```
 
 The clone stays reachable by [`unclone`](./unclone.md),
-[`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm), and `status` — it has simply
-stopped being addressable by a name that no longer resolves. Records naming a **different** workspace, and ones already keyed
-by path, are left alone.
+[`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm), and [`status`](./status.md) —
+it has simply stopped being addressable by a name that no longer resolves. Records naming a **different** workspace, and ones
+already keyed by path, are left alone.
 
 `--hard` forgets them instead:
 
@@ -213,8 +252,8 @@ cloned directories were left in place
 ```
 
 The last line appears only when a forgotten record names a directory still present under the workspace. Those copies are now
-ordinary directories: grimoire will not update them, will not report them under `status`, and will not delete them. No
-grimoire command deletes a cloned directory — `--hard` here and
+ordinary directories: grimoire will not update them, will not report them under [`status`](./status.md), and will not delete
+them. No grimoire command deletes a cloned directory — `--hard` here and
 [`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm) both stop at the record;
 removing the copy is yours to do by hand.
 
@@ -230,4 +269,4 @@ Sorted by name. There is no header row, so the middle column spells out which mo
 `No workspaces registered.`
 
 The listing is state, not truth — a registered path that no longer exists on disk is still listed, and reporting it is
-`status`'s job.
+[`status`](./status.md)'s job.

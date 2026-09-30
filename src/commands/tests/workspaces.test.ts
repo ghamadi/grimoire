@@ -10,9 +10,11 @@ import {
   InvalidWorkspaceNameError,
   InvalidPathError,
   PathCollisionError,
+  UnreadableWorkspaceRemovalError,
   WorkspaceInUseError,
 } from '#src/lib/errors/index';
 import { buildProgram } from '#src/program';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 
 afterEach(() => {
@@ -354,6 +356,46 @@ describe('workspaces remove', () => {
       'cloned directories were left in place',
     ]);
     expect(existsSync(join(path, 'deploy'))).toBe(true);
+  });
+
+  describe.skipIf(runsAsRoot)('a workspace whose directory cannot be read', () => {
+    it('refuses with the --force fix, leaving the workspace registered', async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('project');
+
+      run('workspaces', 'add', 'personal', path);
+      lockDirectory({ path });
+
+      const error = captureError(() => run('workspaces', 'remove', 'personal'));
+
+      expect(error).toBeInstanceOf(UnreadableWorkspaceRemovalError);
+      expect(error.message).toBe(
+        [
+          `cannot remove workspace "personal": ${path} cannot be read`,
+          '  make it readable, then run this again, or unregister it anyway with `grimoire workspaces remove personal --force`',
+        ].join('\n'),
+      );
+      expect(readWorkspaces(store).personal).toEqual({ path, autoLink: false });
+    });
+
+    it('unregisters under --force, printing the links notice last', async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('project');
+
+      run('workspaces', 'add', 'personal', path);
+      mkdirSync(join(path, 'deploy'));
+      recordClones(store, { deploy: [{ workspace: 'personal' }] });
+      lockDirectory({ path });
+
+      const { stdout } = run('workspaces', 'remove', 'personal', '--force');
+
+      expect(stdout).toEqual([
+        '1 clone now recorded by path: deploy',
+        `unregistered workspace "personal" → ${path}`,
+        `links in ${path} could not be checked and were left in place`,
+      ]);
+      expect(run('workspaces', 'list').stdout).toEqual(['No workspaces registered.']);
+    });
   });
 
   // The registry refuses to load the entry at all, so every command is stopped

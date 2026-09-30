@@ -1,5 +1,5 @@
 import { InvalidWorkspaceNameError } from '#src/lib/errors/index';
-import { isResolvableDirectory } from '#src/lib/fs';
+import { getDirectoryAccess, type DirectoryAccess } from '#src/lib/fs';
 
 export type WorkspaceParams = {
   name: string;
@@ -31,8 +31,8 @@ export class Workspace {
     return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name);
   }
 
-  /** Whether the path resolves to a directory. Gone, under a file, or a symlink cycle answers false. */
-  isReachable(): boolean {
-    return isResolvableDirectory(this.path);
+  /** How far grimoire can get into the workspace's directory — see {@link getDirectoryAccess}. */
+  getDirectoryAccess(): DirectoryAccess {
+    return getDirectoryAccess(this.path);
   }
 }

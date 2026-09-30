@@ -1,15 +1,17 @@
+import { styleText } from 'node:util';
 import { Command } from 'commander';
 import { cloneCommand } from '#src/commands/clone';
 import { clackSkillPicker, type SkillPicker } from '#src/commands/prompts/skill-picker';
 import { linkCommand } from '#src/commands/link';
 import { skillsCommand } from '#src/commands/skills';
+import { statusCommand, type TextStyler } from '#src/commands/status';
 import { uncloneCommand } from '#src/commands/unclone';
 import { unlinkCommand } from '#src/commands/unlink';
 import { workspacesCommand } from '#src/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { getVersion } from '#src/lib/utils';
 
-export type ProgramDependencies = { skillPicker?: SkillPicker };
+export type ProgramDependencies = { skillPicker?: SkillPicker; textStyler?: TextStyler };
 
 /**
  * Assembles the CLI and hands it back unparsed.
@@ -19,7 +21,7 @@ export type ProgramDependencies = { skillPicker?: SkillPicker };
  * the real `process.argv` and the real `$HOME`.
  */
 export function buildProgram(store: GrimoireStore, dependencies: ProgramDependencies = {}): Command {
-  const { skillPicker = clackSkillPicker } = dependencies;
+  const { skillPicker = clackSkillPicker, textStyler = styleText } = dependencies;
   const program = new Command();
   const storeManager = new GrimoireStoreManager(store);
 
@@ -32,7 +34,8 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(linkCommand({ storeManager }))
     .addCommand(unlinkCommand({ storeManager }))
     .addCommand(cloneCommand({ storeManager }))
-    .addCommand(uncloneCommand({ storeManager }));
+    .addCommand(uncloneCommand({ storeManager }))
+    .addCommand(statusCommand({ storeManager, textStyler }));
 
   return program;
 }

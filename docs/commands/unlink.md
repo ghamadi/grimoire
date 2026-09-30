@@ -29,8 +29,12 @@ A registered workspace whose path does not resolve to a directory (gone, a file,
 `unlink` cannot read, so it is declined like any other destination it will not touch. The path may be an unmounted volume or
 a renamed directory with the link still intact inside it, and `unlink` will not report a link gone that it never saw.
 
+A workspace whose path is a directory `unlink` cannot list or enter, or that sits under one it cannot enter, is unreadable
+and is declined the same way, for the same reason: a link inside it may be intact, and `unlink` will not report it gone
+without having seen it.
+
 For the same reason it never unregisters the workspace. Clearing a stale registration is `workspaces remove`'s job, and
-listing them is `status`'s.
+listing them is [`status`](./status.md)'s.
 
 `<path>` below is `<registered workspace path>/<skill>`.
 
@@ -49,6 +53,7 @@ not linked triage → work
 | the link                            | removed  | stdout `unlinked <skill> → <workspace>`                                                          |
 | nothing                             | success  | stdout `not linked <skill> → <workspace>`                                                        |
 | the workspace does not resolve      | declined | stderr `warning: could not unlink <skill> → <workspace>: <path> workspace path does not resolve` |
+| the workspace cannot be read        | declined | stderr `warning: could not unlink <skill> → <workspace>: <path> workspace path cannot be read`   |
 | a directory                         | declined | stderr `warning: could not unlink <skill> → <workspace>: <path> is a directory, not a link`      |
 | anything else that is not a symlink | declined | stderr `warning: could not unlink <skill> → <workspace>: <path> is not a link`                   |
 | a symlink resolving anywhere else   | declined | stderr `warning: could not unlink <skill> → <workspace>: <path> is a symlink pointing elsewhere` |

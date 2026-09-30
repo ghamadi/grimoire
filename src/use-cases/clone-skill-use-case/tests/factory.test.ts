@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '#src/domains/skill/index';
 import { CloneDeclinedError, EntityNotFoundError, UnportableSkillError } from '#src/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createCloneSkillUseCase } from '../factory.ts';
 
@@ -276,6 +277,24 @@ describe('clone-skill-use-case factory', () => {
         { kind: 'workspace-unreachable', skill: 'brainstorm', workspace: 'personal', path: cycle },
       ]);
       expect(report.cloned).toEqual([{ skill: 'brainstorm', workspace: 'work', replacedLink: false }]);
+    });
+
+    describe.skipIf(runsAsRoot)('a workspace that cannot be read', () => {
+      it('declines it rather than throwing, cloning into the rest', async () => {
+        const { cloneSkill, store, workspace } = await newUseCase();
+        const personal = workspace('personal');
+        workspace('work');
+
+        storeSkill(store, 'brainstorm');
+        lockDirectory({ path: personal });
+
+        const report = cloneSkill({ skillName: 'brainstorm', workspaces: ['personal', 'work'] });
+
+        expect(report.declined).toEqual([
+          { kind: 'workspace-unreadable', skill: 'brainstorm', workspace: 'personal', path: personal },
+        ]);
+        expect(report.cloned).toEqual([{ skill: 'brainstorm', workspace: 'work', replacedLink: false }]);
+      });
     });
   });
 

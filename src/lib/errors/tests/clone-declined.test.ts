@@ -14,6 +14,13 @@ const unreachable: CloneRefusal = {
   path: workspacePath,
 };
 
+const unreadable: CloneRefusal = {
+  kind: 'workspace-unreadable',
+  skill,
+  workspace,
+  path: workspacePath,
+};
+
 const occupied = (occupant: CloneOccupant): CloneRefusal => ({
   kind: 'occupied',
   skill,
@@ -26,6 +33,12 @@ describe('describeCloneRefusal', () => {
   it('describes a workspace that does not resolve', () => {
     expect(describeCloneRefusal(unreachable)).toBe(
       'could not clone triage → work: /Users/me/work/.agents/skills is not an existing directory',
+    );
+  });
+
+  it('describes a workspace that cannot be read', () => {
+    expect(describeCloneRefusal(unreadable)).toBe(
+      'could not clone triage → work: /Users/me/work/.agents/skills cannot be read',
     );
   });
 

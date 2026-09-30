@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -13,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '#src/domains/skill/index';
 import { EntityNotFoundError, UnlinkDeclinedError } from '#src/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createUnlinkSkillUseCase } from '../factory.ts';
 
@@ -228,6 +230,64 @@ describe('unlink-skill-use-case factory', () => {
 
       expect(report.unlinked).toEqual([{ skill: 'brainstorm', workspace: 'work' }]);
       expect(report.declined).toHaveLength(1);
+    });
+  });
+
+  describe.skipIf(runsAsRoot)('workspaces that cannot be read', () => {
+    it('declines a workspace with no permissions and leaves the link inside untouched', async () => {
+      const { unlinkSkill, store, workspace } = await newUseCase();
+      const personal = workspace('personal');
+      const skillPath = storeSkill(store, 'brainstorm');
+      const link = linkInto(personal, skillPath);
+
+      workspace('work');
+      lockDirectory({ path: personal });
+
+      expect(unlinkSkill({ skillName: 'brainstorm', workspaces: ['personal', 'work'] })).toEqual({
+        unlinked: [],
+        notLinked: [{ skill: 'brainstorm', workspace: 'work' }],
+        declined: [
+          {
+            skill: 'brainstorm',
+            workspace: 'personal',
+            path: link,
+            reason: 'workspace-unreadable',
+          },
+        ],
+      });
+
+      chmodSync(personal, 0o755);
+
+      expect(readlinkSync(link)).toBe(skillPath);
+    });
+
+    // `stat` of the workspace itself is what fails here, before any `lstat`.
+    it('declines a workspace under a directory that cannot be entered', async () => {
+      const { unlinkSkill, store, workspace, root } = await newUseCase();
+      const parent = join(root, 'project');
+
+      mkdirSync(parent);
+      const personal = workspace('personal', { path: join(parent, 'skills') });
+      const skillPath = storeSkill(store, 'brainstorm');
+      const link = linkInto(personal, skillPath);
+
+      workspace('work');
+      lockDirectory({ path: parent });
+
+      expect(
+        unlinkSkill({ skillName: 'brainstorm', workspaces: ['personal', 'work'] }).declined,
+      ).toEqual([
+        {
+          skill: 'brainstorm',
+          workspace: 'personal',
+          path: link,
+          reason: 'workspace-unreadable',
+        },
+      ]);
+
+      chmodSync(parent, 0o755);
+
+      expect(readlinkSync(link)).toBe(skillPath);
     });
   });
 

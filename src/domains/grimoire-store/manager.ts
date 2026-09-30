@@ -10,14 +10,19 @@ import {
   InvalidWorkspaceNameError,
   PathCollisionError,
 } from '../../lib/errors/index.ts';
-import { join } from 'node:path';
+import { join, matchesGlob } from 'node:path';
 import { InvalidShapeError } from '../../lib/errors/invalid-shape.ts';
-import { findStoreLinks, type StoreLink } from '#src/domains/grimoire-store/helpers/store-links';
+import {
+  findDanglingStoreLinks,
+  findStoreLinks,
+  type DanglingStoreLink,
+  type StoreLink,
+} from '#src/domains/grimoire-store/helpers/store-links';
 import { Skill } from '../skill/entity.ts';
 import { copyTree, movePath } from '#src/lib/fs';
 import { Workspace } from '#src/domains/workspace/index';
 import { trashBinName } from '#src/domains/grimoire-store/helpers/trash';
-import { relate } from '#src/lib/paths';
+import { normalizePath, relate } from '#src/lib/paths';
 
 type RegisterWorkspaceParams = {
   name: string;
@@ -32,6 +37,17 @@ export type SkillClone = {
   /** The cloned skill's directory. */
   path: string;
   record: CloneRecord;
+};
+
+/** A clone record as `state.json` files it, and the directory it names. */
+export type FiledClone = {
+  skill: string;
+  record: CloneRecord;
+  /**
+   * `<workspace path or recorded path>/<skill>`, normalized — or `undefined` when `record`
+   * names a workspace that is not registered.
+   */
+  path: string | undefined;
 };
 
 /** A workspace as `state.json` holds it, carrying the name it is filed under. */
@@ -169,8 +185,8 @@ export class GrimoireStoreManager {
    * name.
    *
    * Both halves of the question stay in here: the name resolves through the
-   * registry this manager owns, and the skills root it is scanned against never
-   * leaves.
+   * registry this manager owns, and the scan runs against this manager's own
+   * skills root.
    *
    * @throws EntityNotFoundError if no workspace is registered under that name.
    */
@@ -181,6 +197,31 @@ export class GrimoireStoreManager {
       workspacePath: workspace.path,
       storeSkills: this.store.paths.skills,
     });
+  }
+
+  /**
+   * Every link the workspace holds into this store's skills that resolves
+   * nowhere, sorted by entry name.
+   *
+   * @throws EntityNotFoundError if no workspace is registered under that name.
+   */
+  findDanglingLinksFromWorkspace(workspaceName: string): DanglingStoreLink[] {
+    const workspace = this.requireRegisteredWorkspace(workspaceName);
+
+    return findDanglingStoreLinks({
+      workspacePath: workspace.path,
+      storeSkills: this.store.paths.skills,
+    });
+  }
+
+  /** The store's `skills/` directory, whether or not it exists. */
+  skillsDirectory(): string {
+    return this.store.paths.skills;
+  }
+
+  /** The store's `state.json`, whether or not it exists. */
+  statePath(): string {
+    return this.store.paths.state;
   }
 
   /** The store's path for a skill, whether or not it exists. */
@@ -237,6 +278,16 @@ export class GrimoireStoreManager {
       .sort((a, b) => a.localeCompare(b));
   }
 
+  /** Every entry in the store's `skills/` that is not a skill and matches no `ignore` glob, sorted. */
+  listStrayEntryNames(): string[] {
+    const state = this.loadState();
+
+    return readdirSync(this.store.paths.skills)
+      .filter((name) => !Skill.isSkillDirectory(join(this.store.paths.skills, name)))
+      .filter((name) => !state.ignoredGlobs.some((glob) => matchesGlob(name, glob)))
+      .sort((a, b) => a.localeCompare(b));
+  }
+
   /**
    * Every directory the skill is recorded as cloned into, in record order.
    *
@@ -256,6 +307,28 @@ export class GrimoireStoreManager {
 
       return workspace ? [{ origin: record.workspace, path: join(workspace.path, name), record }] : [];
     });
+  }
+
+  /**
+   * Every clone record in `state.json`, by skill name, then record order. Unlike
+   * `listSkillClones`, a record naming an unregistered workspace is kept, with no path.
+   */
+  listFiledClones(): FiledClone[] {
+    const state = this.loadState();
+
+    return Object.entries(state.skillsByName)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .flatMap(([skill, { clones }]) =>
+        clones.map((record): FiledClone => {
+          if ('path' in record) {
+            return { skill, record, path: join(normalizePath(record.path), skill) };
+          }
+
+          const workspace = findRegisteredWorkspace(state, record.workspace);
+
+          return { skill, record, path: workspace && join(workspace.path, skill) };
+        }),
+      );
   }
 
   /**

@@ -1,4 +1,4 @@
-import { cpSync, renameSync, rmSync, statSync, type Stats } from 'node:fs';
+import { accessSync, constants, cpSync, renameSync, rmSync, statSync, type Stats } from 'node:fs';
 import { InvalidPathError } from '#src/lib/errors/index';
 
 /**
@@ -26,21 +26,37 @@ export function tryStatSync(path: string): Stats | undefined {
   }
 }
 
+/** How far grimoire can get into a directory. */
+export type DirectoryAccess = 'accessible' | 'unresolvable' | 'unreadable';
+
 /**
- * Whether `path` is a directory an operation can act in.
+ * How far grimoire can get into the directory at `path`.
  *
- * Every way a path can fail to be one answers `false`: nothing is there, a file
- * sits above it in the path, or it is a symlink cycle. The cycle is the reason
- * for the catch — `tryStatSync` translates ELOOP rather than returning, and a
- * caller asking this question has already decided an unusable path is not one
- * it acts in.
+ * - `unresolvable`: nothing is there, it is a file, a file sits above it in the
+ *   path, or it is a symlink cycle. The cycle is the reason for the catch:
+ *   `tryStatSync` translates ELOOP rather than returning.
+ * - `unreadable`: the directory cannot be listed or entered, or an ancestor
+ *   cannot be entered. EACCES and EPERM arrive from `stat` when it is the
+ *   ancestor, and from `access` when it is the directory itself.
+ * - `accessible`: read lets a caller list it, and search lets it work on the
+ *   entries inside.
  */
-export function isResolvableDirectory(path: string): boolean {
+export function getDirectoryAccess(path: string): DirectoryAccess {
   try {
-    return !!tryStatSync(path)?.isDirectory();
+    if (!tryStatSync(path)?.isDirectory()) {
+      return 'unresolvable';
+    }
+
+    accessSync(path, constants.R_OK | constants.X_OK);
+
+    return 'accessible';
   } catch (error) {
     if (error instanceof InvalidPathError) {
-      return false;
+      return 'unresolvable';
+    }
+
+    if (isErrnoException(error, 'EACCES') || isErrnoException(error, 'EPERM')) {
+      return 'unreadable';
     }
 
     throw error;
@@ -79,7 +95,7 @@ export function movePath(params: { from: string; to: string }): void {
 
 export function isErrnoException(
   error: unknown,
-  code: 'ENOENT' | 'ENOTDIR' | 'ELOOP' | 'EXDEV',
+  code: 'ENOENT' | 'ENOTDIR' | 'ELOOP' | 'EXDEV' | 'EACCES' | 'EPERM',
 ): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error && error.code === code;
 }

@@ -1,7 +1,7 @@
 import { unlinkSync } from 'node:fs';
 import type { GrimoireStoreManager, RegisteredWorkspace } from '#src/domains/grimoire-store/index';
 import { WorkspaceUnreadableError } from '#src/lib/errors/index';
-import { isResolvableDirectory } from '#src/lib/fs';
+import { getDirectoryAccess } from '#src/lib/fs';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES
@@ -112,11 +112,13 @@ export function createRemoveSkillsUseCase(
  * a directory to read links out of.
  */
 function assertWorkspacesReadable(workspaces: RegisteredWorkspace[]): void {
-  const unreadable = workspaces.filter(({ path }) => !isResolvableDirectory(path));
+  const unreadable = workspaces.flatMap(({ name, path }) => {
+    const access = getDirectoryAccess(path);
+
+    return access === 'accessible' ? [] : [{ name, path, access }];
+  });
 
   if (unreadable.length > 0) {
-    throw new WorkspaceUnreadableError({
-      workspaces: unreadable.map(({ name, path }) => ({ name, path })),
-    });
+    throw new WorkspaceUnreadableError({ workspaces: unreadable });
   }
 }

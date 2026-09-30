@@ -1,5 +1,5 @@
-import { readdirSync, type Dirent } from 'node:fs';
-import { join, sep } from 'node:path';
+import { existsSync, readdirSync, readlinkSync, type Dirent } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { isErrnoException } from '#src/lib/fs';
 import { relativeTo } from '#src/lib/paths';
 
@@ -10,6 +10,14 @@ export type StoreLink = {
   /** The store skill the link resolves into — not always `skill`. */
   storeSkill: string;
   path: string;
+};
+
+/** A workspace symlink whose target text names a path in the store, where nothing resolves. */
+export type DanglingStoreLink = {
+  /** The workspace entry's own name. */
+  entry: string;
+  /** The target text, made absolute against the workspace — not canonicalized. */
+  target: string;
 };
 
 export type StoreLinkQuery = {
@@ -27,20 +35,44 @@ export type StoreLinkQuery = {
  * recomputing it.
  */
 export function findStoreLinks(query: StoreLinkQuery): StoreLink[] {
-  return readEntries(query.workspacePath)
-    .filter((entry) => entry.isSymbolicLink())
-    .flatMap((entry) => {
-      const path = join(query.workspacePath, entry.name);
-      const storeSkill = storeSkillOf({ link: path, storeSkills: query.storeSkills });
+  return readSymlinks(query.workspacePath).flatMap((symlink) => {
+    const storeSkill = storeSkillOf({ link: symlink.path, storeSkills: query.storeSkills });
 
-      return storeSkill === undefined ? [] : [{ skill: entry.name, storeSkill, path }];
-    })
-    .sort((a, b) => a.skill.localeCompare(b.skill));
+    return storeSkill === undefined ? [] : [{ skill: symlink.name, storeSkill, path: symlink.path }];
+  });
+}
+
+/**
+ * Every workspace link into the store that resolves nowhere, sorted by entry
+ * name: the links `findStoreLinks` leaves out because they resolve nowhere.
+ */
+export function findDanglingStoreLinks(query: StoreLinkQuery): DanglingStoreLink[] {
+  return readSymlinks(query.workspacePath).flatMap((symlink) => {
+    const targetPath = resolve(query.workspacePath, readlinkSync(symlink.path));
+    const namesStorePath = relativeTo({ candidate: targetPath, reference: query.storeSkills }) !== null;
+
+    return namesStorePath && !existsSync(symlink.path)
+      ? [{ entry: symlink.name, target: targetPath }]
+      : [];
+  });
 }
 
 // ----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
+
+type Symlink = {
+  name: string;
+  path: string;
+};
+
+/** The workspace's symlinks, sorted by name. */
+function readSymlinks(workspacePath: string): Symlink[] {
+  return readEntries(workspacePath)
+    .filter((entry) => entry.isSymbolicLink())
+    .map((entry) => ({ name: entry.name, path: join(workspacePath, entry.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 
 /**
  * A path that is not a directory holds no links — whether it is gone, or has

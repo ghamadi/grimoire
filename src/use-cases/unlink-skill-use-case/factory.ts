@@ -6,7 +6,7 @@ import {
   type UnlinkRefusal,
   type UnlinkRefusalReason,
 } from '#src/lib/errors/index';
-import { isResolvableDirectory } from '#src/lib/fs';
+import { getDirectoryAccess } from '#src/lib/fs';
 import { relate } from '#src/lib/paths';
 import { assertUnreachable } from '#src/lib/utils';
 
@@ -113,13 +113,13 @@ type UnlinkSkillFromWorkspaceParams = {
 /**
  * One destination, decided by what sits at `<workspace>/<skill>`.
  *
- * The workspace is resolved first: `lstat` of the destination suppresses only
- * ENOENT, so a registered path that is a file raises ENOTDIR and a symlink
- * cycle raises ELOOP.
+ * The workspace is checked first: `lstat` of the destination suppresses only
+ * ENOENT, so a registered path that is a file raises ENOTDIR, a symlink cycle
+ * raises ELOOP, and one that cannot be entered raises EACCES.
  *
- * A workspace that fails that check is declined, not `not-linked`: the path may
- * be an unmounted volume whose link is intact, so the run cannot report the
- * skill as unlinked from it.
+ * A workspace that fails that check, whether it does not resolve or cannot be
+ * read, is declined, not `not-linked`: the path may be an unmounted volume whose
+ * link is intact, so the run cannot report the skill as unlinked from it.
  */
 function unlinkSkillFromWorkspace(params: UnlinkSkillFromWorkspaceParams): PairOutcome {
   const { workspace, skillName, skillPath } = params;
@@ -135,8 +135,10 @@ function unlinkSkillFromWorkspace(params: UnlinkSkillFromWorkspaceParams): PairO
     },
   });
 
-  if (!isResolvableDirectory(workspace.path)) {
-    return decline('workspace-unreachable');
+  const access = getDirectoryAccess(workspace.path);
+
+  if (access !== 'accessible') {
+    return decline(access === 'unresolvable' ? 'workspace-unreachable' : 'workspace-unreadable');
   }
 
   const status = lstatSync(destinationPath, { throwIfNoEntry: false });
