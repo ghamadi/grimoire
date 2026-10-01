@@ -2,6 +2,7 @@ import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidPathError } from '#src/lib/errors/index';
+import { DS_STORE_NAME, finderDsStoreBytes } from '#test-helpers/ds-store';
 import { tempRoot } from '#test-helpers/temp-root';
 import { compareContainment } from '../directory-containment.ts';
 
@@ -50,6 +51,38 @@ describe('compareContainment', () => {
       expect(compare(pair)).toEqual({ kind: 'contained' });
     });
 
+    it('accepts a Finder .DS_Store the reference does not hold', async () => {
+      const pair = await newPair();
+
+      pair.candidate.file('SKILL.md', '# skill');
+      pair.candidate.file(DS_STORE_NAME, finderDsStoreBytes());
+
+      pair.reference.file('SKILL.md', '# skill');
+
+      expect(compare(pair)).toEqual({ kind: 'contained' });
+    });
+
+    it('accepts a Finder .DS_Store whose bytes disagree with the reference’s', async () => {
+      const pair = await newPair();
+
+      pair.candidate.file(DS_STORE_NAME, finderDsStoreBytes({ padding: 'ours' }));
+      pair.reference.file(DS_STORE_NAME, finderDsStoreBytes({ padding: 'theirs' }));
+
+      expect(compare(pair)).toEqual({ kind: 'contained' });
+    });
+
+    it('accepts a Finder .DS_Store in a subdirectory both sides hold', async () => {
+      const pair = await newPair();
+
+      pair.candidate.file('SKILL.md', '# skill');
+      pair.candidate.file(`scripts/${DS_STORE_NAME}`, finderDsStoreBytes());
+
+      pair.reference.file('SKILL.md', '# skill');
+      pair.reference.directory('scripts');
+
+      expect(compare(pair)).toEqual({ kind: 'contained' });
+    });
+
     it('accepts an empty directory the reference also holds', async () => {
       const pair = await newPair();
 
@@ -82,16 +115,34 @@ describe('compareContainment', () => {
   });
 
   describe('what it reports as a difference', () => {
-    // The whole reason the ignore list stays out: this file is the user's, and
-    // the reference cannot vouch for it.
     it('reports a file the reference does not hold at all', async () => {
       const pair = await newPair();
 
       pair.candidate.file('SKILL.md', '# skill');
-      pair.candidate.file('.DS_Store', 'junk');
+      pair.candidate.file('notes.md', 'notes');
       pair.reference.file('SKILL.md', '# skill');
 
-      expect(compare(pair)).toEqual({ kind: 'differs', entry: '.DS_Store' });
+      expect(compare(pair)).toEqual({ kind: 'differs', entry: 'notes.md' });
+    });
+
+    it('reports a hand-made .DS_Store the reference does not hold at all', async () => {
+      const pair = await newPair();
+
+      pair.candidate.file('SKILL.md', '# skill');
+      pair.candidate.file(DS_STORE_NAME, 'junk');
+      pair.reference.file('SKILL.md', '# skill');
+
+      expect(compare(pair)).toEqual({ kind: 'differs', entry: DS_STORE_NAME });
+    });
+
+    it('reports a directory holding only a Finder .DS_Store when the reference lacks the directory', async () => {
+      const pair = await newPair();
+
+      pair.candidate.file('SKILL.md', '# skill');
+      pair.candidate.file(`scripts/${DS_STORE_NAME}`, finderDsStoreBytes());
+      pair.reference.file('SKILL.md', '# skill');
+
+      expect(compare(pair)).toEqual({ kind: 'differs', entry: 'scripts' });
     });
 
     it('reports a file whose content disagrees', async () => {
@@ -213,6 +264,20 @@ describe('compareContainment', () => {
       });
     });
 
+    it('reports a symlink named .DS_Store, naming the candidate root', async () => {
+      const pair = await newPair();
+
+      pair.candidate.file('real', finderDsStoreBytes());
+      pair.candidate.link(DS_STORE_NAME, join(pair.candidate.root, 'real'));
+      pair.reference.file('real', finderDsStoreBytes());
+
+      expect(compare(pair)).toEqual({
+        kind: 'unportable',
+        root: pair.candidate.root,
+        entry: DS_STORE_NAME,
+      });
+    });
+
     it('reports a dangling symlink rather than failing on it', async () => {
       const pair = await newPair();
 
@@ -282,7 +347,7 @@ async function newPair() {
 function newTree(root: string) {
   mkdirSync(root, { recursive: true });
 
-  function file(rel: string, content: string, options?: { executable?: boolean }): string {
+  function file(rel: string, content: string | Buffer, options?: { executable?: boolean }): string {
     const filePath = join(root, rel);
 
     mkdirSync(dirname(filePath), { recursive: true });

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST, type SkillSource } from '#src/domains/skill/index';
 import { AddDeclinedError, InvalidPathError } from '#src/lib/errors/index';
+import { DS_STORE_NAME, finderDsStoreBytes } from '#test-helpers/ds-store';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createAddSkillsUseCase } from '../factory.ts';
 
@@ -45,6 +46,18 @@ describe('add-skills-use-case factory', () => {
       expect(report.present).toEqual([{ skill: 'brainstorm', storeExtra: undefined }]);
       expect(report.added).toEqual([]);
       expect(statSync(join(store.paths.skills, 'brainstorm', SKILL_MANIFEST)).mtimeMs).toBe(before);
+    });
+
+    it('reports a source present when it differs from the store copy only by a Finder .DS_Store', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('brainstorm');
+      const brainstorm = source('brainstorm', { [DS_STORE_NAME]: finderDsStoreBytes() });
+
+      const report = addSkills({ sources: [brainstorm] });
+
+      expect(report.present).toEqual([{ skill: 'brainstorm', storeExtra: undefined }]);
+      expect(report.declined).toEqual([]);
     });
   });
 
@@ -137,6 +150,17 @@ describe('add-skills-use-case factory', () => {
 
       expect(report.present).toEqual([{ skill: 'brainstorm', storeExtra: 'notes.md' }]);
       expect(report.declined).toEqual([]);
+    });
+
+    it('does not name a Finder .DS_Store as the entry the store also holds', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('brainstorm', { [DS_STORE_NAME]: finderDsStoreBytes() });
+      const brainstorm = source('brainstorm');
+
+      const report = addSkills({ sources: [brainstorm] });
+
+      expect(report.present).toEqual([{ skill: 'brainstorm', storeExtra: undefined }]);
     });
 
     it('leaves the extra the store holds in place', async () => {
@@ -276,11 +300,11 @@ async function newUseCase() {
   const store = new GrimoireStore(join(root, '.grimoire'));
   const manager = new GrimoireStoreManager(store);
 
-  function source(name: string, files: Record<string, string> = {}): SkillSource {
+  function source(name: string, files: Record<string, string | Buffer> = {}): SkillSource {
     return { name, path: writeSkillDirectory(join(root, 'dev', name), files) };
   }
 
-  function storeSkill(name: string, files: Record<string, string> = {}): string {
+  function storeSkill(name: string, files: Record<string, string | Buffer> = {}): string {
     return writeSkillDirectory(join(store.paths.skills, name), files);
   }
 
@@ -295,7 +319,7 @@ async function newUseCase() {
 }
 
 /** A skill directory, whose manifest and nested entries any entry in `files` may override. */
-function writeSkillDirectory(path: string, files: Record<string, string> = {}): string {
+function writeSkillDirectory(path: string, files: Record<string, string | Buffer> = {}): string {
   const contents = { [SKILL_MANIFEST]: '# skill\n', ...files };
 
   for (const [name, content] of Object.entries(contents)) {

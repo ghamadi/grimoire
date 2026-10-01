@@ -18,6 +18,7 @@ import {
   LinkDeclinedError,
   UnportableSkillError,
 } from '#src/lib/errors/index';
+import { DS_STORE_NAME, finderDsStoreBytes } from '#test-helpers/ds-store';
 import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { createLinkSkillUseCase } from '../factory.ts';
@@ -116,6 +117,20 @@ describe('link-skill-use-case factory', () => {
       expect(report.linked).toEqual([{ skill: 'brainstorm', workspace: 'personal', replaced: true }]);
       expect(lstatSync(path).isSymbolicLink()).toBe(true);
     });
+
+    it('replaces a directory that differs from the store copy only by a Finder .DS_Store', async () => {
+      const { linkSkill, store, workspace } = await newUseCase();
+      const personal = workspace('personal');
+      const path = join(personal, 'brainstorm');
+
+      storeSkill(store, 'brainstorm');
+      writeSkillDirectory(path, { [DS_STORE_NAME]: finderDsStoreBytes() });
+
+      const report = linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal'] });
+
+      expect(report.linked).toEqual([{ skill: 'brainstorm', workspace: 'personal', replaced: true }]);
+      expect(lstatSync(path).isSymbolicLink()).toBe(true);
+    });
   });
 
   /**
@@ -145,6 +160,29 @@ describe('link-skill-use-case factory', () => {
       ]);
       expect(readFileSync(join(path, SKILL_MANIFEST), 'utf8')).toBe('edited');
       expect(lstatSync(join(work, 'brainstorm')).isSymbolicLink()).toBe(true);
+    });
+
+    it('declines a directory holding a hand-made .DS_Store', async () => {
+      const { linkSkill, store, workspace } = await newUseCase();
+      const personal = workspace('personal');
+      workspace('work');
+      const path = join(personal, 'brainstorm');
+
+      storeSkill(store, 'brainstorm');
+      writeSkillDirectory(path, { [DS_STORE_NAME]: 'my own notes' });
+
+      const report = linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal', 'work'] });
+
+      expect(report.declined).toEqual([
+        {
+          kind: 'occupied',
+          skill: 'brainstorm',
+          workspace: 'personal',
+          path,
+          occupant: { kind: 'differing-directory', entry: DS_STORE_NAME },
+        },
+      ]);
+      expect(existsSync(join(path, DS_STORE_NAME))).toBe(true);
     });
 
     it('declines a directory the store records as a clone, even when it matches the store copy', async () => {
@@ -563,7 +601,7 @@ async function newUseCase() {
 }
 
 /** A skill directory, whose manifest any entry in `files` may override. */
-function writeSkillDirectory(path: string, files: Record<string, string> = {}): string {
+function writeSkillDirectory(path: string, files: Record<string, string | Buffer> = {}): string {
   mkdirSync(path, { recursive: true });
 
   for (const [name, content] of Object.entries({ [SKILL_MANIFEST]: '# skill\n', ...files })) {

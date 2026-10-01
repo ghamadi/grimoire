@@ -1,6 +1,7 @@
 import { lstatSync, readdirSync, readFileSync, type Dirent, type Stats } from 'node:fs';
 import { join } from 'node:path';
 import { assertUsableDirectory } from '#src/lib/directories';
+import { isJunkFile } from '#src/lib/junk-files';
 
 // -----------------------------------------------------------------------------
 // RESULT SHAPE
@@ -43,9 +44,9 @@ const ANY_EXECUTE_BIT = 0o111;
  * This is the question asked before a directory is destroyed, so it is
  * containment rather than equality: what the reference holds and the candidate
  * does not costs nothing to lose, while everything the candidate holds has to
- * be proven to survive. Which is why nothing is skipped here — an ignore list
- * explains why the *reference* may hold more, never why the candidate may, and
- * a file the caller has no plans for is still the user's.
+ * be proven to survive. The one thing skipped is a file `isJunkFile` proves the
+ * operating system wrote. The user's `ignore` list stays out: a glob there could
+ * name real files, and this is the check that precedes a deletion.
  *
  * Entries are read depth first in lexicographic order, so the entry a refusal
  * names is the same one on every filesystem.
@@ -82,6 +83,10 @@ function walk(params: {
     const rel = parentRel === '' ? candidateEntry.name : `${parentRel}/${candidateEntry.name}`;
     const candidateEntryPath = join(candidateDirectory, candidateEntry.name);
     const referenceEntryPath = join(referenceDirectory, candidateEntry.name);
+
+    if (isJunkFile({ path: candidateEntryPath })) {
+      continue;
+    }
 
     // Refuse the comparison if the candidate directory has a symbolic link
     if (candidateEntry.isSymbolicLink()) {

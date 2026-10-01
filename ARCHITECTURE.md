@@ -34,8 +34,8 @@ See [Future: repos](#future-repos) for where version-controlled skill libraries 
 ### The rule: grimoire never loses content outside its store
 
 Outside `~/.grimoire/`, grimoire writes only two things: copies, and its own symlinks. It removes only two: its own symlinks,
-and a directory the store is proven to already hold in full. Anything else you put in a workspace stays exactly as you left
-it.
+and a directory the store is proven to already hold in full, not counting a `.DS_Store` written by Finder. Anything else you
+put in a workspace stays exactly as you left it.
 
 That is why a clone is never refreshed or overwritten, why `unclone` and `skills remove --forget-clones` forget records and
 leave directories, and why `clone` can adopt a directory it finds but never replace one.

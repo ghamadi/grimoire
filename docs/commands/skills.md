@@ -123,6 +123,10 @@ neither is a file whose contents, type, or execute bit disagree. Refusing over t
 plain copy in an auto-link workspace that no re-run could ever adopt, because auto-link only fires for what `add` copied or
 found already there.
 
+A `.DS_Store` written by Finder is left out of the comparison on both sides. One the source holds and the store lacks is not
+a difference, and one only the store holds is not named in the `(also holds …)` note. It is recognized by its name plus the
+header Finder writes, so a file that is merely named `.DS_Store` is compared like any other.
+
 The note is parenthetical because the extra is almost never part of the skill — a manifest referencing it would itself
 differ, and that's a refusal. It names the first entry the walk reaches rather than every one, in the same voice as the
 refusals above.
