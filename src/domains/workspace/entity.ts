@@ -1,5 +1,8 @@
+import { join } from 'node:path';
 import { InvalidWorkspaceNameError } from '#src/lib/errors/index';
 import { getDirectoryAccess, type DirectoryAccess } from '#src/lib/fs';
+
+const WORKSPACE_STAGING_DIRECTORY_NAME = '.grimoire-staging';
 
 export type WorkspaceParams = {
   name: string;
@@ -29,6 +32,11 @@ export class Workspace {
    */
   static isValidName(name: string): boolean {
     return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name);
+  }
+
+  /** Where a clone is built before it replaces anything in the workspace. */
+  get stagingDirectory(): string {
+    return join(this.path, WORKSPACE_STAGING_DIRECTORY_NAME);
   }
 
   /** How far grimoire can get into the workspace's directory — see {@link getDirectoryAccess}. */

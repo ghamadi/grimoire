@@ -24,7 +24,7 @@ export type UnlinkRefusal = {
 };
 
 /**
- * The sentence, without a `warning: ` or `grimoire: ` prefix.
+ * The sentence, without a `warning: ` or `error: ` prefix.
  *
  * A run that unlinked something prints these as warnings and returns; a run
  * that unlinked nothing throws them as one error. Both have to read

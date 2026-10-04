@@ -106,6 +106,28 @@ describe('report-status-use-case factory', () => {
     });
   });
 
+  describe('a staging directory a clone left behind', () => {
+    it('changes nothing in the report', async () => {
+      const { reportStatus, store, root } = await newUseCase();
+      const personal = newDirectory(root, 'personal');
+
+      storeSkill(store, 'triage');
+      newDirectory(personal, 'triage');
+      linkSkill({ store, workspace: personal, skill: 'brainstorm' });
+      handEditState(store, {
+        workspaces: { personal: registration(personal) },
+        skills: { triage: { clones: [{ workspace: 'personal' }] } },
+      });
+
+      const before = reportStatus();
+
+      const leftover = newDirectory(personal, '.grimoire-staging', 'triage.abc.incoming');
+      writeFileSync(join(leftover, SKILL_MANIFEST), '# skill\n', 'utf8');
+
+      expect(reportStatus()).toEqual(before);
+    });
+  });
+
   describe('attribution', () => {
     it('files a path record for a workspace under that workspace, with no recorded-path block', async () => {
       const { reportStatus, store, root } = await newUseCase();

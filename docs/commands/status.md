@@ -173,11 +173,6 @@ On a color-capable stdout only. Piped output, or `NO_COLOR` set, prints plain.
 
 Content text is never styled.
 
-## What `status` never reports
-
-Clone drift. `status` never compares a clone to the store, because drifting is what a clone is for — see
-[`clone`](./clone.md). This is permanent, not deferred.
-
 ## Exit code and refusals
 
 Everything `status` reports goes to stdout, because problems are its result, not warnings. It exits 0 whenever `state.json`
@@ -188,12 +183,12 @@ entry, and not `state.json`.
 
 The only refusals are the load failures every command shares. Each prints to stderr and exits 1:
 
-- A `state.json` that is not valid JSON prints `grimoire: <state.json path>: is not valid JSON`. One that does not match its
+- A `state.json` that is not valid JSON prints `error: <state.json path>: is not valid JSON`. One that does not match its
   shape is refused with a message naming what is wrong.
 - A registered workspace whose path touches `~/.grimoire/` — only possible by editing `state.json` by hand:
 
 ```shell
 $ grimoire status
-grimoire: workspace "bad" cannot be used: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
+error: workspace "bad" cannot be used: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
   no command can run until it is gone from /Users/me/.grimoire/state.json
 ```

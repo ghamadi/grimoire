@@ -73,5 +73,5 @@ record is dropped.
 
 ```shell
 $ grimoire unclone triage personal ghost
-grimoire: no workspace named "ghost"
+error: no workspace named "ghost"
 ```

@@ -24,7 +24,7 @@ describe('grimoire cli', () => {
     const { stderr, code } = await runCli(['workspaces', 'remove', 'nope'], { home: await tempRoot() });
 
     expect(code).toBe(1);
-    expect(stderr).toBe('grimoire: no workspace named "nope"');
+    expect(stderr).toBe('error: no workspace named "nope"');
   });
 
   it('prints status without escape codes when stdout is piped', async () => {

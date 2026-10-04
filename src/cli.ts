@@ -15,7 +15,7 @@ try {
     throw error;
   }
 
-  console.error(`grimoire: ${error.message}`);
+  console.error(`error: ${error.message}`);
 
   // Not `process.exit()`, which can truncate the write above.
   process.exitCode = 1;

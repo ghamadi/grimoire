@@ -28,6 +28,12 @@ export {
   type CloneRefusal,
 } from './clone-declined.ts';
 export {
+  CloneFailedError,
+  describeCloneFailure,
+  type CloneFailedErrorProps,
+  type CloneFailure,
+} from './clone-failed.ts';
+export {
   LinkDeclinedError,
   describeLinkRefusal,
   type LinkDeclinedErrorProps,

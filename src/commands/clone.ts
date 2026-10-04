@@ -1,8 +1,10 @@
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { describeCloneRefusal } from '#src/lib/errors/index';
+import { CloneFailedError, describeCloneRefusal } from '#src/lib/errors/index';
+import { assertUnreachable } from '#src/lib/utils';
 import {
   createCloneSkillUseCase,
+  type CloneReplacedEntry,
   type CloneSkillUseCase,
 } from '#src/use-cases/clone-skill-use-case/factory';
 
@@ -18,9 +20,18 @@ export function cloneCommand(params: CloneCommandParams): Command {
     .description('Copy a store skill into workspaces')
     .argument('<skill>', 'skill to clone')
     .argument('<workspaces...>', 'registered names to clone into')
-    .option('--adopt', 'record a skill directory already at the destination instead of declining it')
-    .action((skill: string, workspaces: string[], options: { adopt?: boolean }) => {
-      report(cloneSkill({ skillName: skill, workspaces, adopt: options.adopt }));
+    .option(
+      '--overwrite',
+      'replace a skill directory already at the destination with the store copy, deleting the old one',
+    )
+    .action((skill: string, workspaces: string[], options: { overwrite?: boolean }) => {
+      const result = cloneSkill({ skillName: skill, workspaces, overwrite: options.overwrite });
+
+      report(result);
+
+      if (result.failed.length > 0) {
+        throw new CloneFailedError({ failures: result.failed });
+      }
     });
 }
 
@@ -28,11 +39,24 @@ export function cloneCommand(params: CloneCommandParams): Command {
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
 
+function formatReplacedSuffix(replaced: CloneReplacedEntry): string {
+  switch (replaced) {
+    case 'nothing':
+      return '';
+    case 'link':
+      return ' (replaced the link)';
+    case 'directory':
+      return ' (replaced the directory)';
+    default:
+      return assertUnreachable(replaced);
+  }
+}
+
 function report(result: ReturnType<CloneSkillUseCase>): void {
   const { cloned, adopted, alreadyCloned, declined } = result;
 
-  for (const { skill, workspace, replacedLink } of cloned) {
-    console.log(`cloned ${skill} → ${workspace}${replacedLink ? ' (replaced the link)' : ''}`);
+  for (const { skill, workspace, replaced } of cloned) {
+    console.log(`cloned ${skill} → ${workspace}${formatReplacedSuffix(replaced)}`);
   }
 
   for (const { skill, workspace } of adopted) {
@@ -45,5 +69,13 @@ function report(result: ReturnType<CloneSkillUseCase>): void {
 
   for (const refusal of declined) {
     console.warn(`warning: ${describeCloneRefusal(refusal)}`);
+  }
+
+  for (const { skill, workspace, strandedOldEntry } of cloned) {
+    if (strandedOldEntry) {
+      console.warn(
+        `warning: cloned ${skill} → ${workspace}, but the old copy at ${strandedOldEntry.path} could not be fully deleted: ${strandedOldEntry.error.message}`,
+      );
+    }
   }
 }

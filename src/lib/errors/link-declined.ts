@@ -92,7 +92,7 @@ function describeOccupant(refusal: OccupiedRefusal): string {
 
   switch (occupant.kind) {
     case 'differing-directory':
-      return `${path} holds a directory that differs from the store copy at "${occupant.entry}" — keep it with \`grimoire clone ${skill} ${workspace} --adopt\`, or delete it yourself`;
+      return `${path} holds a directory that differs from the store copy at "${occupant.entry}" — keep it with \`grimoire clone ${skill} ${workspace}\`, or delete it yourself`;
     case 'not-a-directory':
       return `${path} is not a directory`;
     case 'foreign-symlink':

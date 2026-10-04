@@ -2,6 +2,7 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -12,9 +13,20 @@ import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GrimoireStore } from '#src/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '#src/domains/skill/index';
-import { CloneDeclinedError, EntityNotFoundError, UnportableSkillError } from '#src/lib/errors/index';
+import {
+  CloneDeclinedError,
+  CloneFailedError,
+  EntityNotFoundError,
+  UnportableSkillError,
+} from '#src/lib/errors/index';
 import { buildProgram } from '#src/program';
 import { tempRoot } from '#test-helpers/temp-root';
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+
+  return { ...actual, rmSync: vi.fn(actual.rmSync) };
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -74,28 +86,32 @@ describe('clone', () => {
   it('prints each group in turn, keeping argument order inside it, and exits clean past a refusal', async () => {
     const { run, store } = await newCli();
     const lab = await newDirectory('lab');
+    const scratch = await newDirectory('scratch');
 
     run('workspaces', 'add', 'lab', lab);
+    run('workspaces', 'add', 'scratch', scratch);
     run('workspaces', 'add', 'second', await newDirectory('second'));
     run('workspaces', 'add', 'third', await newDirectory('third'));
     run('workspaces', 'add', 'first', await newDirectory('first'));
     storeSkill(store, 'triage');
-    writeSkillDirectory(join(lab, 'triage'));
+    mkdirSync(join(lab, 'triage'), { recursive: true });
+    writeSkillDirectory(join(scratch, 'triage'));
     run('clone', 'triage', 'second');
 
-    const { stdout, stderr } = run('clone', 'triage', 'lab', 'second', 'third', 'first');
+    const { stdout, stderr } = run('clone', 'triage', 'lab', 'scratch', 'second', 'third', 'first');
 
     expect(stdout).toEqual([
       'cloned triage → third',
       'cloned triage → first',
+      'adopted triage → scratch',
       'already cloned triage → second',
     ]);
     expect(stderr).toEqual([
-      `warning: could not clone triage → lab: ${join(lab, 'triage')} already holds a directory — rerun with --adopt to keep it as the clone`,
+      `warning: could not clone triage → lab: ${join(lab, 'triage')} is a directory with no SKILL.md`,
     ]);
   });
 
-  it('confirms an adopted directory under --adopt', async () => {
+  it('confirms an adopted directory', async () => {
     const { run, store } = await newCli();
     const path = await newDirectory('personal');
 
@@ -103,7 +119,7 @@ describe('clone', () => {
     storeSkill(store, 'triage');
     writeSkillDirectory(join(path, 'triage'));
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal', '--adopt');
+    const { stdout, stderr } = run('clone', 'triage', 'personal');
 
     expect(stdout).toEqual(['adopted triage → personal']);
     expect(stderr).toEqual([]);
@@ -118,12 +134,12 @@ describe('clone', () => {
     storeSkill(store, 'triage');
     writeSkillDirectory(join(scratch, 'triage'));
 
-    const { stdout } = run('clone', 'triage', 'scratch', 'personal', '--adopt');
+    const { stdout } = run('clone', 'triage', 'scratch', 'personal');
 
     expect(stdout).toEqual(['cloned triage → personal', 'adopted triage → scratch']);
   });
 
-  it('declines a directory with no SKILL.md under --adopt', async () => {
+  it('declines a directory with no SKILL.md', async () => {
     const { run, store } = await newCli();
     const path = await newDirectory('personal');
     const dest = join(path, 'triage');
@@ -132,12 +148,188 @@ describe('clone', () => {
     storeSkill(store, 'triage');
     mkdirSync(dest, { recursive: true });
 
-    const error = captureError(() => run('clone', 'triage', 'personal', '--adopt'));
+    const error = captureError(() => run('clone', 'triage', 'personal'));
 
     expect(error).toBeInstanceOf(CloneDeclinedError);
     expect(error.message).toBe(
-      `could not clone triage → personal: ${dest} holds no SKILL.md, so it cannot be adopted`,
+      `could not clone triage → personal: ${dest} is a directory with no SKILL.md`,
     );
+  });
+
+  it('rejects --adopt as an unknown option, touching nothing', async () => {
+    const { run, store } = await newCli();
+    const path = await newDirectory('personal');
+
+    run('workspaces', 'add', 'personal', path);
+    storeSkill(store, 'triage');
+    writeSkillDirectory(join(path, 'triage'));
+
+    const error = captureError(() => run('clone', 'triage', 'personal', '--adopt'));
+
+    expect(error).toBeInstanceOf(CommanderError);
+    expect((error as CommanderError).code).toBe('commander.unknownOption');
+    expect(error.message).toMatch(/^error: unknown option '--adopt'/);
+    expect(run('clone', 'triage', 'personal').stdout).toEqual(['adopted triage → personal']);
+  });
+
+  it('replaces a recorded clone under --overwrite and says so', async () => {
+    const { run, store } = await newCli();
+    const path = await newDirectory('personal');
+    const dest = join(path, 'triage');
+
+    run('workspaces', 'add', 'personal', path);
+    storeSkill(store, 'triage');
+    run('clone', 'triage', 'personal');
+    writeFileSync(join(dest, 'notes.md'), 'mine', 'utf8');
+
+    const { stdout, stderr } = run('clone', 'triage', 'personal', '--overwrite');
+
+    expect(stdout).toEqual(['cloned triage → personal (replaced the directory)']);
+    expect(stderr).toEqual([]);
+    expect(existsSync(join(dest, 'notes.md'))).toBe(false);
+    expect(readFileSync(join(dest, SKILL_MANIFEST), 'utf8')).toBe(
+      readFileSync(join(store.paths.skills, 'triage', SKILL_MANIFEST), 'utf8'),
+    );
+  });
+
+  it('leaves no staging directory in the workspace after --overwrite', async () => {
+    const { run, store } = await newCli();
+    const path = await newDirectory('personal');
+
+    run('workspaces', 'add', 'personal', path);
+    storeSkill(store, 'triage');
+    run('clone', 'triage', 'personal');
+
+    const { stdout } = run('clone', 'triage', 'personal', '--overwrite');
+
+    expect(stdout).toEqual(['cloned triage → personal (replaced the directory)']);
+    expect(existsSync(join(path, '.grimoire-staging'))).toBe(false);
+  });
+
+  it('fails the pair when the staging path is a file', async () => {
+    const { run, runFailing, store } = await newCli();
+    const path = await newDirectory('personal');
+    const staging = join(path, '.grimoire-staging');
+
+    run('workspaces', 'add', 'personal', path);
+    storeSkill(store, 'triage');
+    writeFileSync(staging, 'mine', 'utf8');
+
+    const { error } = runFailing('clone', 'triage', 'personal');
+
+    expect(error).toBeInstanceOf(CloneFailedError);
+    expect(error.message).toBe(`failed to clone triage → personal: ${staging} is not a directory`);
+  });
+
+  it('prints the pairs it wrote before throwing for the one whose write failed', async () => {
+    const { run, runFailing, store } = await newCli();
+    const first = await newDirectory('a');
+    const second = await newDirectory('b');
+    const third = await newDirectory('c');
+    const staging = join(third, '.grimoire-staging');
+
+    run('workspaces', 'add', 'a', first);
+    run('workspaces', 'add', 'b', second);
+    run('workspaces', 'add', 'c', third);
+    storeSkill(store, 'triage');
+    writeSkillDirectory(join(first, 'triage'), { 'old.md': 'old' });
+    writeSkillDirectory(join(second, 'triage'), { 'old.md': 'old' });
+    writeFileSync(staging, 'mine', 'utf8');
+
+    const { stdout, stderr, error } = runFailing('clone', 'triage', 'a', 'b', 'c', '--overwrite');
+
+    expect(stdout).toEqual([
+      'cloned triage → a (replaced the directory)',
+      'cloned triage → b (replaced the directory)',
+    ]);
+    expect(stderr).toEqual([]);
+    expect(error).toBeInstanceOf(CloneFailedError);
+    expect(error.message).toBe(`failed to clone triage → c: ${staging} is not a directory`);
+    expect(existsSync(join(first, 'triage', 'old.md'))).toBe(false);
+  });
+
+  it('lists every failure under one header', async () => {
+    const { run, runFailing, store } = await newCli();
+    const first = await newDirectory('a');
+    const second = await newDirectory('b');
+
+    run('workspaces', 'add', 'a', first);
+    run('workspaces', 'add', 'b', second);
+    storeSkill(store, 'triage');
+    writeFileSync(join(first, '.grimoire-staging'), 'mine', 'utf8');
+    writeFileSync(join(second, '.grimoire-staging'), 'mine', 'utf8');
+
+    const { error } = runFailing('clone', 'triage', 'a', 'b');
+
+    expect(error).toBeInstanceOf(CloneFailedError);
+    expect(error.message.split('\n')).toEqual([
+      'clones failed:',
+      `  failed to clone triage → a: ${join(first, '.grimoire-staging')} is not a directory`,
+      `  failed to clone triage → b: ${join(second, '.grimoire-staging')} is not a directory`,
+    ]);
+  });
+
+  it('warns about an old copy it could not fully delete, still printing the cloned line', async () => {
+    const { run, store } = await newCli();
+    const path = await newDirectory('personal');
+    const staging = join(path, '.grimoire-staging');
+
+    run('workspaces', 'add', 'personal', path);
+    storeSkill(store, 'triage');
+    writeSkillDirectory(join(path, 'triage'), { 'old.md': 'old' });
+    vi.mocked(rmSync).mockImplementationOnce(() => {
+      throw Object.assign(new Error('delete failed'), { code: 'EACCES' });
+    });
+
+    const { stdout, stderr } = run('clone', 'triage', 'personal', '--overwrite');
+    const [entry] = readdirSync(staging);
+
+    expect(stdout).toEqual(['cloned triage → personal (replaced the directory)']);
+    expect(stderr).toEqual([
+      `warning: cloned triage → personal, but the old copy at ${join(staging, entry!)} could not be fully deleted: delete failed`,
+    ]);
+  });
+
+  it('replaces an adoptable directory instead of adopting it under --overwrite, in argument order', async () => {
+    const { run, store } = await newCli();
+    const lab = await newDirectory('lab');
+    const linked = await newDirectory('linked');
+
+    run('workspaces', 'add', 'lab', lab);
+    run('workspaces', 'add', 'fresh', await newDirectory('fresh'));
+    run('workspaces', 'add', 'linked', linked);
+    const skillPath = storeSkill(store, 'triage');
+    writeSkillDirectory(join(lab, 'triage'));
+    symlinkSync(skillPath, join(linked, 'triage'));
+
+    const { stdout, stderr } = run('clone', 'triage', 'lab', 'fresh', 'linked', '--overwrite');
+
+    expect(stdout).toEqual([
+      'cloned triage → lab (replaced the directory)',
+      'cloned triage → fresh',
+      'cloned triage → linked (replaced the link)',
+    ]);
+    expect(stderr).toEqual([]);
+  });
+
+  it('still warns about a declined destination under --overwrite', async () => {
+    const { run, store } = await newCli();
+    const lab = await newDirectory('lab');
+    const marker = join(lab, 'triage', 'marker.md');
+
+    run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    run('workspaces', 'add', 'lab', lab);
+    storeSkill(store, 'triage');
+    mkdirSync(join(lab, 'triage'), { recursive: true });
+    writeFileSync(marker, 'mine', 'utf8');
+
+    const { stdout, stderr } = run('clone', 'triage', 'personal', 'lab', '--overwrite');
+
+    expect(stdout).toEqual(['cloned triage → personal']);
+    expect(stderr).toEqual([
+      `warning: could not clone triage → lab: ${join(lab, 'triage')} is a directory with no SKILL.md`,
+    ]);
+    expect(existsSync(marker)).toBe(true);
   });
 
   it('throws the refusal itself when the only destination is declined', async () => {
@@ -147,14 +339,12 @@ describe('clone', () => {
 
     run('workspaces', 'add', 'lab', lab);
     storeSkill(store, 'triage');
-    writeSkillDirectory(dest);
+    writeFileSync(dest, 'not a skill', 'utf8');
 
     const error = captureError(() => run('clone', 'triage', 'lab'));
 
     expect(error).toBeInstanceOf(CloneDeclinedError);
-    expect(error.message).toBe(
-      `could not clone triage → lab: ${dest} already holds a directory — rerun with --adopt to keep it as the clone`,
-    );
+    expect(error.message).toBe(`could not clone triage → lab: ${dest} is not a directory`);
   });
 
   it('throws one error listing every refusal when nothing was cloned', async () => {
@@ -165,7 +355,7 @@ describe('clone', () => {
     run('workspaces', 'add', 'lab', lab);
     run('workspaces', 'add', 'other', other);
     storeSkill(store, 'triage');
-    writeSkillDirectory(join(lab, 'triage'));
+    mkdirSync(join(lab, 'triage'), { recursive: true });
     writeFileSync(join(other, 'triage'), 'not a skill', 'utf8');
 
     const error = captureError(() => run('clone', 'triage', 'lab', 'other'));
@@ -173,7 +363,7 @@ describe('clone', () => {
     expect(error).toBeInstanceOf(CloneDeclinedError);
     expect(error.message.split('\n')).toEqual([
       'nothing cloned:',
-      `  could not clone triage → lab: ${join(lab, 'triage')} already holds a directory — rerun with --adopt to keep it as the clone`,
+      `  could not clone triage → lab: ${join(lab, 'triage')} is a directory with no SKILL.md`,
       `  could not clone triage → other: ${join(other, 'triage')} is not a directory`,
     ]);
   });
@@ -272,9 +462,11 @@ async function newCli() {
   const store = new GrimoireStore(await tempRoot());
   const program = silence(buildProgram(store));
 
-  function run(...argv: string[]) {
+  /** Everything the command printed, and the error it threw, if any. */
+  function capture(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
+    let thrown: unknown;
 
     const log = vi.spyOn(console, 'log').mockImplementation((line: string) => void stdout.push(line));
     const toStderr = (line: string) => void stderr.push(line);
@@ -283,16 +475,39 @@ async function newCli() {
 
     try {
       program.parse(argv, { from: 'user' });
+    } catch (caught) {
+      thrown = caught;
     } finally {
       log.mockRestore();
       error.mockRestore();
       warn.mockRestore();
     }
 
+    return { stdout, stderr, thrown };
+  }
+
+  function run(...argv: string[]) {
+    const { stdout, stderr, thrown } = capture(argv);
+
+    if (thrown !== undefined) {
+      throw thrown as Error;
+    }
+
     return { stdout, stderr };
   }
 
-  return { run, store };
+  /** For a run that throws after it has printed: the lines come back with the error. */
+  function runFailing(...argv: string[]) {
+    const { stdout, stderr, thrown } = capture(argv);
+
+    if (thrown === undefined) {
+      throw new Error('expected a refusal');
+    }
+
+    return { stdout, stderr, error: thrown as Error };
+  }
+
+  return { run, runFailing, store };
 }
 
 /**

@@ -1,5 +1,6 @@
 .claude/plans
 .claude/tickets
+.claude/reports
 
 node_modules
 dist

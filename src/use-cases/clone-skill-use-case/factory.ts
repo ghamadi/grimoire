@@ -1,10 +1,15 @@
-import { lstatSync, unlinkSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
 import { Skill } from '#src/domains/skill/index';
 import { Workspace } from '#src/domains/workspace/index';
-import { CloneDeclinedError, type CloneOccupant, type CloneRefusal } from '#src/lib/errors/index';
-import { copyTree } from '#src/lib/fs';
+import {
+  CloneDeclinedError,
+  type CloneFailure,
+  type CloneOccupant,
+  type CloneRefusal,
+} from '#src/lib/errors/index';
+import { writeTreeStaged } from '#src/lib/fs';
 import { relate } from '#src/lib/paths';
 import { assertUnreachable } from '#src/lib/utils';
 
@@ -20,15 +25,19 @@ export type CloneSkillUseCaseParams = {
   skillName: string;
   /** Registered names, deduplicated keeping first position. At least one. */
   workspaces: string[];
-  /** Record a skill directory already at a destination instead of declining it. */
-  adopt?: boolean;
+  /** Replace a skill directory at a destination with the store copy. */
+  overwrite?: boolean;
 };
 
 export type ClonePair = { skill: string; workspace: string };
 
+/** What was removed from the destination to make room for the copy. */
+export type CloneReplacedEntry = 'nothing' | 'link' | 'directory';
+
 export type CloneWritten = ClonePair & {
-  /** A symlink into the store was removed to make room for the copy. */
-  replacedLink: boolean;
+  replaced: CloneReplacedEntry;
+  /** Set when the copy is in place but deleting the old entry failed, leaving it partly deleted at `path`. */
+  strandedOldEntry?: { path: string; error: Error };
 };
 
 export type CloneSkillReport = {
@@ -36,6 +45,7 @@ export type CloneSkillReport = {
   adopted: ClonePair[];
   alreadyCloned: ClonePair[];
   declined: CloneRefusal[];
+  failed: CloneFailure[];
 };
 
 export type CloneSkillUseCase = (params: CloneSkillUseCaseParams) => CloneSkillReport;
@@ -51,7 +61,9 @@ export type CloneSkillUseCase = (params: CloneSkillUseCaseParams) => CloneSkillR
  * The skill is verified first, then each named workspace — an unknown name
  * throws before any destination is touched. Each pair is classified by what
  * sits at `<workspace>/<skill>` and by whether a clone record already names
- * it; a run that declined every pair throws rather than returning.
+ * it; a run that declined every pair, and failed none, throws rather than
+ * returning. A pair whose write fails is reported in `failed` and the run
+ * carries on, so the pairs already written are never left unreported.
  *
  * Destinations are resolved one at a time, in argument order, rather than in a
  * batch ahead of the loop: there is only one skill, so nothing is gained by
@@ -64,7 +76,7 @@ export function createCloneSkillUseCase(
   const { storeManager } = factoryParams;
 
   return (params: CloneSkillUseCaseParams) => {
-    const { skillName, workspaces, adopt = false } = params;
+    const { skillName, workspaces, overwrite = false } = params;
 
     const skill = Skill.createVerified({
       name: skillName,
@@ -78,6 +90,7 @@ export function createCloneSkillUseCase(
     const adopted: ClonePair[] = [];
     const alreadyCloned: ClonePair[] = [];
     const declined: CloneRefusal[] = [];
+    const failed: CloneFailure[] = [];
 
     for (const entry of registeredWorkspaces) {
       const workspace = new Workspace(entry);
@@ -94,7 +107,7 @@ export function createCloneSkillUseCase(
         continue;
       }
 
-      const outcome = cloneSkillIntoWorkspace({ skill, workspace, adopt, storeManager });
+      const outcome = cloneSkillIntoWorkspace({ skill, workspace, storeManager, overwrite });
       const outcomeKind = outcome.kind;
 
       switch (outcomeKind) {
@@ -102,7 +115,8 @@ export function createCloneSkillUseCase(
           cloned.push({
             skill: skill.name,
             workspace: workspace.name,
-            replacedLink: outcome.replacedLink,
+            replaced: outcome.replaced,
+            ...(outcome.strandedOldEntry && { strandedOldEntry: outcome.strandedOldEntry }),
           });
           break;
 
@@ -118,6 +132,10 @@ export function createCloneSkillUseCase(
           declined.push(outcome.refusal);
           break;
 
+        case 'failed':
+          failed.push(outcome.failure);
+          break;
+
         default:
           assertUnreachable(outcomeKind);
       }
@@ -125,6 +143,7 @@ export function createCloneSkillUseCase(
 
     if (
       declined.length > 0 &&
+      failed.length === 0 &&
       cloned.length === 0 &&
       adopted.length === 0 &&
       alreadyCloned.length === 0
@@ -132,7 +151,7 @@ export function createCloneSkillUseCase(
       throw new CloneDeclinedError({ refusals: declined });
     }
 
-    return { cloned, adopted, alreadyCloned, declined };
+    return { cloned, adopted, alreadyCloned, declined, failed };
   };
 }
 
@@ -141,16 +160,17 @@ export function createCloneSkillUseCase(
 // ----------------------------------------------------------------------------
 
 type PairOutcome =
-  | { kind: 'cloned'; replacedLink: boolean }
+  | { kind: 'cloned'; replaced: CloneReplacedEntry; strandedOldEntry?: CloneWritten['strandedOldEntry'] }
   | { kind: 'adopted' }
   | { kind: 'already-cloned' }
-  | { kind: 'declined'; refusal: CloneRefusal };
+  | { kind: 'declined'; refusal: CloneRefusal }
+  | { kind: 'failed'; failure: CloneFailure };
 
 type CloneSkillIntoWorkspaceParams = {
   skill: Skill;
   workspace: Workspace;
-  adopt: boolean;
   storeManager: GrimoireStoreManager;
+  overwrite: boolean;
 };
 
 /**
@@ -163,10 +183,14 @@ type CloneSkillIntoWorkspaceParams = {
  * copy is rewritten without adding a second record.
  */
 function cloneSkillIntoWorkspace(params: CloneSkillIntoWorkspaceParams): PairOutcome {
-  const { skill, workspace, adopt, storeManager } = params;
+  const { skill, workspace, storeManager, overwrite } = params;
 
   const dest = join(workspace.path, skill.name);
   const recorded = storeManager.findSkillClone({ skill: skill.name, directory: workspace.path });
+
+  // ------------------------------------------------------------
+  // INTERNAL HELPERS
+  // ------------------------------------------------------------
 
   const occupied = (occupant: CloneOccupant): PairOutcome => ({
     kind: 'declined',
@@ -179,26 +203,49 @@ function cloneSkillIntoWorkspace(params: CloneSkillIntoWorkspaceParams): PairOut
     },
   });
 
-  const write = (replacedLink: boolean): PairOutcome => {
-    copyTree({ from: skill.path, to: dest });
+  const write = (replaced: CloneReplacedEntry): PairOutcome => {
+    const result = writeTreeStaged({
+      from: skill.path,
+      to: dest,
+      stagingDirectory: workspace.stagingDirectory,
+    });
+
+    if (result.kind === 'failed') {
+      return {
+        kind: 'failed',
+        failure: {
+          skill: skill.name,
+          workspace: workspace.name,
+          path: dest,
+          error: result.error,
+        },
+      };
+    }
 
     if (!recorded) {
       storeManager.recordClone({ skill: skill.name, workspace: workspace.name });
     }
 
-    return { kind: 'cloned', replacedLink };
+    return {
+      kind: 'cloned',
+      replaced,
+      ...(result.strandedOldEntry && { strandedOldEntry: result.strandedOldEntry }),
+    };
   };
+
+  // ------------------------------------------------------------
+  // THE MAIN LOGIC
+  // ------------------------------------------------------------
 
   const status = lstatSync(dest, { throwIfNoEntry: false });
 
   if (!status) {
-    return write(false);
+    return write('nothing');
   }
 
   if (status.isSymbolicLink()) {
     if (relate({ candidate: dest, reference: skill.path }) === 'equals') {
-      unlinkSync(dest);
-      return write(true);
+      return write('link');
     }
 
     return occupied({ kind: 'foreign-symlink' });
@@ -211,15 +258,15 @@ function cloneSkillIntoWorkspace(params: CloneSkillIntoWorkspaceParams): PairOut
   }
 
   if (recorded) {
-    return { kind: 'already-cloned' };
-  }
-
-  if (!adopt) {
-    return occupied({ kind: 'unrecorded-directory' });
+    return overwrite ? write('directory') : { kind: 'already-cloned' };
   }
 
   if (!Skill.isSkillDirectory(dest)) {
     return occupied({ kind: 'not-a-skill' });
+  }
+
+  if (overwrite) {
+    return write('directory');
   }
 
   storeManager.recordClone({ skill: skill.name, workspace: workspace.name });

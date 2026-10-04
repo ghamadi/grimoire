@@ -6,7 +6,8 @@ name.
 > [!NOTE]
 >
 > Skills managed by grimoire reach a workspace in one of two ways: `link` symlinks the store's copy in, so edits to the store
-> are visible immediately; [`clone`](./clone.md) copies it, allowing for drifts and tweaks based on the workspace's needs.
+> are visible immediately; [`clone`](./clone.md) copies it, for a workspace that cannot use a link — the copy does not follow
+> the store.
 
 Workspaces are **flat**: an agent reads `<workspace>/<skill>/SKILL.md`, so the directory holds one entry per skill and
 nothing is nested.
@@ -57,7 +58,7 @@ One segment, never recursive — a typo in the parent should surface as one rath
 
 ```shell
 $ grimoire workspaces add personal ~/.claude/skils/nested
-grimoire: /Users/me/.claude/skils does not exist
+error: /Users/me/.claude/skils does not exist
 ```
 
 The creation line is a result, not a warning: it goes to stdout, the exit code is 0, and the confirmation below it is
@@ -75,31 +76,31 @@ create a directory, and a refused `add` must leave nothing behind.
 
 ```shell
 $ grimoire workspaces add a/b ~/.claude/skills
-grimoire: workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"
+error: workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"
 ```
 
 **2. The name is free.** Within the workspace registry.
 
 ```shell
 $ grimoire workspaces add personal ~/.config/other-agent/skills
-grimoire: workspace "personal" is already registered
+error: workspace "personal" is already registered
 ```
 
 **3. The path does not collide** with `~/.grimoire/` — see [the collision rule](#the-collision-rule).
 
 ```shell
 $ grimoire workspaces add personal ~/.grimoire/skills
-grimoire: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
+error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
 **4. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
 
 ```shell
 $ grimoire workspaces add personal ~/notes.md
-grimoire: /Users/me/notes.md is not a directory
+error: /Users/me/notes.md is not a directory
 
 $ grimoire workspaces add personal ~/nope/skills
-grimoire: /Users/me/nope does not exist
+error: /Users/me/nope does not exist
 ```
 
 ### The collision rule
@@ -129,7 +130,7 @@ $ grimoire workspaces remove personal
 unregistered workspace "personal" → /Users/me/.claude/skills
 
 $ grimoire workspaces remove ghost
-grimoire: no workspace named "ghost"
+error: no workspace named "ghost"
 ```
 
 Unregisters only. The directory is never deleted — not the workspace's, not a cloned skill's inside it. A workspace whose
@@ -155,11 +156,11 @@ the same condition [`status`](./status.md) reports as `workspace-unreadable`. Th
 
 ```shell
 $ grimoire workspaces remove work
-grimoire: cannot remove workspace "work": /Volumes/ext/skills cannot be read
+error: cannot remove workspace "work": /Volumes/ext/skills cannot be read
   make it readable, then run this again, or unregister it anyway with `grimoire workspaces remove work --force`
 
 $ grimoire workspaces remove work --hard
-grimoire: cannot remove workspace "work": /Volumes/ext/skills cannot be read
+error: cannot remove workspace "work": /Volumes/ext/skills cannot be read
   make it readable, then run this again, or unregister it anyway with `grimoire workspaces remove work --hard --force`
 ```
 
@@ -191,7 +192,7 @@ directory grimoire has stopped tracking:
 
 ```shell
 $ grimoire workspaces remove personal
-grimoire: workspace "personal" is still in use
+error: workspace "personal" is still in use
   links: brainstorm, triage
   use --hard to clear them
 ```

@@ -10,7 +10,7 @@ export type AddRefusal =
   | { kind: 'incomparable'; skill: string; root: string; entry: string };
 
 /**
- * `could not add <skill>: …` — no `warning: ` or `grimoire: ` prefix.
+ * `could not add <skill>: …` — no `warning: ` or `error: ` prefix.
  *
  * A run that added something prints these as warnings and returns; a run that
  * added nothing throws them as one error. Both have to read identically, or

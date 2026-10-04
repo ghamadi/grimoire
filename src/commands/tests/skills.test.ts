@@ -289,7 +289,7 @@ describe('skills add', () => {
 
     expect(stdout).toEqual(['added brainstorm']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${join(personal, 'brainstorm')} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm personal --adopt\`, or delete it yourself`,
+      `warning: could not link brainstorm → personal: ${join(personal, 'brainstorm')} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm personal\`, or delete it yourself`,
     ]);
     expect(existsSync(join(store.paths.skills, 'brainstorm'))).toBe(true);
   });

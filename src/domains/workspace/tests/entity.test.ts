@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidWorkspaceNameError } from '#src/lib/errors/index';
 import { Workspace } from '#src/domains/workspace/index';
@@ -40,6 +41,15 @@ describe('new Workspace', () => {
     expect(error).toBeInstanceOf(InvalidWorkspaceNameError);
     expect(error.name).toBe('InvalidWorkspaceNameError');
     expect((error as InvalidWorkspaceNameError).entryName).toBe('a/b');
+  });
+});
+
+describe('Workspace.stagingDirectory', () => {
+  it('sits directly inside the workspace path', () => {
+    const path = '/Users/me/work/.agents/skills';
+    const workspace = new Workspace({ name: 'work', path, autoLink: false });
+
+    expect(workspace.stagingDirectory).toBe(join(path, '.grimoire-staging'));
   });
 });
 

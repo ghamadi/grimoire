@@ -1,13 +1,11 @@
+import { describeSentences } from './clone-sentences.ts';
 import { GrimoireError } from './grimoire-error.ts';
 
 /**
  * What the destination holds instead of the copy `clone` would have written.
  */
 export type CloneOccupant =
-  | { kind: 'unrecorded-directory' }
-  | { kind: 'not-a-skill' }
-  | { kind: 'not-a-directory' }
-  | { kind: 'foreign-symlink' };
+  { kind: 'not-a-skill' } | { kind: 'not-a-directory' } | { kind: 'foreign-symlink' };
 
 /**
  * One thing `clone` stepped over: a fact about the filesystem, not a mistake
@@ -22,7 +20,7 @@ export type CloneRefusal =
   | { kind: 'occupied'; skill: string; workspace: string; path: string; occupant: CloneOccupant };
 
 /**
- * `could not clone <skill> → <workspace>: …` — no `warning: ` or `grimoire: ` prefix.
+ * `could not clone <skill> → <workspace>: …` — no `warning: ` or `error: ` prefix.
  *
  * A run that cloned something prints these as warnings and returns; a run
  * that cloned nothing throws them as one error. Both have to read
@@ -55,7 +53,12 @@ export class CloneDeclinedError extends GrimoireError {
   readonly refusals: CloneRefusal[];
 
   constructor(props: CloneDeclinedErrorProps) {
-    super(describeRefusals(props.refusals));
+    super(
+      describeSentences({
+        header: 'nothing cloned:',
+        sentences: props.refusals.map(describeCloneRefusal),
+      }),
+    );
 
     this.name = 'CloneDeclinedError';
     this.refusals = props.refusals;
@@ -66,18 +69,6 @@ export class CloneDeclinedError extends GrimoireError {
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
 
-/** One refusal is its own sentence; a list needs the line saying what they add up to. */
-function describeRefusals(refusals: CloneRefusal[]): string {
-  const sentences = refusals.map(describeCloneRefusal);
-  const [only] = sentences;
-
-  if (only !== undefined && sentences.length === 1) {
-    return only;
-  }
-
-  return ['nothing cloned:', ...sentences.map((sentence) => `  ${sentence}`)].join('\n');
-}
-
 /** Reads as the success line it replaces: `cloned <skill> → <workspace>`. */
 function describePair(refusal: { skill: string; workspace: string }): string {
   return `could not clone ${refusal.skill} → ${refusal.workspace}`;
@@ -85,10 +76,8 @@ function describePair(refusal: { skill: string; workspace: string }): string {
 
 function describeOccupant(occupant: CloneOccupant, path: string): string {
   switch (occupant.kind) {
-    case 'unrecorded-directory':
-      return `${path} already holds a directory — rerun with --adopt to keep it as the clone`;
     case 'not-a-skill':
-      return `${path} holds no SKILL.md, so it cannot be adopted`;
+      return `${path} is a directory with no SKILL.md`;
     case 'not-a-directory':
       return `${path} is not a directory`;
     case 'foreign-symlink':

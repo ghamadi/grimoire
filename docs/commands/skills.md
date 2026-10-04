@@ -152,14 +152,14 @@ A refusal exits 1.
 
 ```shell
 $ grimoire skills add ~/.grimoire/skills
-grimoire: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
+error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
 **2. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
 
 ```shell
 $ grimoire skills add ~/dev/skills
-grimoire: /Users/me/dev/skills holds 12 skills and no terminal to choose from
+error: /Users/me/dev/skills holds 12 skills and no terminal to choose from
   use --all to add every one
 ```
 
@@ -168,11 +168,11 @@ failing the run; see [When the name is taken](#when-the-name-is-taken). Only whe
 added or already present, does the run itself fail:
 
 ```shell
-grimoire: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
+error: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
 ```
 
 ```shell
-grimoire: nothing added:
+error: nothing added:
   could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
   could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
@@ -244,9 +244,9 @@ trashed triage → /Users/me/.grimoire/.trash/triage-20260915T124530
 ### Clones are kept
 
 Neither with nor without the flag does `skills remove` touch a cloned directory —
-[grimoire never deletes one](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store). Without
-`--forget-clones`, records and directories are both left exactly where they are — the store copy is gone, but the workspaces
-that cloned it keep their own drifted version, and grimoire keeps the record of where it went:
+[only `clone --overwrite` ever deletes one](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store).
+Without `--forget-clones`, records and directories are both left exactly where they are — the store copy is gone, but the
+workspaces that cloned it keep their copy, and grimoire keeps the record of where it went:
 
 ```shell
 clones left in place: triage → work
@@ -269,7 +269,7 @@ A refusal exits 1, and nothing is touched — not a link, not the store, not `st
 
 ```shell
 $ grimoire skills remove ghost
-grimoire: no skill named "ghost"
+error: no skill named "ghost"
 ```
 
 **2. Every registered workspace resolves.** A workspace whose path no longer reads as a directory — unmounted volume, deleted
@@ -278,7 +278,7 @@ stranding it:
 
 ```shell
 $ grimoire skills remove triage
-grimoire: cannot remove a skill while a workspace is unreadable
+error: cannot remove a skill while a workspace is unreadable
   work: /Volumes/ext/skills does not resolve
   make it readable, or unregister it with `grimoire workspaces remove work`
 ```
@@ -292,7 +292,7 @@ points at `--force`:
 
 ```shell
 $ grimoire skills remove triage
-grimoire: cannot remove a skill while a workspace is unreadable
+error: cannot remove a skill while a workspace is unreadable
   work: /Volumes/ext/skills cannot be read
   make it readable, or unregister it anyway with `grimoire workspaces remove work --force`
 ```

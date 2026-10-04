@@ -11,5 +11,8 @@ export const DS_STORE_NAME = '.DS_Store';
 export function finderDsStoreBytes(params: { padding?: string } = {}): Buffer {
   const { padding = 'padding' } = params;
 
-  return Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x01, 0x42, 0x75, 0x64, 0x31]), Buffer.from(padding)]);
+  return Buffer.concat([
+    Buffer.from([0x00, 0x00, 0x00, 0x01, 0x42, 0x75, 0x64, 0x31]),
+    Buffer.from(padding),
+  ]);
 }

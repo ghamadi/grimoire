@@ -1,4 +1,17 @@
-import { accessSync, constants, cpSync, renameSync, rmSync, statSync, type Stats } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import {
+  accessSync,
+  constants,
+  cpSync,
+  lstatSync,
+  mkdirSync,
+  renameSync,
+  rmSync,
+  rmdirSync,
+  statSync,
+  type Stats,
+} from 'node:fs';
+import { basename, join } from 'node:path';
 import { InvalidPathError } from '#src/lib/errors/index';
 
 /**
@@ -93,9 +106,129 @@ export function movePath(params: { from: string; to: string }): void {
   }
 }
 
+/** With no `code`, answers whether `error` is any errno error: an `Error` carrying a string `code`. */
 export function isErrnoException(
   error: unknown,
-  code: 'ENOENT' | 'ENOTDIR' | 'ELOOP' | 'EXDEV' | 'EACCES' | 'EPERM',
+  code?: 'ENOENT' | 'ENOTDIR' | 'ELOOP' | 'EXDEV' | 'EACCES' | 'EPERM' | 'ENOTEMPTY',
 ): error is NodeJS.ErrnoException {
-  return error instanceof Error && 'code' in error && error.code === code;
+  if (!(error instanceof Error) || !('code' in error)) {
+    return false;
+  }
+
+  return code === undefined ? typeof error.code === 'string' : error.code === code;
+}
+
+// -----------------------------------------------------------------------------
+// STAGED WRITES
+// -----------------------------------------------------------------------------
+
+export type StagedTreeWrite = {
+  from: string;
+  /** May hold nothing, a symlink, or a directory. Replaced whole. */
+  to: string;
+  /** Must share a filesystem with `to`. Created when missing, removed when left empty. */
+  stagingDirectory: string;
+};
+
+export type StagedTreeWriteResult =
+  /** `strandedOldEntry` is set when the swap held but deleting the old entry failed: it is partly deleted. */
+  | { kind: 'written'; strandedOldEntry?: { path: string; error: NodeJS.ErrnoException } }
+  | { kind: 'failed'; error: NodeJS.ErrnoException | InvalidPathError };
+
+/**
+ * Replaces whatever is at `to` with a copy of `from`, so that `to` only ever
+ * holds the whole old entry or the whole new copy.
+ *
+ * The copy is built in `stagingDirectory`, the old entry is renamed aside
+ * rather than deleted, and the copy is renamed into place. A recursive delete
+ * can fail halfway; a rename cannot, and can be undone.
+ *
+ * Filesystem failures (errno errors and an unusable `stagingDirectory`) are
+ * returned as `failed`. Anything else is a bug and is rethrown.
+ */
+export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult {
+  const { from, to, stagingDirectory } = params;
+
+  const id = randomUUID();
+  const incomingTempContainer = join(stagingDirectory, `${basename(to)}.${id}.incoming`);
+  const disposableTempContainer = join(stagingDirectory, `${basename(to)}.${id}.outgoing`);
+
+  try {
+    ensureStagingDirectory(stagingDirectory);
+    copyTree({ from, to: incomingTempContainer });
+
+    // If the destination is occupied, back it up to `.outgoing`.
+    const hasOccupant = lstatSync(to, { throwIfNoEntry: false }) !== undefined;
+    if (hasOccupant) {
+      renameSync(to, disposableTempContainer);
+    }
+
+    try {
+      // Move the new copy into place.
+      renameSync(incomingTempContainer, to);
+    } catch (error) {
+      // If the move failed, restore the old entry if it was backed up.
+      if (hasOccupant) {
+        ignoreErrors(() => renameSync(disposableTempContainer, to));
+      }
+
+      throw error;
+    }
+  } catch (error) {
+    ignoreErrors(() => rmSync(incomingTempContainer, { recursive: true, force: true }));
+    removeIfEmpty(stagingDirectory);
+
+    if (error instanceof InvalidPathError || isErrnoException(error)) {
+      return { kind: 'failed', error };
+    }
+
+    throw error;
+  }
+
+  let result: StagedTreeWriteResult = { kind: 'written' };
+
+  try {
+    rmSync(disposableTempContainer, { recursive: true, force: true });
+  } catch (error) {
+    if (!isErrnoException(error)) {
+      throw error;
+    }
+
+    result = { kind: 'written', strandedOldEntry: { path: disposableTempContainer, error } };
+  }
+
+  removeIfEmpty(stagingDirectory);
+
+  return result;
+}
+
+// -----------------------------------------------------------------------------
+// INTERNAL HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+
+/**
+ * Creates `path` when missing. A symlink to a directory is refused like a
+ * file: writing through it stages somewhere else.
+ */
+function ensureStagingDirectory(path: string): void {
+  const stats = lstatSync(path, { throwIfNoEntry: false });
+
+  if (stats !== undefined && !stats.isDirectory()) {
+    throw new InvalidPathError({ path, reason: 'not-a-directory' });
+  }
+
+  mkdirSync(path, { recursive: true });
+}
+
+/** Best-effort: a staging directory left behind is clutter, never a failed write. */
+function removeIfEmpty(directory: string): void {
+  ignoreErrors(() => rmdirSync(directory));
+}
+
+function ignoreErrors(action: () => void): void {
+  try {
+    action();
+  } catch {
+    // Cleanup must not replace the error that caused it.
+  }
 }

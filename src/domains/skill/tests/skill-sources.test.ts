@@ -36,6 +36,13 @@ describe('findSkillSources', () => {
     expect(findSkillSources({ path: root })).toEqual([{ name: 'brainstorm', path: kept }]);
   });
 
+  it('does not discover a copy a clone left in a workspace staging directory', async () => {
+    const root = await tempRoot();
+    writeSkillDirectory(join(root, '.grimoire-staging', 'triage.abc.incoming'));
+
+    expect(findSkillSources({ path: root })).toEqual([]);
+  });
+
   it('crawls a dot-named root anyway', async () => {
     const root = await tempRoot();
     const skillsDir = join(root, '.claude', 'skills');

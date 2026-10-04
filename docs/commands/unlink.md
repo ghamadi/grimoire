@@ -73,14 +73,14 @@ A run where every pair was declined exits 1 instead of warning. One refusal prin
 
 ```shell
 $ grimoire unlink triage work
-grimoire: could not unlink triage → work: /Users/me/work/.agents/skills/triage is a directory, not a link
+error: could not unlink triage → work: /Users/me/work/.agents/skills/triage is a directory, not a link
 ```
 
-Several print `grimoire: nothing unlinked:`, followed by each sentence on its own line, indented two spaces:
+Several print `error: nothing unlinked:`, followed by each sentence on its own line, indented two spaces:
 
 ```shell
 $ grimoire unlink triage personal work
-grimoire: nothing unlinked:
+error: nothing unlinked:
   could not unlink triage → personal: /Users/me/.claude/skills/triage is not a link
   could not unlink triage → work: /Users/me/work/.agents/skills/triage is a directory, not a link
 ```
@@ -126,12 +126,12 @@ error: --all-workspaces cannot be combined with named workspaces
 
 ```shell
 $ grimoire unlink ghost-skill personal
-grimoire: no skill named "ghost-skill"
+error: no skill named "ghost-skill"
 ```
 
 **4. Every named workspace is registered.** Only the first unregistered name is reported.
 
 ```shell
 $ grimoire unlink triage personal ghost
-grimoire: no workspace named "ghost"
+error: no workspace named "ghost"
 ```

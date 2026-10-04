@@ -42,15 +42,9 @@ describe('describeCloneRefusal', () => {
     );
   });
 
-  it('describes an unrecorded directory occupant', () => {
-    expect(describeCloneRefusal(occupied({ kind: 'unrecorded-directory' }))).toBe(
-      'could not clone triage → work: /Users/me/work/.agents/skills/triage already holds a directory — rerun with --adopt to keep it as the clone',
-    );
-  });
-
   it('describes a not-a-skill occupant', () => {
     expect(describeCloneRefusal(occupied({ kind: 'not-a-skill' }))).toBe(
-      'could not clone triage → work: /Users/me/work/.agents/skills/triage holds no SKILL.md, so it cannot be adopted',
+      'could not clone triage → work: /Users/me/work/.agents/skills/triage is a directory with no SKILL.md',
     );
   });
 

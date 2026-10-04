@@ -25,7 +25,8 @@ store  ──link / clone──►  workspaces
 ```
 
 - **link** symlinks the store's copy into a workspace, so edits show up immediately.
-- **clone** copies it, for a workspace that needs its own version, expected to drift.
+- **clone** copies it, for a workspace that cannot use a link — a project's checked-in `.claude/skills/`, for one. The copy
+  does not follow the store; edits on either side stay where they were made.
 
 See [Future: repos](#future-repos) for where version-controlled skill libraries fit once this core is built.
 
@@ -33,12 +34,16 @@ See [Future: repos](#future-repos) for where version-controlled skill libraries 
 
 ### The rule: grimoire never loses content outside its store
 
-Outside `~/.grimoire/`, grimoire writes only two things: copies, and its own symlinks. It removes only two: its own symlinks,
-and a directory the store is proven to already hold in full, not counting a `.DS_Store` written by Finder. Anything else you
-put in a workspace stays exactly as you left it.
+Outside `~/.grimoire/`, grimoire writes only three things: copies, its own symlinks, and a `.grimoire-staging/` directory
+inside a workspace while a clone is being written, removed once it is empty. It removes only three: its own symlinks; a
+directory the store is proven to already hold in full, not counting a `.DS_Store` written by Finder; and a skill directory at
+a clone destination when `clone --overwrite` is passed, once the store copy has replaced it. That last one is the one place
+grimoire deletes content it cannot prove it holds, and only on that explicit flag. Anything else you put in a workspace stays
+exactly as you left it.
 
-That is why a clone is never refreshed or overwritten, why `unclone` and `skills remove --forget-clones` forget records and
-leave directories, and why `clone` can adopt a directory it finds but never replace one.
+That is why `unclone` and `skills remove --forget-clones` forget records and leave directories, why a plain `clone` adopts a
+directory it finds rather than replacing it, and why even `--overwrite` declines a directory that is neither a recorded clone
+nor a skill.
 
 ### Code layout
 

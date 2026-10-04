@@ -99,13 +99,16 @@ describe('isJunkFile', () => {
     expect(isJunkFile({ path: join(root, DS_STORE_NAME) })).toBe(false);
   });
 
-  it.skipIf(runsAsRoot)('does not recognize a Finder-shaped .DS_Store that cannot be opened', async () => {
-    const root = await tempRoot();
-    const path = join(root, DS_STORE_NAME);
+  it.skipIf(runsAsRoot)(
+    'does not recognize a Finder-shaped .DS_Store that cannot be opened',
+    async () => {
+      const root = await tempRoot();
+      const path = join(root, DS_STORE_NAME);
 
-    writeFileSync(path, finderDsStoreBytes());
-    lockDirectory({ path });
+      writeFileSync(path, finderDsStoreBytes());
+      lockDirectory({ path });
 
-    expect(isJunkFile({ path })).toBe(false);
-  });
+      expect(isJunkFile({ path })).toBe(false);
+    },
+  );
 });
