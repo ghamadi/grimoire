@@ -1,8 +1,10 @@
 import { styleText } from 'node:util';
 import { Command } from 'commander';
 import { cloneCommand } from '#src/commands/clone';
+import { exportCommand } from '#src/commands/export';
 import { clackSkillPicker, type SkillPicker } from '#src/commands/prompts/skill-picker';
 import { linkCommand } from '#src/commands/link';
+import { reposCommand } from '#src/commands/repos';
 import { skillsCommand } from '#src/commands/skills';
 import { statusCommand, type TextStyler } from '#src/commands/status';
 import { uncloneCommand } from '#src/commands/unclone';
@@ -30,6 +32,8 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .description('Authoring and distribution for agent skills')
     .version(getVersion())
     .addCommand(workspacesCommand({ storeManager }))
+    .addCommand(reposCommand({ storeManager }))
+    .addCommand(exportCommand({ storeManager }))
     .addCommand(skillsCommand({ storeManager, skillPicker }))
     .addCommand(linkCommand({ storeManager }))
     .addCommand(unlinkCommand({ storeManager }))

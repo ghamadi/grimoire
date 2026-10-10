@@ -86,11 +86,15 @@ $ grimoire workspaces add personal ~/.config/other-agent/skills
 error: workspace "personal" is already registered
 ```
 
-**3. The path does not collide** with `~/.grimoire/` — see [the collision rule](#the-collision-rule).
+**3. The path does not collide** with `~/.grimoire/` or with a registered [repo](./repos.md#the-path-rule) — see
+[the collision rule](#the-collision-rule).
 
 ```shell
 $ grimoire workspaces add personal ~/.grimoire/skills
 error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
+
+$ grimoire workspaces add dotfiles ~/dotfiles/skills
+error: /Users/me/dotfiles/skills sits inside repo "library" (/Users/me/dotfiles)
 ```
 
 **4. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
@@ -105,8 +109,11 @@ error: /Users/me/nope does not exist
 
 ### The collision rule
 
-`add` checks the path against `~/.grimoire/` only — never against other workspaces. Two workspaces may share a path, and one
-may be registered at an ancestor of another; both succeed.
+`add` checks the path against `~/.grimoire/` and every registered [repo](./repos.md#the-path-rule) — never against other
+workspaces. Two workspaces may share a path, and one may be registered at an ancestor of another; both succeed. Registering a
+repo refuses a workspace's path the same way.
+
+When a path collides with both the store and a repo, the store is named. Among several repos, the first by name is.
 
 | Relation | Message                    |
 | -------- | -------------------------- |
@@ -122,6 +129,9 @@ grimoire store    /Users/me/.grimoire
 ```
 
 Paths are compared canonically, with symlinks resolved. A refusal names the path as typed, not as resolved.
+
+The rule is checked again every time `state.json` is read. An overlap made later, by hand or through a repointed symlink,
+stops every command — see [`status`'s refusals](./status.md#exit-code-and-refusals).
 
 ## `workspaces remove <name> [--hard] [--force]` _(alias: `rm`)_
 

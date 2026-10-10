@@ -33,3 +33,12 @@ See @CLAUDE.local.md
 - Never explain why the code isn't buggy. Behavioral subtleties go in a test name.
 - Rejected alternatives earn a comment **only** when they might seem more intuitive, and a reader would otherwise "fix" the
   code back.
+
+## Branch review
+
+Supplies what the `branch-review` skill would otherwise look up.
+
+- `BASE_REF` is `origin/main`, after `git fetch origin main`.
+- `CHECKS` are `pnpm typecheck`, `pnpm lint` and `pnpm test`, each run on its own. No coverage provider is installed, so map
+  tests to code paths by reading.
+- A suite is named after the file it covers: `src/<module>/**/<file>.ts` → `src/<module>/tests/<file>.test.ts`.

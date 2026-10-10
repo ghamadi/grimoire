@@ -1,9 +1,11 @@
 import type { Collision } from '#src/domains/grimoire-store/index';
 import { normalizePath } from '#src/lib/paths';
+import type { RegistryEntity } from './entity-not-found.ts';
 import { GrimoireError } from './grimoire-error.ts';
 import { describeCollision } from './path-collision.ts';
 
 export type CollidingRegistrationErrorProps = {
+  entity: RegistryEntity;
   name: string;
   path: string;
   collision: Collision;
@@ -12,33 +14,36 @@ export type CollidingRegistrationErrorProps = {
 };
 
 /**
- * A registered path touches the store, which `add` refuses to create — so the
- * entry arrived by hand-editing `state.json`.
+ * A registered path touches the store or a path in the other registry, which
+ * registration refuses to create — so it got there by hand-editing `state.json`,
+ * or by a symlink repointed after registration.
  *
  * Raised when the registry is read rather than when the path is used, so it
  * stops every command rather than the ones that would write through the path.
  * That is the whole point: the store manager never hands out a registry it knows
  * to be illegal, so no command has to remember to ask.
  *
- * The message names `state.json` because no command repairs one yet. Editing it
- * by hand is the same way the entry got there, and the eventual `doctor` is what
- * replaces that instruction.
+ * The message names `state.json` because no command repairs one yet. The
+ * eventual `doctor` is what replaces that instruction.
  */
 export class CollidingRegistrationError extends GrimoireError {
+  readonly entity: RegistryEntity;
   readonly entryName: string;
   readonly path: string;
   readonly collision: Collision;
 
   constructor(props: CollidingRegistrationErrorProps) {
-    const { name, path, collision, storeState } = props;
+    const { entity, name, path, collision, storeState } = props;
+    const subject = collision.kind === 'grimoire-home' ? 'it is' : 'one of them is';
     super(
       [
-        `workspace "${name}" cannot be used: ${describeCollision({ path, collision })}`,
-        `  no command can run until it is gone from ${normalizePath(storeState)}`,
+        `${entity} "${name}" cannot be used: ${describeCollision({ path, collision })}`,
+        `  no command can run until ${subject} gone from ${normalizePath(storeState)}`,
       ].join('\n'),
     );
 
     this.name = 'CollidingRegistrationError';
+    this.entity = entity;
     this.entryName = name;
     this.path = normalizePath(path);
     this.collision = { ...collision, path: normalizePath(collision.path) };

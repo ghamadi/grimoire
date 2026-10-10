@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '../../lib/utils/files.ts';
-import type { GrimoireStore } from './entity.ts';
+import type { Collision, GrimoireStore } from './entity.ts';
 import { StoreState, type CloneRecord } from './value-objects/store-state.ts';
 import { DuplicateNameError } from '../../lib/errors/duplicate-name.ts';
 import { toRegisteredPath } from './helpers/registered-path.ts';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
-  InvalidWorkspaceNameError,
+  InvalidNameError,
+  InvalidPathError,
   PathCollisionError,
 } from '../../lib/errors/index.ts';
 import { join, matchesGlob } from 'node:path';
@@ -20,7 +21,9 @@ import {
 } from '#src/domains/grimoire-store/helpers/store-links';
 import { Skill } from '../skill/entity.ts';
 import { copyTree, movePath } from '#src/lib/fs';
+import { Repo } from '#src/domains/repo/index';
 import { Workspace } from '#src/domains/workspace/index';
+import { isInsideGitWorkTree } from '#src/lib/git';
 import { trashBinName } from '#src/domains/grimoire-store/helpers/trash';
 import { normalizePath, relate } from '#src/lib/paths';
 
@@ -57,6 +60,12 @@ export type RegisteredWorkspace = {
   autoLink: boolean;
 };
 
+/** A repo as `state.json` holds it, carrying the name it is filed under. */
+export type RegisteredRepo = {
+  name: string;
+  path: string;
+};
+
 export class GrimoireStoreManager {
   private readonly store: GrimoireStore;
   private readonly storeSubdirectories: readonly string[];
@@ -74,16 +83,22 @@ export class GrimoireStoreManager {
     const { name, autoLink = false } = params;
 
     if (!Workspace.isValidName(name)) {
-      throw new InvalidWorkspaceNameError({ name });
+      throw new InvalidNameError({ entity: 'workspace', name });
     }
 
     const storeState = this.loadState();
 
     if (Object.hasOwn(storeState.workspacesRegistry, name)) {
-      throw new DuplicateNameError({ name });
+      throw new DuplicateNameError({ entity: 'workspace', name });
     }
 
-    const collision = this.store.findCollisionWith(params.path);
+    const collision =
+      this.store.findCollisionWith(params.path) ??
+      findRegistryCollision({
+        path: params.path,
+        kind: 'repo',
+        registry: storeState.reposRegistry,
+      });
 
     if (collision) {
       throw new PathCollisionError({ path: params.path, collision });
@@ -403,6 +418,100 @@ export class GrimoireStoreManager {
   }
 
   // --------------------------------------------------------------------------
+  // REPOS
+  // --------------------------------------------------------------------------
+
+  /**
+   * Registers an existing directory inside a git work tree, normalized.
+   *
+   * @throws InvalidNameError if the name fails `Repo.isValidName`.
+   * @throws DuplicateNameError if a repo is already registered under the name.
+   * @throws PathCollisionError if the path equals, contains, or sits inside the store
+   * or a registered workspace's path.
+   * @throws InvalidPathError if the path is not an existing, non-symlink directory
+   * inside a git work tree.
+   * @throws GitUnavailableError if git cannot be spawned.
+   */
+  registerRepo(params: { name: string; path: string }): RegisteredRepo {
+    const { name } = params;
+
+    if (!Repo.isValidName(name)) {
+      throw new InvalidNameError({ entity: 'repo', name });
+    }
+
+    const storeState = this.loadState();
+
+    if (Object.hasOwn(storeState.reposRegistry, name)) {
+      throw new DuplicateNameError({ entity: 'repo', name });
+    }
+
+    const collision =
+      this.store.findCollisionWith(params.path) ??
+      findRegistryCollision({
+        path: params.path,
+        kind: 'workspace',
+        registry: storeState.workspacesRegistry,
+      });
+
+    if (collision) {
+      throw new PathCollisionError({ path: params.path, collision });
+    }
+
+    const { path } = toRegisteredPath({ path: params.path });
+
+    if (!isInsideGitWorkTree({ directory: path })) {
+      throw new InvalidPathError({ path, reason: 'not-in-git-work-tree' });
+    }
+
+    this.saveState(storeState.withRepo({ name, path }));
+
+    return { name, path };
+  }
+
+  /**
+   * @throws EntityNotFoundError if no repo is registered under that name.
+   */
+  requireRegisteredRepo(name: string): RegisteredRepo {
+    const repo = findRegisteredRepo(this.loadState(), name);
+
+    if (!repo) {
+      throw new EntityNotFoundError({ entity: 'repo', name });
+    }
+
+    return repo;
+  }
+
+  /**
+   * Drops a repo from the registry and returns what it dropped. The registration
+   * only: the directory is left alone.
+   *
+   * @throws EntityNotFoundError if no repo is registered under that name.
+   */
+  unregisterRepo(name: string): RegisteredRepo {
+    const storeState = this.loadState();
+    const repo = findRegisteredRepo(storeState, name);
+
+    if (!repo) {
+      throw new EntityNotFoundError({ entity: 'repo', name });
+    }
+
+    this.saveState(storeState.withoutRepo(name));
+
+    return repo;
+  }
+
+  /**
+   * Every registered repo, sorted by name.
+   */
+  listRegisteredRepos(): RegisteredRepo[] {
+    const storeState = this.loadState();
+
+    return Object.entries(storeState.reposRegistry)
+      .map(([name, repo]) => ({ name, ...repo }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // --------------------------------------------------------------------------
   // PRIVATE METHODS
   // --------------------------------------------------------------------------
 
@@ -462,28 +571,65 @@ export class GrimoireStoreManager {
 // ----------------------------------------------------------------------------
 
 /**
- * Refuses the whole registry over the first entry whose path touches the store.
+ * Refuses the whole registry over the first registration whose path touches the
+ * store, then over the first workspace whose path overlaps a repo's, by workspace
+ * name then repo name.
  *
  * Sorted, so a registry holding two of them names the same one every run rather
- * than whichever the object happened to yield first.
+ * than whichever the object happened to yield first. Against the store,
+ * workspaces are checked before repos.
  */
 function assertNoCollidingRegistrations(query: { state: StoreState; store: GrimoireStore }): void {
-  const registrations = Object.entries(query.state.workspacesRegistry).sort(([a], [b]) =>
-    a.localeCompare(b),
-  );
+  const storeState = query.store.paths.state;
+  const workspaces = Object.entries(query.state.workspacesRegistry)
+    .sort(byName)
+    .map(([name, { path }]) => ({ entity: 'workspace' as const, name, path }));
+  const repos = Object.entries(query.state.reposRegistry)
+    .sort(byName)
+    .map(([name, { path }]) => ({ entity: 'repo' as const, name, path }));
 
-  for (const [name, { path }] of registrations) {
-    const collision = query.store.findCollisionWith(path);
+  for (const registration of [...workspaces, ...repos]) {
+    const collision = query.store.findCollisionWith(registration.path);
 
     if (collision) {
-      throw new CollidingRegistrationError({
-        name,
-        path,
-        collision,
-        storeState: query.store.paths.state,
-      });
+      throw new CollidingRegistrationError({ ...registration, collision, storeState });
     }
   }
+
+  for (const registration of workspaces) {
+    const collision = findRegistryCollision({
+      path: registration.path,
+      kind: 'repo',
+      registry: query.state.reposRegistry,
+    });
+
+    if (collision) {
+      throw new CollidingRegistrationError({ ...registration, collision, storeState });
+    }
+  }
+}
+
+function byName([a]: [string, unknown], [b]: [string, unknown]): number {
+  return a.localeCompare(b);
+}
+
+/** The first entry by name whose path `path` equals, contains, or sits inside, or `null`. */
+function findRegistryCollision(query: {
+  path: string;
+  kind: 'workspace' | 'repo';
+  registry: Readonly<Record<string, { readonly path: string }>>;
+}): Collision | null {
+  const entries = Object.entries(query.registry).sort(byName);
+
+  for (const [name, entry] of entries) {
+    const relation = relate({ candidate: query.path, reference: entry.path });
+
+    if (relation) {
+      return { kind: query.kind, name, path: entry.path, relation };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -492,12 +638,19 @@ function assertNoCollidingRegistrations(query: { state: StoreState; store: Grimo
  * `hasOwn` rather than a truthiness check: `workspaces['toString']` answers
  * with the method every object inherits.
  */
-function findRegisteredWorkspace(config: StoreState, name: string): RegisteredWorkspace | undefined {
-  const workspace = Object.hasOwn(config.workspacesRegistry, name)
-    ? config.workspacesRegistry[name]
-    : undefined;
+function findRegistered<T extends object>(
+  registry: Readonly<Record<string, T>>,
+  name: string,
+): ({ name: string } & T) | undefined {
+  return Object.hasOwn(registry, name) ? { name, ...registry[name]! } : undefined;
+}
 
-  return workspace && { name, ...workspace };
+function findRegisteredWorkspace(state: StoreState, name: string): RegisteredWorkspace | undefined {
+  return findRegistered(state.workspacesRegistry, name);
+}
+
+function findRegisteredRepo(state: StoreState, name: string): RegisteredRepo | undefined {
+  return findRegistered(state.reposRegistry, name);
 }
 
 /**

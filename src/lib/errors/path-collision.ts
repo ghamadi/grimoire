@@ -53,5 +53,14 @@ function describeRelation(relation: PathRelation): string {
 }
 
 function describeTarget(collision: Collision): string {
-  return `the grimoire store (${normalizePath(collision.path)})`;
+  const path = normalizePath(collision.path);
+
+  switch (collision.kind) {
+    case 'grimoire-home':
+      return `the grimoire store (${path})`;
+    case 'workspace':
+      return `workspace "${collision.name}" (${path})`;
+    case 'repo':
+      return `repo "${collision.name}" (${path})`;
+  }
 }

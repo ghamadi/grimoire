@@ -122,6 +122,8 @@ export function isErrnoException(
 // STAGED WRITES
 // -----------------------------------------------------------------------------
 
+export const STAGING_DIRECTORY_NAME = '.grimoire-staging';
+
 export type StagedTreeWrite = {
   from: string;
   /** May hold nothing, a symlink, or a directory. Replaced whole. */

@@ -8,11 +8,13 @@
  */
 export { GrimoireError } from './grimoire-error.ts';
 export { DuplicateNameError, type DuplicateNameErrorProps } from './duplicate-name.ts';
-export { EntityNotFoundError, type Entity, type EntityNotFoundErrorProps } from './entity-not-found.ts';
 export {
-  InvalidWorkspaceNameError,
-  type InvalidWorkspaceNameErrorProps,
-} from './invalid-workspace-name.ts';
+  EntityNotFoundError,
+  type Entity,
+  type EntityNotFoundErrorProps,
+  type RegistryEntity,
+} from './entity-not-found.ts';
+export { InvalidNameError, type InvalidNameErrorProps } from './invalid-name.ts';
 export { InvalidPathError, type InvalidPathErrorProps, type InvalidPathReason } from './invalid-path.ts';
 export {
   AddDeclinedError,
@@ -33,6 +35,18 @@ export {
   type CloneFailedErrorProps,
   type CloneFailure,
 } from './clone-failed.ts';
+export {
+  ExportDeclinedError,
+  describeExportRefusal,
+  type ExportDeclinedErrorProps,
+  type ExportRefusal,
+} from './export-declined.ts';
+export {
+  ExportFailedError,
+  describeExportFailure,
+  type ExportFailedErrorProps,
+  type ExportFailure,
+} from './export-failed.ts';
 export {
   LinkDeclinedError,
   describeLinkRefusal,
@@ -73,3 +87,4 @@ export {
   type WorkspaceUnreadableErrorProps,
 } from './workspace-unreadable.ts';
 export { NoTerminalError, type NoTerminalErrorProps } from './no-terminal.ts';
+export { GitUnavailableError } from './git-unavailable.ts';

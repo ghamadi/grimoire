@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { normalizePath } from '#src/lib/paths';
 import { canBeRegistered } from '../helpers/registered-path.ts';
+import { Repo } from '#src/domains/repo/index';
 import { Workspace } from '#src/domains/workspace/index';
 import { InvalidShapeError } from '../../../lib/errors/invalid-shape.ts';
 
@@ -17,6 +18,9 @@ const registeredPath = z
 
 const INVALID_WORKSPACE_NAME =
   'workspace name must start with a letter or digit and contain only letters, digits, "-" and "_"';
+
+const INVALID_REPO_NAME =
+  'repo name must start with a letter or digit and contain only letters, digits, "-" and "_"';
 
 const workspaceNameSchema = z
   .string()
@@ -38,9 +42,33 @@ const cloneRecordSchema = z.union(
   { error: 'a clone entry must have exactly one of "workspace" or "path"' },
 );
 
+const repoConfigSchema = z.strictObject({
+  path: registeredPath,
+});
+
 const skillSchema = z.strictObject({
   clones: z.array(cloneRecordSchema).default([]),
 });
+
+/**
+ * The names are checked on the record rather than through its key schema: zod
+ * reports a failed key as `Invalid key in record` and drops the refine's message.
+ */
+function registrySchema<T extends z.ZodType>(params: {
+  entry: T;
+  isValidName: (name: string) => boolean;
+  invalidNameMessage: string;
+}) {
+  const { entry, isValidName, invalidNameMessage } = params;
+
+  return z.record(z.string(), entry).superRefine((registry, ctx) => {
+    for (const name of Object.keys(registry)) {
+      if (!isValidName(name)) {
+        ctx.addIssue({ code: 'custom', path: [name], message: invalidNameMessage });
+      }
+    }
+  });
+}
 
 /**
  * `strictObject` rather than zod's default of stripping unknown keys: a save
@@ -49,29 +77,27 @@ const skillSchema = z.strictObject({
  * older grimoire would erase whatever a newer one recorded — and refusing to
  * parse is the cheaper answer.
  *
- * `workspaces` and `skills` are records rather than strict objects: their keys
- * are names the user chose, so there is no such thing as an unrecognized one.
+ * `workspaces`, `repos` and `skills` are records rather than strict objects: their
+ * keys are names the user chose, so there is no such thing as an unrecognized one.
  */
-/**
- * The names are checked on the record rather than through its key schema: zod
- * reports a failed key as `Invalid key in record` and drops the refine's message.
- */
-const workspacesSchema = z.record(z.string(), workspaceConfigSchema).superRefine((workspaces, ctx) => {
-  for (const name of Object.keys(workspaces)) {
-    if (!Workspace.isValidName(name)) {
-      ctx.addIssue({ code: 'custom', path: [name], message: INVALID_WORKSPACE_NAME });
-    }
-  }
-});
-
 const stateDataSchema = z.strictObject({
-  workspaces: workspacesSchema.default({}),
+  workspaces: registrySchema({
+    entry: workspaceConfigSchema,
+    isValidName: (name) => Workspace.isValidName(name),
+    invalidNameMessage: INVALID_WORKSPACE_NAME,
+  }).default({}),
+  repos: registrySchema({
+    entry: repoConfigSchema,
+    isValidName: (name) => Repo.isValidName(name),
+    invalidNameMessage: INVALID_REPO_NAME,
+  }).default({}),
   skills: z.record(z.string(), skillSchema).default({}),
   ignore: z.array(z.string()).default(['.DS_Store']),
 });
 
 export type CloneRecord = z.infer<typeof cloneRecordSchema>;
 type WorkspaceRecord = z.infer<typeof workspaceConfigSchema>;
+type RepoRecord = z.infer<typeof repoConfigSchema>;
 type SkillRecord = z.infer<typeof skillSchema>;
 type StateData = z.infer<typeof stateDataSchema>;
 type ByName<T> = Readonly<Record<string, Readonly<T>>>;
@@ -117,6 +143,10 @@ export class StoreState {
     return this.data.workspaces;
   }
 
+  get reposRegistry(): ByName<RepoRecord> {
+    return this.data.repos;
+  }
+
   get skillsByName(): ByName<SkillRecord> {
     return this.data.skills;
   }
@@ -147,6 +177,30 @@ export class StoreState {
     const { [name]: _removed, ...workspaces } = this.data.workspaces;
 
     return this.with({ workspaces });
+  }
+
+  // --------------------------------------------------------------------------
+  // REPOS
+  // --------------------------------------------------------------------------
+
+  /**
+   * @returns a new config with the new repo set.
+   */
+  withRepo(params: { name: string } & RepoRecord): StoreState {
+    const { name, ...input } = params;
+    const repo = parseOrThrow(repoConfigSchema, input);
+
+    return this.with({ repos: { ...this.data.repos, [name]: repo } });
+  }
+
+  /**
+   * @returns a new config with the repo removed, or an equivalent one when no
+   * repo is filed under that name.
+   */
+  withoutRepo(name: string): StoreState {
+    const { [name]: _removed, ...repos } = this.data.repos;
+
+    return this.with({ repos });
   }
 
   // --------------------------------------------------------------------------
@@ -342,6 +396,10 @@ function freeze(data: StateData): StateData {
     Object.freeze(workspace);
   }
 
+  for (const repo of Object.values(data.repos)) {
+    Object.freeze(repo);
+  }
+
   for (const skill of Object.values(data.skills)) {
     for (const record of skill.clones) {
       Object.freeze(record);
@@ -352,6 +410,7 @@ function freeze(data: StateData): StateData {
   }
 
   Object.freeze(data.workspaces);
+  Object.freeze(data.repos);
   Object.freeze(data.skills);
   Object.freeze(data.ignore);
 

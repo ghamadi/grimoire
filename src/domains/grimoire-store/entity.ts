@@ -4,8 +4,11 @@ import { normalizePath, relate, type PathRelation } from '#src/lib/paths';
 
 export const DEFAULT_HOME_DIRECTORY = '.grimoire';
 
-/** How a path sits against the store. Only the store produces one. */
-export type Collision = { kind: 'grimoire-home'; path: string; relation: PathRelation };
+/** How a path sits against the store or against a registered entry. */
+export type Collision =
+  | { kind: 'grimoire-home'; path: string; relation: PathRelation }
+  | { kind: 'workspace'; name: string; path: string; relation: PathRelation }
+  | { kind: 'repo'; name: string; path: string; relation: PathRelation };
 
 type StorePaths = {
   root: string;

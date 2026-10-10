@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { InvalidWorkspaceNameError } from '#src/lib/errors/index';
+import { InvalidNameError } from '#src/lib/errors/index';
 import { Workspace } from '#src/domains/workspace/index';
 
 describe('Workspace.isValidName', () => {
@@ -38,9 +38,9 @@ describe('new Workspace', () => {
   it('refuses an invalid name, naming it on the error', () => {
     const error = captureError(() => new Workspace({ name: 'a/b', path: '/skills', autoLink: false }));
 
-    expect(error).toBeInstanceOf(InvalidWorkspaceNameError);
-    expect(error.name).toBe('InvalidWorkspaceNameError');
-    expect((error as InvalidWorkspaceNameError).entryName).toBe('a/b');
+    expect(error).toBeInstanceOf(InvalidNameError);
+    expect(error.name).toBe('InvalidNameError');
+    expect((error as InvalidNameError).entryName).toBe('a/b');
   });
 });
 

@@ -2,7 +2,13 @@ import { normalizePath } from '#src/lib/paths';
 import { GrimoireError } from './grimoire-error.ts';
 
 export type InvalidPathReason =
-  'missing' | 'not-a-directory' | 'not-a-skill' | 'not-absolute' | 'symlink' | 'unresolvable';
+  | 'missing'
+  | 'not-a-directory'
+  | 'not-a-skill'
+  | 'not-absolute'
+  | 'not-in-git-work-tree'
+  | 'symlink'
+  | 'unresolvable';
 
 export type InvalidPathErrorProps = {
   path: string;
@@ -14,6 +20,7 @@ const REASON_MESSAGES: Record<InvalidPathReason, string> = {
   'not-a-directory': 'is not a directory',
   'not-a-skill': 'holds no SKILL.md',
   'not-absolute': 'must be an absolute path or start with ~/',
+  'not-in-git-work-tree': 'is not inside a git work tree',
   symlink: 'is a symlink',
   // Distinct from `missing`: the entry is right there in `ls -l`, and the fix is
   // to repoint the link rather than to go looking for a directory that is gone.

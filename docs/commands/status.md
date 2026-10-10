@@ -185,10 +185,21 @@ The only refusals are the load failures every command shares. Each prints to std
 
 - A `state.json` that is not valid JSON prints `error: <state.json path>: is not valid JSON`. One that does not match its
   shape is refused with a message naming what is wrong.
-- A registered workspace whose path touches `~/.grimoire/` — only possible by editing `state.json` by hand:
+- A registered workspace or repo whose path touches `~/.grimoire/` — only possible by editing `state.json` by hand. The
+  message names which kind: `workspace "bad" cannot be used: …`, or `repo "bad" cannot be used: …` for a repo.
 
 ```shell
 $ grimoire status
 error: workspace "bad" cannot be used: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
   no command can run until it is gone from /Users/me/.grimoire/state.json
+```
+
+- A registered workspace whose path equals, contains, or sits inside a registered repo's path — only possible by editing
+  `state.json` by hand, or by repointing a symlink after registration. The first workspace by name is reported, against the
+  first repo by name it overlaps. A path touching `~/.grimoire/` is reported before any overlap.
+
+```shell
+$ grimoire status
+error: workspace "dotfiles" cannot be used: /Users/me/dotfiles/skills sits inside repo "library" (/Users/me/dotfiles)
+  no command can run until one of them is gone from /Users/me/.grimoire/state.json
 ```

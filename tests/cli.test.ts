@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { getVersion } from '#src/lib/utils';
+import { tempGitRepo } from '#test-helpers/git-repo';
 import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 
@@ -34,6 +35,18 @@ describe('grimoire cli', () => {
     expect(stdout).not.toContain('\x1b[');
   });
 
+  it('reports a git that cannot be run as a refusal', async () => {
+    const { path: repo } = await tempGitRepo();
+
+    const { stderr, code } = await runCli(['repos', 'add', 'library', repo], {
+      home: await tempRoot(),
+      envPath: await tempRoot(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr).toBe('error: could not run git: repos need it installed and on your PATH');
+  });
+
   // A raw EACCES stack through the real process was the original report, so this
   // stays even though the command-level tests cover the same logic.
   describe.skipIf(runsAsRoot)('an unreadable workspace', () => {
@@ -59,6 +72,8 @@ type RunCliOptions = {
   home?: string;
   /** Removes the variables that force or forbid color, so the run tests the child's own stdout. */
   dropColorEnv?: boolean;
+  /** Replaces `$PATH` for the child. Node itself is run by absolute path. */
+  envPath?: string;
 };
 
 /**
@@ -75,7 +90,11 @@ type RunCliOptions = {
 async function runCli(args: string[], options: RunCliOptions = {}) {
   const execFileAsync = promisify(execFile);
   const baseEnv = options.dropColorEnv ? withoutColorEnv(process.env) : process.env;
-  const env = options.home ? { ...baseEnv, HOME: options.home } : baseEnv;
+  const env = {
+    ...baseEnv,
+    ...(options.home !== undefined && { HOME: options.home }),
+    ...(options.envPath !== undefined && { PATH: options.envPath }),
+  };
 
   try {
     const { stdout, stderr } = await execFileAsync(

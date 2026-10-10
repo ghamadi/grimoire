@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,10 +17,12 @@ import {
   DuplicateNameError,
   EntityNotFoundError,
   GrimoireError,
-  InvalidWorkspaceNameError,
+  InvalidNameError,
+  InvalidPathError,
   InvalidShapeError,
   PathCollisionError,
 } from '#src/lib/errors/index';
+import { tempGitRepo } from '#test-helpers/git-repo';
 import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
 import { tempRoot } from '#test-helpers/temp-root';
 import { GrimoireStore, GrimoireStoreManager } from '../index.ts';
@@ -76,7 +79,7 @@ describe('registerWorkspace', () => {
       error = caught;
     }
 
-    expect(error).toBeInstanceOf(InvalidWorkspaceNameError);
+    expect(error).toBeInstanceOf(InvalidNameError);
     expect((error as Error).message).toBe(
       'workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"',
     );
@@ -89,7 +92,7 @@ describe('registerWorkspace', () => {
     const { manager, store, root } = await newManager();
     const path = join(root, 'project');
 
-    expect(() => manager.registerWorkspace({ name: 'a/b', path })).toThrow(InvalidWorkspaceNameError);
+    expect(() => manager.registerWorkspace({ name: 'a/b', path })).toThrow(InvalidNameError);
     expect(existsSync(store.paths.root)).toBe(false);
   });
 
@@ -104,7 +107,7 @@ describe('registerWorkspace', () => {
     );
 
     expect(() => manager.registerWorkspace({ name: 'a/b', path: join(root, 'other') })).toThrow(
-      InvalidWorkspaceNameError,
+      InvalidNameError,
     );
   });
 
@@ -123,6 +126,55 @@ describe('registerWorkspace', () => {
     expect(existsSync(join(store.paths.skills, 'personal'))).toBe(false);
   });
 
+  it.each([
+    ['equal to a registered repo', (repoPath: string) => repoPath, 'equals'],
+    ['inside a registered repo', (repoPath: string) => join(repoPath, 'skills'), 'inside'],
+    ['containing a registered repo', (repoPath: string) => dirname(repoPath), 'contains'],
+  ])('refuses a path %s, creating nothing', async (_, pathFor, relation) => {
+    const { manager } = await newManager();
+    const repoPath = await registerNestedRepo({ manager, name: 'library' });
+
+    const error = refusalOf(() =>
+      manager.registerWorkspace({ name: 'personal', path: pathFor(repoPath) }),
+    );
+
+    expect(error).toBeInstanceOf(PathCollisionError);
+    expect(error).toMatchObject({
+      collision: { kind: 'repo', name: 'library', path: repoPath, relation },
+    });
+    expect(manager.getRegistry().workspaces).toEqual({});
+    expect(existsSync(join(repoPath, 'skills'))).toBe(false);
+  });
+
+  it('names the store when the path collides with both the store and a repo', async () => {
+    const workTree = await tempGitRepo();
+    const manager = new GrimoireStoreManager(new GrimoireStore(join(workTree.path, '.grimoire')));
+    const repoPath = join(workTree.path, 'library');
+
+    mkdirSync(repoPath);
+    manager.registerRepo({ name: 'library', path: repoPath });
+
+    const error = refusalOf(() => manager.registerWorkspace({ name: 'personal', path: workTree.path }));
+
+    expect(error).toBeInstanceOf(PathCollisionError);
+    expect(error.message).toBe(
+      `${workTree.path} contains the grimoire store (${join(workTree.path, '.grimoire')})`,
+    );
+  });
+
+  it('names the first repo by name when the path collides with two', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+    const path = join(repo.path, 'skills');
+
+    manager.registerRepo({ name: 'zulu', path: repo.path });
+    manager.registerRepo({ name: 'alpha', path: repo.path });
+
+    expect(refusalOf(() => manager.registerWorkspace({ name: 'personal', path })).message).toBe(
+      `${path} sits inside repo "alpha" (${repo.path})`,
+    );
+  });
+
   // Every object answers to `toString`, so a lookup rather than `Object.hasOwn`
   // reads an empty registry as already holding the name.
   it('registers a name that an object inherits from its prototype', async () => {
@@ -133,6 +185,387 @@ describe('registerWorkspace', () => {
 
     expect(manager.registerWorkspace({ name: 'toString', path })).toEqual({ path, created: false });
     expect(manager.getRegistry().workspaces).toEqual({ toString: { path, autoLink: false } });
+  });
+});
+
+describe('registerRepo', () => {
+  it('registers the root of a work tree, answering with the name and path', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    expect(manager.registerRepo({ name: 'library', path: repo.path })).toEqual({
+      name: 'library',
+      path: repo.path,
+    });
+    expect(manager.getRegistry().repos).toEqual({ library: { path: repo.path } });
+  });
+
+  it('registers a subdirectory of a work tree', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+    const path = join(repo.path, 'packages', 'core');
+
+    mkdirSync(path, { recursive: true });
+
+    expect(manager.registerRepo({ name: 'core', path })).toEqual({ name: 'core', path });
+  });
+
+  it('stores the normalized path', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    mkdirSync(join(repo.path, 'sub'));
+
+    const registered = manager.registerRepo({ name: 'library', path: `${repo.path}/sub/..` });
+
+    expect(registered.path).toBe(repo.path);
+    expect(manager.getRegistry().repos).toEqual({ library: { path: repo.path } });
+  });
+
+  it('registers a name that an object inherits from its prototype', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerRepo({ name: 'toString', path: repo.path });
+
+    expect(manager.getRegistry().repos).toEqual({ toString: { path: repo.path } });
+  });
+
+  it('accepts a name a workspace already holds', async () => {
+    const { manager, root } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerWorkspace({ name: 'shared', path: join(root, 'project') });
+    manager.registerRepo({ name: 'shared', path: repo.path });
+
+    expect(Object.keys(manager.getRegistry().workspaces)).toEqual(['shared']);
+    expect(Object.keys(manager.getRegistry().repos)).toEqual(['shared']);
+  });
+
+  it('accepts two repos at one path', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerRepo({ name: 'first', path: repo.path });
+    manager.registerRepo({ name: 'second', path: repo.path });
+
+    expect(manager.getRegistry().repos).toEqual({
+      first: { path: repo.path },
+      second: { path: repo.path },
+    });
+  });
+
+  it('refuses a name outside the allowed alphabet, registering nothing', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    const error = refusalOf(() => manager.registerRepo({ name: 'a/b', path: repo.path }));
+
+    expect(error).toBeInstanceOf(InvalidNameError);
+    expect(error.message).toBe(
+      'repo name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"',
+    );
+    expect(manager.getRegistry().repos).toEqual({});
+  });
+
+  it('refuses a duplicate name, leaving the first registration', async () => {
+    const { manager } = await newManager();
+    const first = await tempGitRepo();
+    const second = await tempGitRepo();
+
+    manager.registerRepo({ name: 'library', path: first.path });
+
+    const error = refusalOf(() => manager.registerRepo({ name: 'library', path: second.path }));
+
+    expect(error).toBeInstanceOf(DuplicateNameError);
+    expect(error.message).toBe('repo "library" is already registered');
+    expect(manager.getRegistry().repos).toEqual({ library: { path: first.path } });
+  });
+
+  it.each([
+    ['equal to the store root', (store: GrimoireStore) => store.paths.root],
+    ['inside the store', (store: GrimoireStore) => join(store.paths.skills, 'library')],
+    ['containing the store', (store: GrimoireStore) => dirname(store.paths.root)],
+  ])('refuses a path %s', async (_, pathFor) => {
+    const { manager, store } = await newManager();
+
+    expect(() => manager.registerRepo({ name: 'library', path: pathFor(store) })).toThrow(
+      PathCollisionError,
+    );
+    expect(manager.getRegistry().repos).toEqual({});
+  });
+
+  it('refuses a path that is not absolute', async () => {
+    const { manager } = await newManager();
+
+    expect(refusalOf(() => manager.registerRepo({ name: 'library', path: 'library' }))).toMatchObject({
+      reason: 'not-absolute',
+    });
+  });
+
+  it('refuses a path that does not exist, creating nothing', async () => {
+    const { manager, root } = await newManager();
+    const path = join(root, 'missing');
+
+    const error = refusalOf(() => manager.registerRepo({ name: 'library', path }));
+
+    expect(error).toBeInstanceOf(InvalidPathError);
+    expect(error).toMatchObject({ reason: 'missing' });
+    expect(existsSync(path)).toBe(false);
+    expect(manager.getRegistry().repos).toEqual({});
+  });
+
+  it('refuses a path that is a file', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+    const path = join(repo.path, 'README.md');
+
+    writeFileSync(path, '# readme\n', 'utf8');
+
+    expect(refusalOf(() => manager.registerRepo({ name: 'library', path }))).toMatchObject({
+      reason: 'not-a-directory',
+    });
+  });
+
+  it('refuses a symlink, even one that points into a work tree', async () => {
+    const { manager, root } = await newManager();
+    const repo = await tempGitRepo();
+    const path = join(root, 'link');
+
+    symlinkSync(repo.path, path);
+
+    expect(refusalOf(() => manager.registerRepo({ name: 'library', path }))).toMatchObject({
+      reason: 'symlink',
+    });
+  });
+
+  it('refuses a directory outside every work tree, naming the path', async () => {
+    const { manager, root } = await newManager();
+    const path = await tempRoot();
+
+    const error = refusalOf(() => manager.registerRepo({ name: 'library', path }));
+
+    expect(error).toBeInstanceOf(InvalidPathError);
+    expect(error.message).toBe(`${path} is not inside a git work tree`);
+    expect(manager.getRegistry().repos).toEqual({});
+    expect(existsSync(root)).toBe(true);
+  });
+
+  // The name is what refuses, so it refuses before anything reaches the disk —
+  // asserted on the store root itself, since only `ensureLayout()` creates it.
+  it('refuses an invalid name before creating the store layout', async () => {
+    const { manager, store } = await newManager();
+    const repo = await tempGitRepo();
+
+    expect(() => manager.registerRepo({ name: 'a/b', path: repo.path })).toThrow(InvalidNameError);
+    expect(existsSync(store.paths.root)).toBe(false);
+  });
+
+  it('refuses an invalid name before reading state.json', async () => {
+    const { manager, store } = await newManager();
+    const repo = await tempGitRepo();
+
+    writeState(store, document({ repos: { 'a/b': { path: repo.path } } }));
+
+    expect(() => manager.registerRepo({ name: 'a/b', path: repo.path })).toThrow(InvalidNameError);
+  });
+
+  it('refuses a duplicate name ahead of a missing path', async () => {
+    const { manager, root } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerRepo({ name: 'library', path: repo.path });
+
+    expect(() => manager.registerRepo({ name: 'library', path: join(root, 'missing') })).toThrow(
+      DuplicateNameError,
+    );
+  });
+
+  it('refuses a path inside the store ahead of a missing one', async () => {
+    const { manager, store } = await newManager();
+    const path = join(store.paths.skills, 'library');
+
+    expect(existsSync(path)).toBe(false);
+    expect(() => manager.registerRepo({ name: 'library', path })).toThrow(PathCollisionError);
+  });
+
+  it('reports a missing path rather than a missing work tree', async () => {
+    const { manager, root } = await newManager();
+    const error = refusalOf(() => manager.registerRepo({ name: 'library', path: join(root, 'nope') }));
+
+    expect(error).toMatchObject({ reason: 'missing' });
+  });
+
+  it.each([
+    ['equal to a registered workspace', (workspacePath: string) => workspacePath, 'equals'],
+    [
+      'inside a registered workspace',
+      (workspacePath: string) => join(workspacePath, 'nested'),
+      'inside',
+    ],
+    ['containing a registered workspace', (workspacePath: string) => dirname(workspacePath), 'contains'],
+  ])('refuses a path %s, registering nothing', async (_, pathFor, relation) => {
+    const { manager } = await newManager();
+    const workTree = await tempGitRepo();
+    const workspacePath = join(workTree.path, 'agents', 'skills');
+
+    mkdirSync(join(workspacePath, 'nested'), { recursive: true });
+    manager.registerWorkspace({ name: 'personal', path: workspacePath });
+
+    const error = refusalOf(() =>
+      manager.registerRepo({ name: 'library', path: pathFor(workspacePath) }),
+    );
+
+    expect(error).toBeInstanceOf(PathCollisionError);
+    expect(error).toMatchObject({
+      collision: { kind: 'workspace', name: 'personal', path: workspacePath, relation },
+    });
+    expect(manager.getRegistry().repos).toEqual({});
+  });
+
+  it('refuses a path inside a workspace ahead of a missing one', async () => {
+    const { manager, root } = await newManager();
+    const workspacePath = join(root, 'project');
+    const path = join(workspacePath, 'missing');
+
+    manager.registerWorkspace({ name: 'personal', path: workspacePath });
+
+    expect(existsSync(path)).toBe(false);
+    expect(() => manager.registerRepo({ name: 'library', path })).toThrow(PathCollisionError);
+  });
+
+  it('refuses a path inside a workspace ahead of one outside every work tree', async () => {
+    const { manager } = await newManager();
+    const workspacePath = await tempRoot();
+    const path = join(workspacePath, 'plain');
+
+    mkdirSync(path);
+    manager.registerWorkspace({ name: 'personal', path: workspacePath });
+
+    expect(() => manager.registerRepo({ name: 'library', path })).toThrow(PathCollisionError);
+  });
+
+  it('accepts a repo inside another repo', async () => {
+    const { manager } = await newManager();
+    const outer = await tempGitRepo();
+    const inner = join(outer.path, 'packages', 'core');
+
+    mkdirSync(inner, { recursive: true });
+    manager.registerRepo({ name: 'outer', path: outer.path });
+    manager.registerRepo({ name: 'inner', path: inner });
+
+    expect(manager.getRegistry().repos).toEqual({
+      outer: { path: outer.path },
+      inner: { path: inner },
+    });
+  });
+});
+
+describe('requireRegisteredRepo', () => {
+  it('returns the registered repo', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerRepo({ name: 'library', path: repo.path });
+
+    expect(manager.requireRegisteredRepo('library')).toEqual({ name: 'library', path: repo.path });
+  });
+
+  it.each(['ghost', 'toString'])('refuses the unregistered name %j', async (name) => {
+    const { manager } = await newManager();
+
+    const error = refusalOf(() => manager.requireRegisteredRepo(name));
+
+    expect(error).toBeInstanceOf(EntityNotFoundError);
+    expect(error.message).toBe(`no repo named "${name}"`);
+  });
+
+  it('does not find a workspace of that name', async () => {
+    const { manager, root } = await newManager();
+
+    manager.registerWorkspace({ name: 'personal', path: join(root, 'project') });
+
+    expect(() => manager.requireRegisteredRepo('personal')).toThrow(EntityNotFoundError);
+  });
+});
+
+describe('unregisterRepo', () => {
+  it('answers with the repo it dropped, and frees the name', async () => {
+    const { manager } = await newManager();
+    const first = await tempGitRepo();
+    const second = await tempGitRepo();
+
+    manager.registerRepo({ name: 'library', path: first.path });
+
+    expect(manager.unregisterRepo('library')).toEqual({ name: 'library', path: first.path });
+    expect(manager.getRegistry().repos).toEqual({});
+    expect(() => manager.registerRepo({ name: 'library', path: second.path })).not.toThrow();
+  });
+
+  it('leaves other repos, workspaces, clone records, ignore, and the directory alone', async () => {
+    const { manager, store, root } = await newManager();
+    const dropped = await tempGitRepo();
+    const kept = await tempGitRepo();
+    const workspace = join(root, 'project');
+
+    writeState(
+      store,
+      JSON.stringify({
+        workspaces: { personal: { path: workspace, autoLink: false } },
+        repos: {
+          dropped: { path: dropped.path },
+          kept: { path: kept.path },
+        },
+        skills: { deploy: { clones: [{ workspace: 'personal' }, { path: '/elsewhere' }] } },
+        ignore: ['.git'],
+      }),
+    );
+    writeFileSync(join(dropped.path, 'notes.md'), 'kept', 'utf8');
+
+    manager.unregisterRepo('dropped');
+
+    expect(manager.getRegistry()).toEqual({
+      workspaces: { personal: { path: workspace, autoLink: false } },
+      repos: { kept: { path: kept.path } },
+      skills: { deploy: { clones: [{ workspace: 'personal' }, { path: '/elsewhere' }] } },
+      ignore: ['.git'],
+    });
+    expect(existsSync(join(dropped.path, 'notes.md'))).toBe(true);
+  });
+
+  it.each(['ghost', 'toString'])(
+    'refuses the unregistered name %j, leaving the registry',
+    async (name) => {
+      const { manager } = await newManager();
+      const repo = await tempGitRepo();
+
+      manager.registerRepo({ name: 'library', path: repo.path });
+
+      expect(() => manager.unregisterRepo(name)).toThrow(EntityNotFoundError);
+      expect(manager.getRegistry().repos).toEqual({ library: { path: repo.path } });
+    },
+  );
+});
+
+describe('listRegisteredRepos', () => {
+  it('lists nothing for an empty registry', async () => {
+    const { manager } = await newManager();
+
+    expect(manager.listRegisteredRepos()).toEqual([]);
+  });
+
+  it('lists every repo, sorted by name', async () => {
+    const { manager } = await newManager();
+    const zulu = await tempGitRepo();
+    const alpha = await tempGitRepo();
+
+    manager.registerRepo({ name: 'zulu', path: zulu.path });
+    manager.registerRepo({ name: 'alpha', path: alpha.path });
+
+    expect(manager.listRegisteredRepos()).toEqual([
+      { name: 'alpha', path: alpha.path },
+      { name: 'zulu', path: zulu.path },
+    ]);
   });
 });
 
@@ -172,7 +605,12 @@ describe('reading state.json', () => {
   it('reads an absent file as a first run', async () => {
     const { manager } = await newManager();
 
-    expect(manager.getRegistry()).toEqual({ workspaces: {}, skills: {}, ignore: ['.DS_Store'] });
+    expect(manager.getRegistry()).toEqual({
+      workspaces: {},
+      repos: {},
+      skills: {},
+      ignore: ['.DS_Store'],
+    });
   });
 
   it('refuses a file that is not valid JSON, naming it', async () => {
@@ -183,14 +621,12 @@ describe('reading state.json', () => {
     expect(refusal(() => manager.getRegistry()).message).toContain(store.paths.state);
   });
 
-  // The key `repos` was dropped from the schema, so every state written before
-  // that arrives here.
   it('refuses an unrecognized key, naming it', async () => {
     const { manager, store } = await newManager();
 
-    writeState(store, '{ "repos": {}, "workspaces": {} }');
+    writeState(store, '{ "remotes": {}, "workspaces": {} }');
 
-    expect(refusal(() => manager.getRegistry()).message).toContain('repos');
+    expect(refusal(() => manager.getRegistry()).message).toContain('remotes');
   });
 
   it('refuses a wrong-typed field, naming the entry', async () => {
@@ -212,6 +648,33 @@ describe('reading state.json', () => {
 
     expect(message).toContain('workspaces["my.project"]');
     expect(message).toContain('workspace name must start with a letter or digit');
+  });
+
+  it('refuses a repo name outside the allowed alphabet, naming it', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ repos: { 'my.project': { path: '/x' } } }));
+
+    const { message } = refusal(() => manager.getRegistry());
+
+    expect(message).toContain('repos["my.project"]');
+    expect(message).toContain('repo name must start with a letter or digit');
+  });
+
+  it('refuses a wrong-typed repo path, naming the entry', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ repos: { library: { path: 42 } } }));
+
+    expect(refusal(() => manager.getRegistry()).message).toContain('library');
+  });
+
+  it('refuses an unrecognized key in a repo entry, naming it', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ repos: { library: { path: '/x', autoLink: true } } }));
+
+    expect(refusal(() => manager.getRegistry()).message).toContain('autoLink');
   });
 
   it('refuses a clone record naming a workspace outside the allowed alphabet, naming it', async () => {
@@ -314,6 +777,218 @@ describe('a registered path that touches the store', () => {
     );
 
     expect(() => manager.getRegistry()).toThrow(/workspace "alpha"/);
+  });
+});
+
+describe('a registered repo path that touches the store', () => {
+  it.each([
+    ['sitting inside the store', (store: GrimoireStore) => join(store.paths.skills, 'bad')],
+    ['equal to the store root', (store: GrimoireStore) => store.paths.root],
+    ['containing the store', (store: GrimoireStore) => dirname(store.paths.root)],
+  ])('refuses a path %s, naming the repo and the file it has to leave', async (_, pathFor) => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ repos: { bad: { path: pathFor(store) } } }));
+
+    const error = refusalOf(() => manager.getRegistry());
+
+    expect(error).toBeInstanceOf(CollidingRegistrationError);
+    expect(error.message).toMatch(new RegExp(`^repo "bad" cannot be used:.*\\n.*${store.paths.state}`));
+  });
+
+  it.each([
+    ['getRegistry', (manager: GrimoireStoreManager) => manager.getRegistry()],
+    ['listRegisteredRepos', (manager: GrimoireStoreManager) => manager.listRegisteredRepos()],
+    ['requireRegisteredRepo', (manager: GrimoireStoreManager) => manager.requireRegisteredRepo('ok')],
+    ['unregisterRepo', (manager: GrimoireStoreManager) => manager.unregisterRepo('ok')],
+    [
+      'registerRepo',
+      (manager: GrimoireStoreManager) => manager.registerRepo({ name: 'new', path: '/tmp/new' }),
+    ],
+    ['listRegisteredWorkspaces', (manager: GrimoireStoreManager) => manager.listRegisteredWorkspaces()],
+    [
+      'registerWorkspace',
+      (manager: GrimoireStoreManager) => manager.registerWorkspace({ name: 'new', path: '/tmp/new' }),
+    ],
+  ])('refuses %s while the repo is registered', async (_, read) => {
+    const { manager, store, root } = await newManager();
+
+    writeState(
+      store,
+      document({
+        repos: {
+          bad: { path: join(store.paths.skills, 'bad') },
+          ok: { path: join(root, 'ok') },
+        },
+      }),
+    );
+
+    expect(() => read(manager)).toThrow(CollidingRegistrationError);
+  });
+
+  it('names the workspace when a workspace and a repo both collide', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(
+      store,
+      document({
+        workspaces: { zulu: { path: join(store.paths.skills, 'zulu'), autoLink: false } },
+        repos: { alpha: { path: join(store.paths.skills, 'alpha') } },
+      }),
+    );
+
+    expect(() => manager.getRegistry()).toThrow(/^workspace "zulu" cannot be used:/);
+  });
+
+  it('names the first repo by name when several collide', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(
+      store,
+      document({
+        repos: {
+          zulu: { path: join(store.paths.skills, 'zulu') },
+          alpha: { path: join(store.paths.skills, 'alpha') },
+        },
+      }),
+    );
+
+    expect(() => manager.getRegistry()).toThrow(/^repo "alpha" cannot be used:/);
+  });
+});
+
+describe('a workspace and a repo whose paths overlap', () => {
+  it.each([
+    ['inside', (repoPath: string) => join(repoPath, 'skills')],
+    ['equal to', (repoPath: string) => repoPath],
+    ['containing', (repoPath: string) => dirname(repoPath)],
+  ])('refuses a workspace %s a repo', async (_, workspacePathFor) => {
+    const { manager, store, root } = await newManager();
+    const repoPath = join(root, 'code', 'dotfiles');
+
+    writeState(
+      store,
+      document({
+        workspaces: { dotfiles: { path: workspacePathFor(repoPath), autoLink: false } },
+        repos: { library: { path: repoPath } },
+      }),
+    );
+
+    expect(() => manager.getRegistry()).toThrow(CollidingRegistrationError);
+  });
+
+  it('names the workspace, the repo, and the file one of them has to leave', async () => {
+    const { manager, store, root } = await newManager();
+
+    writeState(store, overlappingDocument(root));
+
+    expect(() => manager.getRegistry()).toThrow(
+      new RegExp(
+        `^workspace "dotfiles" .* repo "library" .*\\n.*one of them is gone from ${store.paths.state}$`,
+      ),
+    );
+  });
+
+  it.each([
+    ['getRegistry', (manager: GrimoireStoreManager) => manager.getRegistry()],
+    ['listRegisteredWorkspaces', (manager: GrimoireStoreManager) => manager.listRegisteredWorkspaces()],
+    [
+      'requireRegisteredWorkspace',
+      (manager: GrimoireStoreManager) => manager.requireRegisteredWorkspace('dotfiles'),
+    ],
+    ['unregisterWorkspace', (manager: GrimoireStoreManager) => manager.unregisterWorkspace('dotfiles')],
+    [
+      'registerWorkspace',
+      (manager: GrimoireStoreManager) => manager.registerWorkspace({ name: 'new', path: '/tmp/new' }),
+    ],
+    ['listRegisteredRepos', (manager: GrimoireStoreManager) => manager.listRegisteredRepos()],
+    [
+      'requireRegisteredRepo',
+      (manager: GrimoireStoreManager) => manager.requireRegisteredRepo('library'),
+    ],
+    ['unregisterRepo', (manager: GrimoireStoreManager) => manager.unregisterRepo('library')],
+    [
+      'registerRepo',
+      (manager: GrimoireStoreManager) => manager.registerRepo({ name: 'new', path: '/tmp/new' }),
+    ],
+  ])('refuses %s while the overlap is registered', async (_, read) => {
+    const { manager, store, root } = await newManager();
+
+    writeState(store, overlappingDocument(root));
+
+    expect(() => read(manager)).toThrow(CollidingRegistrationError);
+  });
+
+  it('names the first workspace by name when several overlap a repo', async () => {
+    const { manager, store, root } = await newManager();
+    const repoPath = join(root, 'dotfiles');
+
+    writeState(
+      store,
+      document({
+        workspaces: {
+          zulu: { path: join(repoPath, 'zulu'), autoLink: false },
+          alpha: { path: join(repoPath, 'alpha'), autoLink: false },
+        },
+        repos: { library: { path: repoPath } },
+      }),
+    );
+
+    expect(() => manager.getRegistry()).toThrow(/^workspace "alpha" cannot be used:/);
+  });
+
+  it('names the first repo by name when a workspace overlaps several', async () => {
+    const { manager, store, root } = await newManager();
+    const repoPath = join(root, 'dotfiles');
+
+    writeState(
+      store,
+      document({
+        workspaces: { dotfiles: { path: join(repoPath, 'skills'), autoLink: false } },
+        repos: { zulu: { path: repoPath }, alpha: { path: repoPath } },
+      }),
+    );
+
+    expect(() => manager.getRegistry()).toThrow(/sits inside repo "alpha"/);
+  });
+
+  it('refuses a workspace whose ancestor symlink was repointed into a repo after registration', async () => {
+    const { manager, root } = await newManager();
+    const repo = await tempGitRepo();
+    const link = join(root, 'link');
+
+    mkdirSync(join(root, 'elsewhere'));
+    symlinkSync(join(root, 'elsewhere'), link);
+    manager.registerRepo({ name: 'library', path: repo.path });
+    manager.registerWorkspace({ name: 'personal', path: join(link, 'skills') });
+
+    rmSync(link);
+    symlinkSync(repo.path, link);
+
+    const error = refusalOf(() => manager.getRegistry());
+
+    expect(error).toBeInstanceOf(CollidingRegistrationError);
+    expect(error.message).toMatch(/^workspace "personal" .* sits inside repo "library"/);
+  });
+
+  it('reports a workspace touching the store ahead of an earlier-named one overlapping a repo', async () => {
+    const { manager, store, root } = await newManager();
+    const repoPath = join(root, 'dotfiles');
+
+    writeState(
+      store,
+      document({
+        workspaces: {
+          alpha: { path: join(repoPath, 'skills'), autoLink: false },
+          zulu: { path: join(store.paths.skills, 'zulu'), autoLink: false },
+        },
+        repos: { library: { path: repoPath } },
+      }),
+    );
+
+    expect(() => manager.getRegistry()).toThrow(
+      /^workspace "zulu" cannot be used: .* the grimoire store/,
+    );
   });
 });
 
@@ -1358,8 +2033,35 @@ function linkSkill(params: { store: GrimoireStore; workspace: string; skill: str
 }
 
 /** A whole state.json, as text, carrying only the sections a test cares about. */
-function document(sections: { workspaces?: unknown; skills?: unknown; ignore?: unknown }): string {
-  return JSON.stringify({ workspaces: {}, skills: {}, ignore: ['.DS_Store'], ...sections });
+function document(sections: {
+  workspaces?: unknown;
+  repos?: unknown;
+  skills?: unknown;
+  ignore?: unknown;
+}): string {
+  return JSON.stringify({ workspaces: {}, repos: {}, skills: {}, ignore: ['.DS_Store'], ...sections });
+}
+
+/** A state.json where workspace `dotfiles` sits inside repo `library`, both under `root`. */
+function overlappingDocument(root: string): string {
+  return document({
+    workspaces: { dotfiles: { path: join(root, 'dotfiles', 'skills'), autoLink: false } },
+    repos: { library: { path: join(root, 'dotfiles') } },
+  });
+}
+
+/** Registers a repo two levels into a fresh work tree, so its parent holds nothing else, and returns its path. */
+async function registerNestedRepo(params: {
+  manager: GrimoireStoreManager;
+  name: string;
+}): Promise<string> {
+  const workTree = await tempGitRepo();
+  const path = join(workTree.path, 'packages', 'core');
+
+  mkdirSync(path, { recursive: true });
+  params.manager.registerRepo({ name: params.name, path });
+
+  return path;
 }
 
 /** A skill directory holding a manifest, and whatever `files` overrides or adds. */
@@ -1373,6 +2075,17 @@ function writeSkillDirectory(path: string, files: Record<string, string> = {}): 
   }
 
   return path;
+}
+
+/** The error a call throws, which fails the test when it throws nothing. */
+function refusalOf(run: () => unknown): Error {
+  try {
+    run();
+  } catch (error) {
+    return error as Error;
+  }
+
+  expect.fail('expected a refusal');
 }
 
 /** A GrimoireError is what keeps cli.ts from printing a stack trace. */

@@ -7,7 +7,7 @@ import {
   CollidingRegistrationError,
   DuplicateNameError,
   EntityNotFoundError,
-  InvalidWorkspaceNameError,
+  InvalidNameError,
   InvalidPathError,
   PathCollisionError,
   UnreadableWorkspaceRemovalError,
@@ -103,7 +103,7 @@ describe('workspaces add', () => {
 
       const error = captureError(() => run('workspaces', 'add', 'a/b', path));
 
-      expect(error).toBeInstanceOf(InvalidWorkspaceNameError);
+      expect(error).toBeInstanceOf(InvalidNameError);
       expect(error.message).toBe(
         'workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"',
       );

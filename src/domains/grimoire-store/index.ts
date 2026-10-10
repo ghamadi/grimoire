@@ -2,6 +2,7 @@ export { GrimoireStore, type Collision } from './entity.ts';
 export {
   GrimoireStoreManager,
   type FiledClone,
+  type RegisteredRepo,
   type RegisteredWorkspace,
   type SkillClone,
 } from './manager.ts';

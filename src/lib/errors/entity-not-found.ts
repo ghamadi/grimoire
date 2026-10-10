@@ -1,6 +1,9 @@
 import { GrimoireError } from './grimoire-error.ts';
 
-export type Entity = 'workspace' | 'skill';
+/** The entities that live in `state.json` under a name the user chose. */
+export type RegistryEntity = 'workspace' | 'repo';
+
+export type Entity = RegistryEntity | 'skill';
 
 export type EntityNotFoundErrorProps = {
   entity: Entity;

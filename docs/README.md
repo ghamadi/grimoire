@@ -3,6 +3,8 @@
 | Command group                            | Status          |
 | ---------------------------------------- | --------------- |
 | [`workspaces`](./commands/workspaces.md) | Implemented     |
+| [`repos`](./commands/repos.md)           | Implemented     |
+| [`export`](./commands/export.md)         | Implemented     |
 | [`skills`](./commands/skills.md)         | Implemented     |
 | `link`                                   | Implemented     |
 | [`unlink`](./commands/unlink.md)         | Implemented     |

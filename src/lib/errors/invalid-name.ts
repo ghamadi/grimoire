@@ -1,0 +1,29 @@
+import type { RegistryEntity } from './entity-not-found.ts';
+import { GrimoireError } from './grimoire-error.ts';
+
+export type InvalidNameErrorProps = {
+  entity: RegistryEntity;
+  name: string;
+};
+
+/**
+ * A workspace or repo name fails the registry's name rule.
+ *
+ * The offending name is `entryName`, not `name`: `Error.name` is the class
+ * name, and every subclass here sets it.
+ */
+export class InvalidNameError extends GrimoireError {
+  readonly entity: RegistryEntity;
+  readonly entryName: string;
+
+  constructor(props: InvalidNameErrorProps) {
+    const { entity, name } = props;
+    super(
+      `${entity} name "${name}" must start with a letter or digit and contain only letters, digits, "-" and "_"`,
+    );
+
+    this.name = 'InvalidNameError';
+    this.entity = entity;
+    this.entryName = name;
+  }
+}
