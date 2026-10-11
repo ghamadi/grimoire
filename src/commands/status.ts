@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import type { TextStyle, TextStyler } from '@/lib/text-styler';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
 import { assertUnreachable } from '@/lib/utils';
 import {
@@ -11,12 +12,6 @@ import {
   type StoreStatus,
   type WorkspaceStatus,
 } from '@/use-cases/report-status-use-case/factory';
-
-/** The formats the status palette uses. */
-export type StatusStyle = 'bold' | 'dim' | 'cyan' | 'yellow';
-
-/** Applies a format to text, or returns it unchanged when color doesn't apply. */
-export type TextStyler = (style: StatusStyle, text: string) => string;
 
 export type StatusCommandParams = {
   storeManager: GrimoireStoreManager;
@@ -168,7 +163,7 @@ function formatStoreBlock(params: {
 /** Labels are padded to `problem`, the longest of the short ones; `not deployed` overruns it. */
 function formatContentLine(params: {
   label: string;
-  labelStyle: StatusStyle;
+  labelStyle: TextStyle;
   text: string;
   textStyler: TextStyler;
 }): string {
@@ -186,7 +181,7 @@ function formatContentLine(params: {
 function formatPaddedStyledToken(params: {
   token: string;
   width: number;
-  style: StatusStyle;
+  style: TextStyle;
   textStyler: TextStyler;
 }): string {
   const { token, width, style, textStyler } = params;

@@ -242,6 +242,8 @@ There is no restore command. Recovery is `mv`, from the exact path the removal j
 trashed triage → /Users/me/.grimoire/.trash/triage-20260915T124530
 ```
 
+A bin stays until [`grimoire trash empty`](./trash.md#trash-empty) deletes every one of them.
+
 ### Clones are kept
 
 Neither with nor without the flag does `skills remove` touch a cloned directory —

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { dirname, join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { TextStyler } from '@/commands/status';
+import type { TextStyler } from '@/lib/text-styler';
 import { GrimoireStore } from '@/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '@/domains/skill/index';
 import { buildProgram, type ProgramDependencies } from '@/program';

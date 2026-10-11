@@ -3,7 +3,7 @@
 ```
 ~/.grimoire/
 ├── skills/<skill>/SKILL.md   # the store — flat, one directory per skill
-├── .trash/                   # store copies `skills remove` moves aside, one timestamped bin per skill per removal
+├── .trash/                   # store copies `skills remove` moves aside, a timestamped bin per removal; `trash empty` clears it
 ├── .backup/                  # reserved; nothing writes to it yet
 └── state.json                # everything grimoire persists
 ```

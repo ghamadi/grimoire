@@ -70,6 +70,7 @@ to the store copy now shows in both workspaces, and dropping `--all` in a termin
 | [`unclone`](./docs/commands/unclone.md)       | Forget clone records                                    |
 | [`repos`](./docs/commands/repos.md)           | Manage the git repos grimoire exports skills to         |
 | [`export`](./docs/commands/export.md)         | Copy store skills into a repo, replacing what is there  |
+| [`trash`](./docs/commands/trash.md)           | Manage the trash that removed skills are moved to       |
 | [`status`](./docs/commands/status.md)         | Show where skills are deployed, and what has gone stale |
 
 What grimoire will and will not touch outside its store is in [`docs/safety.md`](./docs/safety.md), and the `~/.grimoire/`

@@ -1743,6 +1743,79 @@ describe('trashSkill', () => {
   });
 });
 
+describe('emptyTrash', () => {
+  it('deletes every bin and returns their paths in name order', async () => {
+    const { manager, store } = await newManager();
+    const triageBinPath = join(store.paths.trash, 'triage-20260915T124530');
+    const deployBinPath = join(store.paths.trash, 'deploy-20260920T091502');
+
+    writeSkillDirectory(join(triageBinPath, 'store'));
+    writeSkillDirectory(join(deployBinPath, 'store'));
+
+    expect(manager.emptyTrash()).toEqual([deployBinPath, triageBinPath]);
+    expect(readdirSync(store.paths.trash)).toEqual([]);
+  });
+
+  it('returns nothing for an empty trash', async () => {
+    const { manager } = await newManager();
+
+    expect(manager.emptyTrash()).toEqual([]);
+  });
+
+  it('leaves .trash/ in place', async () => {
+    const { manager, store } = await newManager();
+
+    writeSkillDirectory(join(store.paths.trash, 'triage-20260915T124530', 'store'));
+
+    manager.emptyTrash();
+
+    expect(existsSync(store.paths.trash)).toBe(true);
+  });
+
+  it('deletes an entry that is not a bin', async () => {
+    const { manager, store } = await newManager();
+    const strayPath = join(store.paths.trash, 'notes.txt');
+
+    mkdirSync(store.paths.trash, { recursive: true });
+    writeFileSync(strayPath, 'notes\n', 'utf8');
+
+    expect(manager.emptyTrash()).toEqual([strayPath]);
+    expect(existsSync(strayPath)).toBe(false);
+  });
+
+  it('removes a symlink inside a bin without touching what it points at', async () => {
+    const { manager, store, root } = await newManager();
+    const outsidePath = join(root, 'outside');
+    const outsideFilePath = join(outsidePath, 'keep.md');
+    const binPath = join(store.paths.trash, 'triage-20260915T124530');
+
+    mkdirSync(outsidePath);
+    writeFileSync(outsideFilePath, 'keep\n', 'utf8');
+    writeSkillDirectory(join(binPath, 'store'));
+    symlinkSync(outsidePath, join(binPath, 'store', 'linked'));
+
+    manager.emptyTrash();
+
+    expect(existsSync(outsideFilePath)).toBe(true);
+    expect(existsSync(binPath)).toBe(false);
+  });
+
+  it('leaves the store skills and state.json untouched', async () => {
+    const { manager, store, root } = await newManager();
+    const skillPath = writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    manager.registerWorkspace({ name: 'personal', path: join(root, 'project') });
+    writeSkillDirectory(join(store.paths.trash, 'deploy-20260920T091502', 'store'));
+
+    const stateBefore = readFileSync(store.paths.state, 'utf8');
+
+    manager.emptyTrash();
+
+    expect(existsSync(skillPath)).toBe(true);
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(stateBefore);
+  });
+});
+
 describe('forgetSkill', () => {
   it('drops the skill entry whole', async () => {
     const { manager, store } = await newManager();

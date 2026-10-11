@@ -10,6 +10,7 @@
 | [`unlink`](./commands/unlink.md)         | Implemented     |
 | [`clone`](./commands/clone.md)           | Implemented     |
 | [`unclone`](./commands/unclone.md)       | Implemented     |
+| [`trash`](./commands/trash.md)           | Implemented     |
 | [`status`](./commands/status.md)         | Implemented     |
 | `doctor`                                 | Not implemented |
 

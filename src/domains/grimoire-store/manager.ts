@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '@/lib/utils/files';
 import type { Collision, GrimoireStore } from '@/domains/grimoire-store/entity';
 import { StoreState, type CloneRecord } from '@/domains/grimoire-store/value-objects/store-state';
@@ -404,6 +404,21 @@ export class GrimoireStoreManager {
     movePath({ from: storePath, to: join(binPath, 'store') });
 
     return binPath;
+  }
+
+  /** Deletes every entry under `.trash/` and returns their paths sorted by name, leaving `.trash/` itself. */
+  emptyTrash(): string[] {
+    this.ensureLayout();
+
+    const entryPaths = readdirSync(this.store.paths.trash)
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => join(this.store.paths.trash, name));
+
+    for (const entryPath of entryPaths) {
+      rmSync(entryPath, { recursive: true, force: true });
+    }
+
+    return entryPaths;
   }
 
   /** Drops the skill's whole entry from `state.json`, writing nothing when it has none. */
