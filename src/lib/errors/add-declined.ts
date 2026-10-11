@@ -19,7 +19,7 @@ export type AddRefusal =
 export function describeAddRefusal(refusal: AddRefusal): string {
   switch (refusal.kind) {
     case 'differs':
-      return `${describePrefix(refusal)}: the store holds a different ${refusal.skill}, differing at "${refusal.entry}" — edit the store copy, or run \`grimoire skills remove ${refusal.skill}\` first`;
+      return `${describePrefix(refusal)}: the store holds a different ${refusal.skill}, differing at "${refusal.entry}" — edit or replace ${refusal.storePath}`;
     case 'unportable':
       return `${describePrefix(refusal)}: ${describeUnportableSkill({ path: refusal.sourcePath, reason: refusal.reason })}`;
     case 'incomparable':

@@ -96,7 +96,7 @@ describe('skills add', () => {
 
     expect(stdout).toEqual(['added brainstorm']);
     expect(stderr).toEqual([
-      'warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first',
+      `warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace ${join(store.paths.skills, 'deploy')}`,
     ]);
     expect(readFileSync(join(store.paths.skills, 'deploy', SKILL_MANIFEST), 'utf8')).toBe('# skill\n');
   });
@@ -338,7 +338,7 @@ describe('skills add', () => {
       'already linked beta → personal',
     ]);
     expect(stderr).toEqual([
-      'warning: could not add gamma: the store holds a different gamma, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove gamma` first',
+      `warning: could not add gamma: the store holds a different gamma, differing at "SKILL.md" — edit or replace ${join(store.paths.skills, 'gamma')}`,
       `warning: workspace "work" was skipped: ${work} is not an existing directory`,
     ]);
   });

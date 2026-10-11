@@ -26,7 +26,7 @@ const incomparable: AddRefusal = {
 describe('describeAddRefusal', () => {
   it('describes a store copy that differs', () => {
     expect(describeAddRefusal(differs)).toBe(
-      'could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first',
+      'could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /store/skills/deploy',
     );
   });
 

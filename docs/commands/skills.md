@@ -113,7 +113,7 @@ does — not whether the two are equal:
 | differs               | `warning: could not add …`                             | stderr |
 
 ```shell
-warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
+warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
 ```
 
 The middle row is what containment buys over equality. A store copy carrying a file the source lacks still holds every byte
@@ -133,7 +133,8 @@ refusals above.
 
 Nothing here ever overwrites — there's no `--force`. The store copy is the user's editing surface, and a command that
 silently replaced it would destroy whatever edits made it differ. The warning names the remedy: edit the store copy, or
-`grimoire skills remove <skill>` first.
+replace it by hand. Either keeps every link. Running `grimoire skills remove <skill>` and adding again does not: `remove`
+clears every link, and the second `add` links the skill back into auto-link workspaces only.
 
 The comparison itself can fail to run at all, when a symlink the two trees share a path for means they can't be compared:
 
@@ -168,12 +169,12 @@ failing the run; see [When the name is taken](#when-the-name-is-taken). Only whe
 added or already present, does the run itself fail:
 
 ```shell
-error: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
+error: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
 ```
 
 ```shell
 error: nothing added:
-  could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit the store copy, or run `grimoire skills remove deploy` first
+  could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
   could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
 
