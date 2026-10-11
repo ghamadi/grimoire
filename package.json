@@ -1,32 +1,46 @@
 {
-  "name": "grimoire",
+  "name": "@ghamadi/grimoire",
   "version": "0.0.1",
-  "private": true,
-  "type": "module",
   "description": "Authoring and distribution for agent skills",
-  "author": "Ghaleb Hamadi",
+  "keywords": [
+    "agent-skills",
+    "skills",
+    "ai-agents",
+    "claude-code",
+    "cli"
+  ],
+  "homepage": "https://github.com/ghamadi/grimoire#readme",
+  "bugs": {
+    "url": "https://github.com/ghamadi/grimoire/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ghamadi/grimoire.git"
+  },
   "license": "MIT",
+  "author": "Ghaleb Hamadi",
+  "type": "module",
   "bin": {
     "grimoire": "./dist/cli.js",
     "grim": "./dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "engines": {
     "node": ">=22.18.0"
   },
-  "packageManager": "pnpm@10.11.0",
-  "imports": {
-    "#src/*": {
-      "grimoire-src": "./src/*.ts",
-      "default": "./dist/*.js"
-    },
-    "#test-helpers/*": {
-      "grimoire-src": "./tests/helpers/*.ts",
-      "default": "./tests/helpers/*.js"
-    }
+  "publishConfig": {
+    "access": "public"
   },
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "dev": "node --conditions=grimoire-src src/cli.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/cli.ts",
+    "build": "tsdown",
     "start": "node dist/cli.js",
     "typecheck": "tsc",
     "test": "vitest run",
@@ -34,7 +48,8 @@
     "lint": "eslint .",
     "format": "prettier . --write --ignore-unknown",
     "format:check": "prettier . --check --ignore-unknown",
-    "prepare": "tsc -p tsconfig.build.json"
+    "prepack": "pnpm build",
+    "prepublishOnly": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
@@ -47,6 +62,8 @@
     "eslint": "^10.8.0",
     "globals": "^17.8.0",
     "prettier": "^3.9.6",
+    "tsdown": "^0.23.1",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"

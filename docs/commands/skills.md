@@ -244,9 +244,9 @@ trashed triage → /Users/me/.grimoire/.trash/triage-20260915T124530
 ### Clones are kept
 
 Neither with nor without the flag does `skills remove` touch a cloned directory —
-[only `clone --overwrite` ever deletes one](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store).
-Without `--forget-clones`, records and directories are both left exactly where they are — the store copy is gone, but the
-workspaces that cloned it keep their copy, and grimoire keeps the record of where it went:
+[only `clone --overwrite` ever deletes one](../safety.md). Without `--forget-clones`, records and directories are both left
+exactly where they are — the store copy is gone, but the workspaces that cloned it keep their copy, and grimoire keeps the
+record of where it went:
 
 ```shell
 clones left in place: triage → work

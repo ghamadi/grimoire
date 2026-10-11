@@ -1,14 +1,14 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import type { Workspace } from '#src/domains/workspace/index';
-import { createAddWorkspaceUseCase } from '#src/use-cases/add-workspace-use-case/factory';
-import { createListWorkspacesUseCase } from '#src/use-cases/list-workspaces-use-case/factory';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import type { Workspace } from '@/domains/workspace/index';
+import { createAddWorkspaceUseCase } from '@/use-cases/add-workspace-use-case/factory';
+import { createListWorkspacesUseCase } from '@/use-cases/list-workspaces-use-case/factory';
 import {
   createRemoveWorkspaceUseCase,
   type RemoveWorkspaceResult,
-} from '#src/use-cases/remove-workspace-use-case/factory';
+} from '@/use-cases/remove-workspace-use-case/factory';
 
 export type WorkspacesCommandParams = {
   storeManager: GrimoireStoreManager;

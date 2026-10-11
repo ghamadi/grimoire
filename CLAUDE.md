@@ -1,10 +1,26 @@
 # grimoire
 
-Skill management and distribution CLI. [ARCHITECTURE.md](./ARCHITECTURE.md) holds the problem, the DDD code layout, and the
-`~/.grimoire/` shape — not command behavior. Command behavior is specified in [`docs/commands/`](./docs/commands/); anything
-not committed there is undecided — don't infer its design from git history or old docs.
+Skill management and distribution CLI. Command behavior is specified in [`docs/commands/`](./docs/commands/); anything not
+committed there is undecided — don't infer its design from git history or old docs. [`docs/safety.md`](./docs/safety.md)
+holds the rule every command keeps outside the store, and [`docs/state.md`](./docs/state.md) the `~/.grimoire/` shape.
 
 Verify: `pnpm typecheck && pnpm lint && pnpm test`
+
+## Code layout
+
+DDD-flavored, in layers that only call downward:
+
+```
+commands → use-cases → domains → lib
+```
+
+- **`commands/`** is argv in, stdout out: parse arguments, call a use case, format the result. No domain logic lives here.
+- **`use-cases/`** has one per user-facing action (`add-workspace`, `link-skill`, ...), orchestrating domain objects to
+  perform it. Rules that cross domain boundaries live here, not in a domain.
+- **`domains/`** holds the entities and services that model the problem — `grimoire-store`, `workspace`, `repo`, `skill` —
+  each behind a barrel `index.ts` that is its only public surface.
+- **`lib/`** is dependency-free, reusable primitives (path comparison, atomic file writes, error types) with no knowledge of
+  grimoire's domain.
 
 ## Project Management
 
@@ -12,9 +28,9 @@ See @CLAUDE.local.md
 
 ## Conventions
 
-- Relative imports take an explicit `.ts`; subpath imports (e.g., `#src/*`) take none — package.json's `imports` map supplies
-  it. Always prefer subpath imports over relative imports. The editor emits both correctly; if a specifier comes out wrong,
-  fix `.vscode/settings.json`.
+- Import through the tsconfig `paths` aliases — `@/*` for `src/`, `@test-helpers/*` for `tests/helpers/`, `@package.json` —
+  never a relative path; lint enforces it. Specifiers take no extension, and a barrel is imported by its explicit `/index`.
+  If the editor emits a wrong specifier, fix `.vscode/settings.json`.
 - When a module exposes a public barrel file, it's the module's public surface — don't import past it.
 - Tests: module-local in `src/<module>/tests/`, cross-cutting in `tests/`.
 - Prefer named parameters over positional ones in most cases unless there's a good reason not to.

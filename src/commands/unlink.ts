@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { describeUnlinkRefusal } from '#src/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { describeUnlinkRefusal } from '@/lib/errors/index';
 import {
   createUnlinkSkillUseCase,
   type UnlinkSkillUseCase,
-} from '#src/use-cases/unlink-skill-use-case/factory';
+} from '@/use-cases/unlink-skill-use-case/factory';
 
 export type UnlinkCommandParams = {
   storeManager: GrimoireStoreManager;

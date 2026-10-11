@@ -12,9 +12,9 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SkillPicker } from '#src/commands/prompts/skill-picker';
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST, type SkillSource } from '#src/domains/skill/index';
+import type { SkillPicker } from '@/commands/prompts/skill-picker';
+import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill/index';
 import {
   AddDeclinedError,
   EntityNotFoundError,
@@ -22,9 +22,9 @@ import {
   NoTerminalError,
   PathCollisionError,
   WorkspaceUnreadableError,
-} from '#src/lib/errors/index';
-import { buildProgram, type ProgramDependencies } from '#src/program';
-import { tempRoot } from '#test-helpers/temp-root';
+} from '@/lib/errors/index';
+import { buildProgram, type ProgramDependencies } from '@/program';
+import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
   vi.restoreAllMocks();

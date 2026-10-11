@@ -4,10 +4,10 @@ import type {
   FiledClone,
   GrimoireStoreManager,
   RegisteredWorkspace,
-} from '#src/domains/grimoire-store/index';
-import { getDirectoryAccess, isErrnoException } from '#src/lib/fs';
-import { normalizePath, relate } from '#src/lib/paths';
-import { assertUnreachable } from '#src/lib/utils';
+} from '@/domains/grimoire-store/index';
+import { getDirectoryAccess, isErrnoException } from '@/lib/fs';
+import { normalizePath, relate } from '@/lib/paths';
+import { assertUnreachable } from '@/lib/utils';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

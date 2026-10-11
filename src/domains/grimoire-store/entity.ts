@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { normalizePath, relate, type PathRelation } from '#src/lib/paths';
+import { normalizePath, relate, type PathRelation } from '@/lib/paths';
 
 export const DEFAULT_HOME_DIRECTORY = '.grimoire';
 

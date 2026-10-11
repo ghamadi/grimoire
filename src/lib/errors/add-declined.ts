@@ -1,5 +1,5 @@
-import { GrimoireError } from './grimoire-error.ts';
-import { describeUnportableSkill, type UnportableSkillReason } from './unportable-skill.ts';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
+import { describeUnportableSkill, type UnportableSkillReason } from '@/lib/errors/unportable-skill';
 
 /** Why `skills add` left a source alone. */
 export type AddRefusal =

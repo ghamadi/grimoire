@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CloneFailedError, GrimoireError, describeCloneFailure } from '../index.ts';
-import type { CloneFailure } from '../index.ts';
+import { CloneFailedError, GrimoireError, describeCloneFailure } from '@/lib/errors/index';
+import type { CloneFailure } from '@/lib/errors/index';
 
 const dest = '/Users/me/work/.agents/skills/triage';
 

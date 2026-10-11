@@ -12,7 +12,7 @@ import {
   type Stats,
 } from 'node:fs';
 import { basename, join } from 'node:path';
-import { InvalidPathError } from '#src/lib/errors/index';
+import { InvalidPathError } from '@/lib/errors/index';
 
 /**
  * What sits at `path`, or `undefined` when nothing does.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { UnportableSkillError } from '../index.ts';
-import type { UnportableSkillReason } from '../index.ts';
-import { describeUnportableSkill } from '../unportable-skill.ts';
+import { UnportableSkillError } from '@/lib/errors/index';
+import type { UnportableSkillReason } from '@/lib/errors/index';
+import { describeUnportableSkill } from '@/lib/errors/unportable-skill';
 
 const reasons: [UnportableSkillReason, string][] = [
   ['nested-skill', 'Contains a nested skill.'],

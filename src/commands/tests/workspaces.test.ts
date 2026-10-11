@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
+import { GrimoireStore } from '@/domains/grimoire-store/index';
 import {
   CollidingRegistrationError,
   DuplicateNameError,
@@ -12,10 +12,10 @@ import {
   PathCollisionError,
   UnreadableWorkspaceRemovalError,
   WorkspaceInUseError,
-} from '#src/lib/errors/index';
-import { buildProgram } from '#src/program';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
+} from '@/lib/errors/index';
+import { buildProgram } from '@/program';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
   vi.restoreAllMocks();

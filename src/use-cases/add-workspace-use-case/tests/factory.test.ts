@@ -1,16 +1,16 @@
 import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Workspace } from '#src/domains/workspace/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Workspace } from '@/domains/workspace/index';
 import {
   DuplicateNameError,
   GrimoireError,
   InvalidPathError,
   PathCollisionError,
-} from '#src/lib/errors/index';
-import { tempRoot } from '#test-helpers/temp-root';
-import { createAddWorkspaceUseCase } from '../factory.ts';
+} from '@/lib/errors/index';
+import { tempRoot } from '@test-helpers/temp-root';
+import { createAddWorkspaceUseCase } from '@/use-cases/add-workspace-use-case/factory';
 
 describe('add-workspace-use-case factory', () => {
   describe('the use-case it returns', () => {

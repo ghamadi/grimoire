@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidNameError } from '#src/lib/errors/index';
-import { Repo } from '#src/domains/repo/index';
-import { Workspace } from '#src/domains/workspace/index';
+import { InvalidNameError } from '@/lib/errors/index';
+import { Repo } from '@/domains/repo/index';
+import { Workspace } from '@/domains/workspace/index';
 
 const NAMES = [
   'personal',

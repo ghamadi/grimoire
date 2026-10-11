@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync, type Stats } from 'node:fs';
-import { InvalidPathError } from '#src/lib/errors/index';
-import { isErrnoException } from '#src/lib/fs';
-import { normalizePath } from '#src/lib/paths';
+import { InvalidPathError } from '@/lib/errors/index';
+import { isErrnoException } from '@/lib/fs';
+import { normalizePath } from '@/lib/paths';
 import { dirname, isAbsolute, sep } from 'node:path';
 
 export type RegisteredPathParams = {

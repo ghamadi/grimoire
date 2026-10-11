@@ -1,5 +1,5 @@
-import { assertUnreachable } from '../utils.ts';
-import { GrimoireError } from './grimoire-error.ts';
+import { assertUnreachable } from '@/lib/utils';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 /**
  * Why `unlink` left `<workspace path>/<skill>` alone — what sits there instead

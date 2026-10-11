@@ -1,6 +1,6 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
-import { GitUnavailableError } from '#src/lib/errors/index';
-import { isErrnoException } from '#src/lib/fs';
+import { GitUnavailableError } from '@/lib/errors/index';
+import { isErrnoException } from '@/lib/fs';
 
 /**
  * Whether `directory` is inside a git work tree. `.git` itself is not: git

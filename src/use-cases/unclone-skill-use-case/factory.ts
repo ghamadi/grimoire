@@ -1,6 +1,6 @@
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Workspace } from '#src/domains/workspace/index';
-import { normalizePath } from '#src/lib/paths';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Workspace } from '@/domains/workspace/index';
+import { normalizePath } from '@/lib/paths';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

@@ -1,18 +1,18 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Workspace } from '#src/domains/workspace/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Workspace } from '@/domains/workspace/index';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
   GrimoireError,
   UnreadableWorkspaceRemovalError,
   WorkspaceInUseError,
-} from '#src/lib/errors/index';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
-import { createRemoveWorkspaceUseCase } from '../factory.ts';
+} from '@/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
+import { createRemoveWorkspaceUseCase } from '@/use-cases/remove-workspace-use-case/factory';
 
 describe('remove-workspace-use-case factory', () => {
   describe('the use-case it returns', () => {

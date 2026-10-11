@@ -6,85 +6,89 @@
  * one domain for long — `DuplicateNameError` is a repo error today and a
  * workspace error tomorrow.
  */
-export { GrimoireError } from './grimoire-error.ts';
-export { DuplicateNameError, type DuplicateNameErrorProps } from './duplicate-name.ts';
+export { GrimoireError } from '@/lib/errors/grimoire-error';
+export { DuplicateNameError, type DuplicateNameErrorProps } from '@/lib/errors/duplicate-name';
 export {
   EntityNotFoundError,
   type Entity,
   type EntityNotFoundErrorProps,
   type RegistryEntity,
-} from './entity-not-found.ts';
-export { InvalidNameError, type InvalidNameErrorProps } from './invalid-name.ts';
-export { InvalidPathError, type InvalidPathErrorProps, type InvalidPathReason } from './invalid-path.ts';
+} from '@/lib/errors/entity-not-found';
+export { InvalidNameError, type InvalidNameErrorProps } from '@/lib/errors/invalid-name';
+export {
+  InvalidPathError,
+  type InvalidPathErrorProps,
+  type InvalidPathReason,
+} from '@/lib/errors/invalid-path';
 export {
   AddDeclinedError,
   describeAddRefusal,
   type AddDeclinedErrorProps,
   type AddRefusal,
-} from './add-declined.ts';
+} from '@/lib/errors/add-declined';
 export {
   CloneDeclinedError,
   describeCloneRefusal,
   type CloneDeclinedErrorProps,
   type CloneOccupant,
   type CloneRefusal,
-} from './clone-declined.ts';
+} from '@/lib/errors/clone-declined';
 export {
   CloneFailedError,
   describeCloneFailure,
   type CloneFailedErrorProps,
   type CloneFailure,
-} from './clone-failed.ts';
+} from '@/lib/errors/clone-failed';
 export {
   ExportDeclinedError,
   describeExportRefusal,
   type ExportDeclinedErrorProps,
   type ExportRefusal,
-} from './export-declined.ts';
+} from '@/lib/errors/export-declined';
 export {
   ExportFailedError,
   describeExportFailure,
   type ExportFailedErrorProps,
   type ExportFailure,
-} from './export-failed.ts';
+} from '@/lib/errors/export-failed';
 export {
   LinkDeclinedError,
   describeLinkRefusal,
   type LinkDeclinedErrorProps,
   type LinkOccupant,
   type LinkRefusal,
-} from './link-declined.ts';
+} from '@/lib/errors/link-declined';
 export {
   UnlinkDeclinedError,
   describeUnlinkRefusal,
   type UnlinkDeclinedErrorProps,
   type UnlinkRefusalReason,
   type UnlinkRefusal,
-} from './unlink-declined.ts';
+} from '@/lib/errors/unlink-declined';
 export {
   CollidingRegistrationError,
   type CollidingRegistrationErrorProps,
-} from './colliding-registration.ts';
+} from '@/lib/errors/colliding-registration';
 export {
   PathCollisionError,
   describeCollision,
   type PathCollisionErrorProps,
-} from './path-collision.ts';
-export { InvalidShapeError, type InvalidShapeErrorProps } from './invalid-shape.ts';
+} from '@/lib/errors/path-collision';
+export { InvalidShapeError, type InvalidShapeErrorProps } from '@/lib/errors/invalid-shape';
 export {
   UnportableSkillError,
   type UnportableSkillErrorProps,
   type UnportableSkillReason,
-} from './unportable-skill.ts';
-export { WorkspaceInUseError, type WorkspaceInUseErrorProps } from './workspace-in-use.ts';
+} from '@/lib/errors/unportable-skill';
+export { WorkspaceInUseError, type WorkspaceInUseErrorProps } from '@/lib/errors/workspace-in-use';
 export {
   UnreadableWorkspaceRemovalError,
   type UnreadableWorkspaceRemovalErrorProps,
-} from './unreadable-workspace-removal.ts';
+} from '@/lib/errors/unreadable-workspace-removal';
 export {
   WorkspaceUnreadableError,
   type UnreadableWorkspace,
   type WorkspaceUnreadableErrorProps,
-} from './workspace-unreadable.ts';
-export { NoTerminalError, type NoTerminalErrorProps } from './no-terminal.ts';
-export { GitUnavailableError } from './git-unavailable.ts';
+} from '@/lib/errors/workspace-unreadable';
+export { NoTerminalError, type NoTerminalErrorProps } from '@/lib/errors/no-terminal';
+export { GitUnavailableError } from '@/lib/errors/git-unavailable';

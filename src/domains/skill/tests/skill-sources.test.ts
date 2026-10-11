@@ -1,10 +1,10 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findSkillSources } from '../helpers/skill-sources.ts';
-import { SKILL_MANIFEST } from '../entity.ts';
-import { InvalidPathError } from '#src/lib/errors/index';
-import { tempRoot } from '#test-helpers/temp-root';
+import { findSkillSources } from '@/domains/skill/helpers/skill-sources';
+import { SKILL_MANIFEST } from '@/domains/skill/entity';
+import { InvalidPathError } from '@/lib/errors/index';
+import { tempRoot } from '@test-helpers/temp-root';
 
 describe('findSkillSources', () => {
   it('reports the named directory itself when it is a skill', async () => {

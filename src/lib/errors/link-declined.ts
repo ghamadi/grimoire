@@ -1,4 +1,4 @@
-import { GrimoireError } from './grimoire-error.ts';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 /**
  * What a destination holds instead of the link `link` would have written.

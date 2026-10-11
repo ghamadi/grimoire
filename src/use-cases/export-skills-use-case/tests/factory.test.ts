@@ -11,18 +11,18 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
 import {
   EntityNotFoundError,
   ExportDeclinedError,
   InvalidPathError,
   UnportableSkillError,
-} from '#src/lib/errors/index';
-import { tempGitRepo } from '#test-helpers/git-repo';
-import { runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
-import { createExportSkillsUseCase } from '../factory.ts';
+} from '@/lib/errors/index';
+import { tempGitRepo } from '@test-helpers/git-repo';
+import { runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
+import { createExportSkillsUseCase } from '@/use-cases/export-skills-use-case/factory';
 
 describe('export-skills-use-case factory', () => {
   describe('the preflight', () => {

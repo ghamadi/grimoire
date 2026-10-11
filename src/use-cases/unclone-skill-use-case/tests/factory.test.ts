@@ -2,10 +2,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { EntityNotFoundError, GrimoireError } from '#src/lib/errors/index';
-import { tempRoot } from '#test-helpers/temp-root';
-import { createUncloneSkillUseCase } from '../factory.ts';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { EntityNotFoundError, GrimoireError } from '@/lib/errors/index';
+import { tempRoot } from '@test-helpers/temp-root';
+import { createUncloneSkillUseCase } from '@/use-cases/unclone-skill-use-case/factory';
 
 describe('unclone-skill-use-case factory', () => {
   describe('the records it drops', () => {

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { tempRoot } from '#test-helpers/temp-root';
+import { tempRoot } from '@test-helpers/temp-root';
 
 export type TempGitRepo = {
   /** The work tree's root. */

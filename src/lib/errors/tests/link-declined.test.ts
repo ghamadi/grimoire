@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GrimoireError, LinkDeclinedError, describeLinkRefusal } from '../index.ts';
-import type { LinkRefusal } from '../index.ts';
+import { GrimoireError, LinkDeclinedError, describeLinkRefusal } from '@/lib/errors/index';
+import type { LinkRefusal } from '@/lib/errors/index';
 
 const workspace = 'work';
 const workspacePath = '/Users/me/work/.agents/skills';

@@ -1,7 +1,7 @@
 import { unlinkSync } from 'node:fs';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Workspace } from '#src/domains/workspace/index';
-import { UnreadableWorkspaceRemovalError, WorkspaceInUseError } from '#src/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Workspace } from '@/domains/workspace/index';
+import { UnreadableWorkspaceRemovalError, WorkspaceInUseError } from '@/lib/errors/index';
 
 type RemoveWorkspaceUseCaseFactoryParams = {
   storeManager: GrimoireStoreManager;

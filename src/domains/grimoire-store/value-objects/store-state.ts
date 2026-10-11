@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { normalizePath } from '#src/lib/paths';
-import { canBeRegistered } from '../helpers/registered-path.ts';
-import { Repo } from '#src/domains/repo/index';
-import { Workspace } from '#src/domains/workspace/index';
-import { InvalidShapeError } from '../../../lib/errors/invalid-shape.ts';
+import { normalizePath } from '@/lib/paths';
+import { canBeRegistered } from '@/domains/grimoire-store/helpers/registered-path';
+import { Repo } from '@/domains/repo/index';
+import { Workspace } from '@/domains/workspace/index';
+import { InvalidShapeError } from '@/lib/errors/invalid-shape';
 
 // ----------------------------------------------------------------------------
 // SCHEMAS

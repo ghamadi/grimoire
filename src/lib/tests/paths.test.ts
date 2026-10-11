@@ -2,8 +2,8 @@ import { mkdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { normalizePath, relate, relativeTo } from '../paths.ts';
-import { tempRoot } from '#test-helpers/temp-root';
+import { normalizePath, relate, relativeTo } from '@/lib/paths';
+import { tempRoot } from '@test-helpers/temp-root';
 
 describe('normalizePath', () => {
   it('expands a leading ~', () => {

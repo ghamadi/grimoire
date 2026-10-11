@@ -1,17 +1,17 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Skill } from '#src/domains/skill/index';
-import { Workspace } from '#src/domains/workspace/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Skill } from '@/domains/skill/index';
+import { Workspace } from '@/domains/workspace/index';
 import {
   CloneDeclinedError,
   type CloneFailure,
   type CloneOccupant,
   type CloneRefusal,
-} from '#src/lib/errors/index';
-import { writeTreeStaged } from '#src/lib/fs';
-import { relate } from '#src/lib/paths';
-import { assertUnreachable } from '#src/lib/utils';
+} from '@/lib/errors/index';
+import { writeTreeStaged } from '@/lib/fs';
+import { relate } from '@/lib/paths';
+import { assertUnreachable } from '@/lib/utils';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

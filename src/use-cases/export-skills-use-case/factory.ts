@@ -1,16 +1,16 @@
 import { join } from 'node:path';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Repo } from '#src/domains/repo/index';
-import { Skill } from '#src/domains/skill/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Repo } from '@/domains/repo/index';
+import { Skill } from '@/domains/skill/index';
 import {
   ExportDeclinedError,
   InvalidPathError,
   type ExportFailure,
   type ExportRefusal,
-} from '#src/lib/errors/index';
-import { tryStatSync, writeTreeStaged } from '#src/lib/fs';
-import { hasUncommittedChanges, isInsideGitWorkTree } from '#src/lib/git';
-import { assertUnreachable } from '#src/lib/utils';
+} from '@/lib/errors/index';
+import { tryStatSync, writeTreeStaged } from '@/lib/fs';
+import { hasUncommittedChanges, isInsideGitWorkTree } from '@/lib/git';
+import { assertUnreachable } from '@/lib/utils';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

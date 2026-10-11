@@ -1,5 +1,5 @@
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Workspace } from '#src/domains/workspace/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Workspace } from '@/domains/workspace/index';
 
 type AddWorkspaceUseCaseFactoryParams = {
   storeManager: GrimoireStoreManager;

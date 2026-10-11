@@ -15,10 +15,10 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { InvalidPathError } from '#src/lib/errors/index';
-import { getDirectoryAccess, movePath, tryStatSync, writeTreeStaged } from '#src/lib/fs';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
+import { InvalidPathError } from '@/lib/errors/index';
+import { getDirectoryAccess, movePath, tryStatSync, writeTreeStaged } from '@/lib/fs';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();

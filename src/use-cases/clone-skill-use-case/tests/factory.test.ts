@@ -12,18 +12,22 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
 import {
   CloneDeclinedError,
   type CloneFailure,
   EntityNotFoundError,
   InvalidPathError,
   UnportableSkillError,
-} from '#src/lib/errors/index';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
-import { type CloneSkillReport, type CloneWritten, createCloneSkillUseCase } from '../factory.ts';
+} from '@/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
+import {
+  type CloneSkillReport,
+  type CloneWritten,
+  createCloneSkillUseCase,
+} from '@/use-cases/clone-skill-use-case/factory';
 
 describe('clone-skill-use-case factory', () => {
   describe('the preflight', () => {

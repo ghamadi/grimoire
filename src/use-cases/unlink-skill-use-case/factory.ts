@@ -1,14 +1,10 @@
 import { lstatSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import {
-  UnlinkDeclinedError,
-  type UnlinkRefusal,
-  type UnlinkRefusalReason,
-} from '#src/lib/errors/index';
-import { getDirectoryAccess } from '#src/lib/fs';
-import { relate } from '#src/lib/paths';
-import { assertUnreachable } from '#src/lib/utils';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { UnlinkDeclinedError, type UnlinkRefusal, type UnlinkRefusalReason } from '@/lib/errors/index';
+import { getDirectoryAccess } from '@/lib/fs';
+import { relate } from '@/lib/paths';
+import { assertUnreachable } from '@/lib/utils';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

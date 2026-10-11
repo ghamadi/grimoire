@@ -1,1 +1,1 @@
-export { Workspace, type WorkspaceParams } from './entity.ts';
+export { Workspace, type WorkspaceParams } from '@/domains/workspace/entity';

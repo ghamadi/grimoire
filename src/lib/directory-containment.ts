@@ -1,7 +1,7 @@
 import { lstatSync, readdirSync, readFileSync, type Dirent, type Stats } from 'node:fs';
 import { join } from 'node:path';
-import { assertUsableDirectory } from '#src/lib/directories';
-import { isJunkFile } from '#src/lib/junk-files';
+import { assertUsableDirectory } from '@/lib/directories';
+import { isJunkFile } from '@/lib/junk-files';
 
 // -----------------------------------------------------------------------------
 // RESULT SHAPE

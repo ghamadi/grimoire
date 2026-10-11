@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AddDeclinedError, GrimoireError, describeAddRefusal } from '../index.ts';
-import type { AddRefusal } from '../index.ts';
+import { AddDeclinedError, GrimoireError, describeAddRefusal } from '@/lib/errors/index';
+import type { AddRefusal } from '@/lib/errors/index';
 
 const differs: AddRefusal = {
   kind: 'differs',

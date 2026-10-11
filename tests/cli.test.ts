@@ -1,15 +1,14 @@
 import { execFile } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
-import { getVersion } from '#src/lib/utils';
-import { tempGitRepo } from '#test-helpers/git-repo';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
+import { describe, expect, inject, it } from 'vitest';
+import { getVersion } from '@/lib/utils';
+import { tempGitRepo } from '@test-helpers/git-repo';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
 
-const cliPath = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+const cliBundlePath = inject('cliBundlePath');
 
 describe('grimoire cli', () => {
   it('prints the package version', async () => {
@@ -77,12 +76,8 @@ type RunCliOptions = {
 };
 
 /**
- * Runs the CLI from source in a child process, returning trimmed output and the
+ * Runs the CLI test bundle in a child process, returning trimmed output and the
  * exit code.
- *
- * `--conditions=grimoire-src` points the `#src/*` alias at ./src/*.ts.
- * Without it the child resolves to ./dist/*.js and silently tests
- * whatever was last built.
  *
  * A non-zero exit resolves like any other run — the code is the thing under
  * test on a failure path, not a reason to reject.
@@ -97,11 +92,7 @@ async function runCli(args: string[], options: RunCliOptions = {}) {
   };
 
   try {
-    const { stdout, stderr } = await execFileAsync(
-      process.execPath,
-      ['--conditions=grimoire-src', cliPath, ...args],
-      { env },
-    );
+    const { stdout, stderr } = await execFileAsync(process.execPath, [cliBundlePath, ...args], { env });
 
     return { stdout: stdout.trim(), stderr: stderr.trim(), code: 0 };
   } catch (error) {

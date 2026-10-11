@@ -1,5 +1,5 @@
-import type { RegistryEntity } from './entity-not-found.ts';
-import { GrimoireError } from './grimoire-error.ts';
+import type { RegistryEntity } from '@/lib/errors/entity-not-found';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 export type InvalidNameErrorProps = {
   entity: RegistryEntity;

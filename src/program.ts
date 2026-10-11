@@ -1,17 +1,17 @@
 import { styleText } from 'node:util';
 import { Command } from 'commander';
-import { cloneCommand } from '#src/commands/clone';
-import { exportCommand } from '#src/commands/export';
-import { clackSkillPicker, type SkillPicker } from '#src/commands/prompts/skill-picker';
-import { linkCommand } from '#src/commands/link';
-import { reposCommand } from '#src/commands/repos';
-import { skillsCommand } from '#src/commands/skills';
-import { statusCommand, type TextStyler } from '#src/commands/status';
-import { uncloneCommand } from '#src/commands/unclone';
-import { unlinkCommand } from '#src/commands/unlink';
-import { workspacesCommand } from '#src/commands/workspaces';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { getVersion } from '#src/lib/utils';
+import { cloneCommand } from '@/commands/clone';
+import { exportCommand } from '@/commands/export';
+import { clackSkillPicker, type SkillPicker } from '@/commands/prompts/skill-picker';
+import { linkCommand } from '@/commands/link';
+import { reposCommand } from '@/commands/repos';
+import { skillsCommand } from '@/commands/skills';
+import { statusCommand, type TextStyler } from '@/commands/status';
+import { uncloneCommand } from '@/commands/unclone';
+import { unlinkCommand } from '@/commands/unlink';
+import { workspacesCommand } from '@/commands/workspaces';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { getVersion } from '@/lib/utils';
 
 export type ProgramDependencies = { skillPicker?: SkillPicker; textStyler?: TextStyler };
 

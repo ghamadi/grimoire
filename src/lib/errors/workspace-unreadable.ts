@@ -1,5 +1,5 @@
-import type { DirectoryAccess } from '#src/lib/fs';
-import { GrimoireError } from './grimoire-error.ts';
+import type { DirectoryAccess } from '@/lib/fs';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 export type UnreadableWorkspace = {
   name: string;

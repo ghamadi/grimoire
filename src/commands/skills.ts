@@ -1,27 +1,24 @@
 import { Command } from 'commander';
-import type { SkillPicker } from '#src/commands/prompts/skill-picker';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { findSkillSources, type SkillSource } from '#src/domains/skill/index';
+import type { SkillPicker } from '@/commands/prompts/skill-picker';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { findSkillSources, type SkillSource } from '@/domains/skill/index';
 import {
   describeAddRefusal,
   describeLinkRefusal,
   LinkDeclinedError,
   NoTerminalError,
-} from '#src/lib/errors/index';
-import { normalizePath } from '#src/lib/paths';
-import {
-  createAddSkillsUseCase,
-  type AddSkillsReport,
-} from '#src/use-cases/add-skills-use-case/factory';
+} from '@/lib/errors/index';
+import { normalizePath } from '@/lib/paths';
+import { createAddSkillsUseCase, type AddSkillsReport } from '@/use-cases/add-skills-use-case/factory';
 import {
   createLinkSkillUseCase,
   type LinkSkillReport,
   type LinkSkillUseCase,
-} from '#src/use-cases/link-skill-use-case/factory';
+} from '@/use-cases/link-skill-use-case/factory';
 import {
   createRemoveSkillsUseCase,
   type RemovedSkill,
-} from '#src/use-cases/remove-skills-use-case/factory';
+} from '@/use-cases/remove-skills-use-case/factory';
 
 export type SkillsCommandParams = {
   storeManager: GrimoireStoreManager;

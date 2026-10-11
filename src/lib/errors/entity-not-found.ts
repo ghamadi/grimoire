@@ -1,4 +1,4 @@
-import { GrimoireError } from './grimoire-error.ts';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 /** The entities that live in `state.json` under a name the user chose. */
 export type RegistryEntity = 'workspace' | 'repo';

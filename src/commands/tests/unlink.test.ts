@@ -2,11 +2,11 @@ import { lstatSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
-import { EntityNotFoundError, UnlinkDeclinedError } from '#src/lib/errors/index';
-import { buildProgram } from '#src/program';
-import { tempRoot } from '#test-helpers/temp-root';
+import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { EntityNotFoundError, UnlinkDeclinedError } from '@/lib/errors/index';
+import { buildProgram } from '@/program';
+import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
   vi.restoreAllMocks();

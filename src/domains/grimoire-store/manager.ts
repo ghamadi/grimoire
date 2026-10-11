@@ -1,31 +1,31 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { extractJsonContent, writeAtomic } from '../../lib/utils/files.ts';
-import type { Collision, GrimoireStore } from './entity.ts';
-import { StoreState, type CloneRecord } from './value-objects/store-state.ts';
-import { DuplicateNameError } from '../../lib/errors/duplicate-name.ts';
-import { toRegisteredPath } from './helpers/registered-path.ts';
+import { extractJsonContent, writeAtomic } from '@/lib/utils/files';
+import type { Collision, GrimoireStore } from '@/domains/grimoire-store/entity';
+import { StoreState, type CloneRecord } from '@/domains/grimoire-store/value-objects/store-state';
+import { DuplicateNameError } from '@/lib/errors/duplicate-name';
+import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-path';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
   InvalidNameError,
   InvalidPathError,
   PathCollisionError,
-} from '../../lib/errors/index.ts';
+} from '@/lib/errors/index';
 import { join, matchesGlob } from 'node:path';
-import { InvalidShapeError } from '../../lib/errors/invalid-shape.ts';
+import { InvalidShapeError } from '@/lib/errors/invalid-shape';
 import {
   findDanglingStoreLinks,
   findStoreLinks,
   type DanglingStoreLink,
   type StoreLink,
-} from '#src/domains/grimoire-store/helpers/store-links';
-import { Skill } from '../skill/entity.ts';
-import { copyTree, movePath } from '#src/lib/fs';
-import { Repo } from '#src/domains/repo/index';
-import { Workspace } from '#src/domains/workspace/index';
-import { isInsideGitWorkTree } from '#src/lib/git';
-import { trashBinName } from '#src/domains/grimoire-store/helpers/trash';
-import { normalizePath, relate } from '#src/lib/paths';
+} from '@/domains/grimoire-store/helpers/store-links';
+import { Skill } from '@/domains/skill/entity';
+import { copyTree, movePath } from '@/lib/fs';
+import { Repo } from '@/domains/repo/index';
+import { Workspace } from '@/domains/workspace/index';
+import { isInsideGitWorkTree } from '@/lib/git';
+import { trashBinName } from '@/domains/grimoire-store/helpers/trash';
+import { normalizePath, relate } from '@/lib/paths';
 
 type RegisterWorkspaceParams = {
   name: string;

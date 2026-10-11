@@ -1,10 +1,7 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { describeLinkRefusal } from '#src/lib/errors/index';
-import {
-  createLinkSkillUseCase,
-  type LinkSkillUseCase,
-} from '#src/use-cases/link-skill-use-case/factory';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { describeLinkRefusal } from '@/lib/errors/index';
+import { createLinkSkillUseCase, type LinkSkillUseCase } from '@/use-cases/link-skill-use-case/factory';
 
 export type LinkCommandParams = {
   storeManager: GrimoireStoreManager;
@@ -88,18 +85,14 @@ function parseArguments(params: ParseArgumentsParams): ParsedArguments {
   const { skill, workspaces, allSkills, refuse } = params;
 
   if (allSkills) {
-    const workspacesClone = [...workspaces];
-
     // `--all-skills` leaves no skill argument, so what commander parsed as
     // `skill` is the first workspace.
-    if (skill) {
-      workspacesClone.push(skill);
-    }
+    const workspaceNames = skill ? [skill, ...workspaces] : workspaces;
 
     return {
       allSkills: true,
       skillName: undefined,
-      workspaces: workspacesClone.length ? workspacesClone : undefined,
+      workspaces: workspaceNames.length ? workspaceNames : undefined,
     };
   }
 

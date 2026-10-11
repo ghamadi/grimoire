@@ -83,9 +83,8 @@ made again, and the existing record is left as it is. A record already naming `<
 ### Replacing a link is allowed
 
 Moving a symlink aside to make room for the copy, and deleting it once the copy is in place (see
-[Writes are staged](#writes-are-staged)), does not break
-[the rule](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store): the symlink is grimoire's own, and
-holds no content of its own to lose.
+[Writes are staged](#writes-are-staged)), does not break [the rule](../safety.md): the symlink is grimoire's own, and holds
+no content of its own to lose.
 
 ### Adoption is the default
 
@@ -177,8 +176,7 @@ written by hand, so a record does not prove grimoire wrote what it names.
 Nothing is deleted for a skill that cannot be copied: [portability is checked](#what-clone-refuses) before any destination is
 examined.
 
-This is the one exception to [the rule](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store),
-parallel to [replacing a link](#replacing-a-link-is-allowed).
+This is the one exception to [the rule](../safety.md), parallel to [replacing a link](#replacing-a-link-is-allowed).
 
 ```shell
 $ grimoire clone triage personal work scratch old lab --overwrite

@@ -1,7 +1,7 @@
 # `repos`
 
 A repo is a directory inside a git work tree that `export` copies store skills into, registered by name. From there, history,
-review, and sharing are git's and yours.
+review, and sharing are git's and yours. There is no import: skills go from the store to a repo, never back.
 
 Repos are **flat**: an exported skill lands at `<repo path>/<skill>`, so the directory holds one entry per skill and nothing
 is nested.

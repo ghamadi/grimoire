@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GrimoireError, UnreadableWorkspaceRemovalError } from '../index.ts';
+import { GrimoireError, UnreadableWorkspaceRemovalError } from '@/lib/errors/index';
 
 describe('UnreadableWorkspaceRemovalError', () => {
   it('suggests the bare --force command when the refused run was not hard', () => {

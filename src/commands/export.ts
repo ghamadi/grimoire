@@ -1,10 +1,10 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { ExportFailedError, describeExportRefusal } from '#src/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { ExportFailedError, describeExportRefusal } from '@/lib/errors/index';
 import {
   createExportSkillsUseCase,
   type ExportSkillsReport,
-} from '#src/use-cases/export-skills-use-case/factory';
+} from '@/use-cases/export-skills-use-case/factory';
 
 export type ExportCommandParams = {
   storeManager: GrimoireStoreManager;

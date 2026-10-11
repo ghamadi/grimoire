@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
-import { tryStatSync } from '#src/lib/fs';
+import { tryStatSync } from '@/lib/fs';
 import { join } from 'node:path';
-import { InvalidPathError } from '#src/lib/errors/index';
+import { InvalidPathError } from '@/lib/errors/index';
 
 /**
  * A path that does not exist has exactly one meaning — a typo.

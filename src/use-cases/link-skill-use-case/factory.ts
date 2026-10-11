@@ -1,11 +1,11 @@
 import { lstatSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Skill } from '#src/domains/skill/index';
-import { Workspace } from '#src/domains/workspace/index';
-import { compareContainment } from '#src/lib/directory-containment';
-import { LinkDeclinedError, type LinkOccupant, type LinkRefusal } from '#src/lib/errors/index';
-import { relate } from '#src/lib/paths';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Skill } from '@/domains/skill/index';
+import { Workspace } from '@/domains/workspace/index';
+import { compareContainment } from '@/lib/directory-containment';
+import { LinkDeclinedError, type LinkOccupant, type LinkRefusal } from '@/lib/errors/index';
+import { relate } from '@/lib/paths';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

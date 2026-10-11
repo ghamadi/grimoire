@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { assertUnreachable } from '#src/lib/utils';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { assertUnreachable } from '@/lib/utils';
 import {
   createReportStatusUseCase,
   type DeploymentProblem,
@@ -10,7 +10,7 @@ import {
   type StoreProblem,
   type StoreStatus,
   type WorkspaceStatus,
-} from '#src/use-cases/report-status-use-case/factory';
+} from '@/use-cases/report-status-use-case/factory';
 
 /** The formats the status palette uses. */
 export type StatusStyle = 'bold' | 'dim' | 'cyan' | 'yellow';

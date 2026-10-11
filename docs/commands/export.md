@@ -26,8 +26,7 @@ At least one skill is required. A name given twice counts once, keeping its firs
 > If git reports nothing uncommitted at or under `<dest>`, replace whatever is there. Otherwise decline, unless `--force`.
 
 Git already holds every committed byte, so a destination git calls clean is safe to replace. There is no record, no
-`SKILL.md` check, and no comparison against the store — see
-[the rule](../../ARCHITECTURE.md#the-rule-grimoire-never-loses-content-outside-its-store).
+`SKILL.md` check, and no comparison against the store — see [the rule](../safety.md).
 
 "Uncommitted" is anything `git status` lists at or under `<dest>`: modified, staged, deleted, or untracked. Ignored files
 [do not count](#ignored-files-are-deleted).

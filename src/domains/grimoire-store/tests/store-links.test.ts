@@ -1,8 +1,8 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findDanglingStoreLinks, findStoreLinks } from '../helpers/store-links.ts';
-import { tempRoot } from '#test-helpers/temp-root';
+import { findDanglingStoreLinks, findStoreLinks } from '@/domains/grimoire-store/helpers/store-links';
+import { tempRoot } from '@test-helpers/temp-root';
 
 describe('findStoreLinks', () => {
   it('finds a link into the store', async () => {

@@ -2,11 +2,11 @@ import { lstatSync, mkdirSync, readlinkSync, symlinkSync, writeFileSync } from '
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
-import { LinkDeclinedError } from '#src/lib/errors/index';
-import { buildProgram } from '#src/program';
-import { tempRoot } from '#test-helpers/temp-root';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { LinkDeclinedError } from '@/lib/errors/index';
+import { buildProgram } from '@/program';
+import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -127,6 +127,34 @@ describe('link', () => {
 
     expect(error).toBeInstanceOf(CommanderError);
     expect(error.message).toContain("missing required argument 'skill'");
+  });
+
+  it('keeps the workspaces in argument order under --all-skills', async () => {
+    const { run, store } = await newCli();
+
+    run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    run('workspaces', 'add', 'work', await newDirectory('work'));
+    run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+    storeSkill(store, 'brainstorm');
+
+    expect(run('link', 'work', 'personal', 'scratch', '--all-skills').stdout).toEqual([
+      'linked brainstorm → work',
+      'linked brainstorm → personal',
+      'linked brainstorm → scratch',
+    ]);
+  });
+
+  it('counts a workspace named twice under --all-skills once, at its first position', async () => {
+    const { run, store } = await newCli();
+
+    run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    run('workspaces', 'add', 'work', await newDirectory('work'));
+    storeSkill(store, 'brainstorm');
+
+    expect(run('link', 'work', 'personal', 'work', '--all-skills').stdout).toEqual([
+      'linked brainstorm → work',
+      'linked brainstorm → personal',
+    ]);
   });
 
   it('lets a run that linked nothing at all escape as a refusal', async () => {

@@ -1,4 +1,4 @@
-import { GrimoireError } from './grimoire-error.ts';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 export type UnportableSkillReason = 'nested-skill' | 'not-a-skill' | 'unexpected-file-type';
 

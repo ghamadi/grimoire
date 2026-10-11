@@ -1,8 +1,8 @@
-import type { Collision } from '#src/domains/grimoire-store/index';
-import { normalizePath } from '#src/lib/paths';
-import type { RegistryEntity } from './entity-not-found.ts';
-import { GrimoireError } from './grimoire-error.ts';
-import { describeCollision } from './path-collision.ts';
+import type { Collision } from '@/domains/grimoire-store/index';
+import { normalizePath } from '@/lib/paths';
+import type { RegistryEntity } from '@/lib/errors/entity-not-found';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
+import { describeCollision } from '@/lib/errors/path-collision';
 
 export type CollidingRegistrationErrorProps = {
   entity: RegistryEntity;

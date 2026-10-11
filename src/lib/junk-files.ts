@@ -1,6 +1,6 @@
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { basename } from 'node:path';
-import { isErrnoException } from '#src/lib/fs';
+import { isErrnoException } from '@/lib/fs';
 
 const DS_STORE_NAME = '.DS_Store';
 

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { Skill, type SkillSource } from '#src/domains/skill/index';
-import { compareContainment } from '#src/lib/directory-containment';
-import { AddDeclinedError, type AddRefusal, UnportableSkillError } from '#src/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { Skill, type SkillSource } from '@/domains/skill/index';
+import { compareContainment } from '@/lib/directory-containment';
+import { AddDeclinedError, type AddRefusal, UnportableSkillError } from '@/lib/errors/index';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

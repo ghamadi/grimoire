@@ -10,18 +10,18 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
   LinkDeclinedError,
   UnportableSkillError,
-} from '#src/lib/errors/index';
-import { DS_STORE_NAME, finderDsStoreBytes } from '#test-helpers/ds-store';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
-import { createLinkSkillUseCase } from '../factory.ts';
+} from '@/lib/errors/index';
+import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
+import { createLinkSkillUseCase } from '@/use-cases/link-skill-use-case/factory';
 
 describe('link-skill-use-case factory', () => {
   describe('the links it writes', () => {

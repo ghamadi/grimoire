@@ -1,5 +1,5 @@
-import { normalizePath } from '#src/lib/paths';
-import { GrimoireError } from './grimoire-error.ts';
+import { normalizePath } from '@/lib/paths';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 export type InvalidPathReason =
   | 'missing'

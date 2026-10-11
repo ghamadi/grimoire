@@ -1,4 +1,4 @@
-import { GrimoireError } from './grimoire-error.ts';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 /**
  * Used when git cannot be spawned at all: not installed, or not on `PATH`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ExportFailedError, GrimoireError, describeExportFailure } from '../index.ts';
-import type { ExportFailure } from '../index.ts';
+import { ExportFailedError, GrimoireError, describeExportFailure } from '@/lib/errors/index';
+import type { ExportFailure } from '@/lib/errors/index';
 
 const denied: ExportFailure = {
   skill: 'triage',

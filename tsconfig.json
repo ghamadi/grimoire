@@ -5,19 +5,21 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "types": ["node"],
+    "resolveJsonModule": true,
 
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
 
-    "allowImportingTsExtensions": true,
-    "rewriteRelativeImportExtensions": true,
-
     "skipLibCheck": true,
     "noEmit": true,
 
-    "customConditions": ["grimoire-src"]
+    "paths": {
+      "@/*": ["./src/*.ts"],
+      "@test-helpers/*": ["./tests/helpers/*.ts"],
+      "@package.json": ["./package.json"]
+    }
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "*.config.ts"]
 }

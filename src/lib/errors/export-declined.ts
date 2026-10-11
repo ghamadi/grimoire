@@ -1,5 +1,5 @@
-import { describeSentences } from './clone-sentences.ts';
-import { GrimoireError } from './grimoire-error.ts';
+import { describeSentences } from '@/lib/errors/clone-sentences';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 /**
  * One skill `export` stepped over: a fact about the repo, not a mistake in

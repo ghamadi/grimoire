@@ -2,10 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { GitUnavailableError, GrimoireError } from '#src/lib/errors/index';
-import { hasUncommittedChanges, isInsideGitWorkTree } from '#src/lib/git';
-import { tempGitRepo } from '#test-helpers/git-repo';
-import { tempRoot } from '#test-helpers/temp-root';
+import { GitUnavailableError, GrimoireError } from '@/lib/errors/index';
+import { hasUncommittedChanges, isInsideGitWorkTree } from '@/lib/git';
+import { tempGitRepo } from '@test-helpers/git-repo';
+import { tempRoot } from '@test-helpers/temp-root';
 
 // -----------------------------------------------------------------------------
 // isInsideGitWorkTree

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GrimoireError, UnlinkDeclinedError, describeUnlinkRefusal } from '../index.ts';
-import type { UnlinkRefusal } from '../index.ts';
+import { GrimoireError, UnlinkDeclinedError, describeUnlinkRefusal } from '@/lib/errors/index';
+import type { UnlinkRefusal } from '@/lib/errors/index';
 
 const refusal = (reason: UnlinkRefusal['reason']): UnlinkRefusal => ({
   skill: 'brainstorm',

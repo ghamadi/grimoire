@@ -1,10 +1,10 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isJunkFile } from '#src/lib/junk-files';
-import { DS_STORE_NAME, finderDsStoreBytes } from '#test-helpers/ds-store';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
+import { isJunkFile } from '@/lib/junk-files';
+import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
 
 describe('isJunkFile', () => {
   it('recognizes a Finder .DS_Store at a directory root', async () => {

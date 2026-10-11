@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trashBinName } from '../helpers/trash.ts';
+import { trashBinName } from '@/domains/grimoire-store/helpers/trash';
 
 describe('trashBinName', () => {
   it('stamps the skill with its local date and time', () => {

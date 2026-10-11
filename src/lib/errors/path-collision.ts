@@ -1,6 +1,6 @@
-import type { Collision } from '#src/domains/grimoire-store/index';
-import { normalizePath, type PathRelation } from '#src/lib/paths';
-import { GrimoireError } from './grimoire-error.ts';
+import type { Collision } from '@/domains/grimoire-store/index';
+import { normalizePath, type PathRelation } from '@/lib/paths';
+import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 export type PathCollisionErrorProps = {
   path: string;

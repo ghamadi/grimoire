@@ -10,12 +10,15 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
-import { EntityNotFoundError, WorkspaceUnreadableError } from '#src/lib/errors/index';
-import { lockDirectory, runsAsRoot } from '#test-helpers/locked-directory';
-import { tempRoot } from '#test-helpers/temp-root';
-import { createRemoveSkillsUseCase, type RemovedSkill } from '../factory.ts';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { EntityNotFoundError, WorkspaceUnreadableError } from '@/lib/errors/index';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { tempRoot } from '@test-helpers/temp-root';
+import {
+  createRemoveSkillsUseCase,
+  type RemovedSkill,
+} from '@/use-cases/remove-skills-use-case/factory';
 
 describe('remove-skills-use-case factory', () => {
   // Both refusals come before anything is touched, so each of them is run with

@@ -1,8 +1,8 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { safeFlattenDirectory } from '../directories.ts';
-import { tempRoot } from '#test-helpers/temp-root';
+import { safeFlattenDirectory } from '@/lib/directories';
+import { tempRoot } from '@test-helpers/temp-root';
 
 describe('directories', () => {
   describe('safeFlattenDirectory', () => {

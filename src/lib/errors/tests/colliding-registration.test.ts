@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CollidingRegistrationError } from '../index.ts';
+import { CollidingRegistrationError } from '@/lib/errors/index';
 
 describe('CollidingRegistrationError', () => {
   it('tells the user to remove the entry when it touches the store', () => {

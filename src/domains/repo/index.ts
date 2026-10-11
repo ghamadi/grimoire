@@ -1,1 +1,1 @@
-export { Repo, type RepoParams } from './entity.ts';
+export { Repo, type RepoParams } from '@/domains/repo/entity';

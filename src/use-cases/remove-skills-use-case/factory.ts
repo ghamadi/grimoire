@@ -1,7 +1,7 @@
 import { unlinkSync } from 'node:fs';
-import type { GrimoireStoreManager, RegisteredWorkspace } from '#src/domains/grimoire-store/index';
-import { WorkspaceUnreadableError } from '#src/lib/errors/index';
-import { getDirectoryAccess } from '#src/lib/fs';
+import type { GrimoireStoreManager, RegisteredWorkspace } from '@/domains/grimoire-store/index';
+import { WorkspaceUnreadableError } from '@/lib/errors/index';
+import { getDirectoryAccess } from '@/lib/fs';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readlinkSync, type Dirent } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
-import { isErrnoException } from '#src/lib/fs';
-import { relativeTo } from '#src/lib/paths';
+import { isErrnoException } from '@/lib/fs';
+import { relativeTo } from '@/lib/paths';
 
 /** A symlink in a workspace pointing at a skill in the store. */
 export type StoreLink = {

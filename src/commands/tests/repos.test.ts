@@ -2,17 +2,17 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
+import { GrimoireStore } from '@/domains/grimoire-store/index';
 import {
   CollidingRegistrationError,
   DuplicateNameError,
   EntityNotFoundError,
   InvalidPathError,
   PathCollisionError,
-} from '#src/lib/errors/index';
-import { buildProgram } from '#src/program';
-import { tempGitRepo } from '#test-helpers/git-repo';
-import { tempRoot } from '#test-helpers/temp-root';
+} from '@/lib/errors/index';
+import { buildProgram } from '@/program';
+import { tempGitRepo } from '@test-helpers/git-repo';
+import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
   vi.restoreAllMocks();

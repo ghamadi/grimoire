@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
-import { GrimoireError } from '#src/lib/errors/index';
-import { buildProgram } from '#src/program';
+import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { GrimoireError } from '@/lib/errors/index';
+import { buildProgram } from '@/program';
 
 try {
   // `parseAsync`, not `parse`: the moment an action returns a promise, `parse`

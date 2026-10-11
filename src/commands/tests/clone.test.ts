@@ -11,16 +11,16 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '#src/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '#src/domains/skill/index';
+import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { SKILL_MANIFEST } from '@/domains/skill/index';
 import {
   CloneDeclinedError,
   CloneFailedError,
   EntityNotFoundError,
   UnportableSkillError,
-} from '#src/lib/errors/index';
-import { buildProgram } from '#src/program';
-import { tempRoot } from '#test-helpers/temp-root';
+} from '@/lib/errors/index';
+import { buildProgram } from '@/program';
+import { tempRoot } from '@test-helpers/temp-root';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();

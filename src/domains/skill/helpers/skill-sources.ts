@@ -1,8 +1,8 @@
 import { readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { assertUsableDirectory } from '#src/lib/directories';
-import { normalizePath } from '#src/lib/paths';
-import { Skill } from '../entity.ts';
+import { assertUsableDirectory } from '@/lib/directories';
+import { normalizePath } from '@/lib/paths';
+import { Skill } from '@/domains/skill/entity';
 
 // -----------------------------------------------------------------------------
 // RESULT SHAPE

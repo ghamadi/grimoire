@@ -1,16 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { z } from 'zod';
+import packageJson from '@package.json' with { type: 'json' };
 
-const packageJsonSchema = z.object({
-  version: z.string(),
-});
-
-export function getVersion() {
-  const { version } = packageJsonSchema.parse(
-    JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')),
-  );
-
-  return version;
+export function getVersion(): string {
+  return packageJson.version;
 }
 
 export function assertUnreachable(value: never): never {

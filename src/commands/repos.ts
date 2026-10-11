@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager, RegisteredRepo } from '#src/domains/grimoire-store/index';
+import type { GrimoireStoreManager, RegisteredRepo } from '@/domains/grimoire-store/index';
 
 export type ReposCommandParams = {
   storeManager: GrimoireStoreManager;

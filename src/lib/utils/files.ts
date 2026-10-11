@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
-import { isErrnoException } from '#src/lib/fs';
+import { isErrnoException } from '@/lib/fs';
 
 function extractFileContents(file: string): string | undefined {
   try {

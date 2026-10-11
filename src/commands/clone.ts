@@ -1,12 +1,12 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '#src/domains/grimoire-store/index';
-import { CloneFailedError, describeCloneRefusal } from '#src/lib/errors/index';
-import { assertUnreachable } from '#src/lib/utils';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { CloneFailedError, describeCloneRefusal } from '@/lib/errors/index';
+import { assertUnreachable } from '@/lib/utils';
 import {
   createCloneSkillUseCase,
   type CloneReplacedEntry,
   type CloneSkillUseCase,
-} from '#src/use-cases/clone-skill-use-case/factory';
+} from '@/use-cases/clone-skill-use-case/factory';
 
 export type CloneCommandParams = {
   storeManager: GrimoireStoreManager;

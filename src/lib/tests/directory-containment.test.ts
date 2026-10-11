@@ -1,10 +1,10 @@
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { InvalidPathError } from '#src/lib/errors/index';
-import { DS_STORE_NAME, finderDsStoreBytes } from '#test-helpers/ds-store';
-import { tempRoot } from '#test-helpers/temp-root';
-import { compareContainment } from '../directory-containment.ts';
+import { InvalidPathError } from '@/lib/errors/index';
+import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
+import { tempRoot } from '@test-helpers/temp-root';
+import { compareContainment } from '@/lib/directory-containment';
 
 describe('compareContainment', () => {
   describe('what it proves contained', () => {
