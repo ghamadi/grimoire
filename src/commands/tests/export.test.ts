@@ -234,15 +234,115 @@ describe('export', () => {
     expect(readFileSync(join(dest, 'notes.md'), 'utf8')).toBe('mine');
   });
 
+  it('exports every store skill in name order under --all-skills', async () => {
+    const { run, store } = await newCli();
+
+    storeSkill(store, 'triage');
+    storeSkill(store, 'review');
+
+    const { stdout, stderr } = run('export', 'library', '--all-skills');
+
+    expect(stdout).toEqual(['exported review → library', 'exported triage → library']);
+    expect(stderr).toEqual([]);
+  });
+
+  it('warns about the skills still waiting on a commit under --all-skills, and exports the rest', async () => {
+    const { run, store, repo } = await newCli();
+    const dest = join(repo.path, 'triage');
+
+    storeSkill(store, 'triage');
+    storeSkill(store, 'review');
+    writeSkillDirectory(dest, { 'notes.md': 'mine' });
+
+    const { stdout, stderr } = run('export', 'library', '--all-skills');
+
+    expect(stdout).toEqual(['exported review → library']);
+    expect(stderr).toEqual([
+      `warning: could not export triage → library: ${dest} has uncommitted changes`,
+    ]);
+    expect(readFileSync(join(dest, 'notes.md'), 'utf8')).toBe('mine');
+  });
+
+  it('replaces uncommitted destinations under --all-skills --force', async () => {
+    const { run, store, repo } = await newCli();
+    const dest = join(repo.path, 'triage');
+
+    storeSkill(store, 'triage');
+    storeSkill(store, 'review');
+    writeSkillDirectory(dest, { 'notes.md': 'mine' });
+
+    const { stdout, stderr } = run('export', 'library', '--all-skills', '--force');
+
+    expect(stdout).toEqual(['exported review → library', 'exported triage → library']);
+    expect(stderr).toEqual([]);
+    expect(existsSync(join(dest, 'notes.md'))).toBe(false);
+  });
+
+  it('says the store holds no skills under --all-skills', async () => {
+    const { run, repo } = await newCli();
+
+    const { stdout, stderr } = run('export', 'library', '--all-skills');
+
+    expect(stdout).toEqual(['nothing to export: the store holds no skills']);
+    expect(stderr).toEqual([]);
+    expect(readdirSync(repo.path)).toEqual(['.git']);
+  });
+
   describe('refusals', () => {
-    it('refuses a run that names no skills', async () => {
+    it('refuses a run with neither skills nor --all-skills', async () => {
       const { run, repo } = await newCli();
 
       const error = captureError(() => run('export', 'library'));
 
       expect(error).toBeInstanceOf(CommanderError);
-      expect(error.message).toBe("error: missing required argument 'skills'");
+      expect(error.message).toBe("error: missing required argument 'skills' (or use --all-skills)");
       expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('refuses --all-skills beside a named skill', async () => {
+      const { run, store, repo } = await newCli();
+
+      storeSkill(store, 'triage');
+
+      const error = captureError(() => run('export', 'library', 'triage', '--all-skills'));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe('error: --all-skills cannot be combined with named skills');
+      expect(existsSync(join(repo.path, 'triage'))).toBe(false);
+    });
+
+    it('refuses the whole run under --all-skills when one skill cannot travel', async () => {
+      const { run, store, repo } = await newCli();
+      const skillPath = storeSkill(store, 'triage');
+
+      storeSkill(store, 'review');
+      writeSkillDirectory(join(skillPath, 'nested'));
+
+      const error = captureError(() => run('export', 'library', '--all-skills'));
+
+      expect(error).toBeInstanceOf(UnportableSkillError);
+      expect(error.message).toBe(`skill "${skillPath}" is not portable. Contains a nested skill.`);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('refuses an unregistered repo under --all-skills when the store holds no skills', async () => {
+      const { run } = await newCli();
+
+      const error = captureError(() => run('export', 'ghost', '--all-skills'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no repo named "ghost"');
+    });
+
+    it('refuses a missing repo directory under --all-skills when the store holds no skills', async () => {
+      const { run, repo } = await newCli();
+
+      rmSync(repo.path, { recursive: true });
+
+      const error = captureError(() => run('export', 'library', '--all-skills'));
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${repo.path} does not exist`);
     });
 
     it('refuses a repo that is not registered', async () => {

@@ -5,17 +5,20 @@ sharing belong to git and to you: grimoire commits nothing, and records nothing 
 
 ```shell
 grimoire export <repo> <skills...> [--force]
+grimoire export <repo> --all-skills [--force]
 ```
 
 ## Arguments
 
-| Argument      | Meaning                                                                                                    |
-| ------------- | ---------------------------------------------------------------------------------------------------------- |
-| `<repo>`      | The registered repo to export into — see [`repos add`](./repos.md#repos-add-name-path).                    |
-| `<skills...>` | Store skills to copy. Each must exist, and pass the portability check, before any destination is examined. |
-| `--force`     | Replaces the destination even when git reports uncommitted changes there, potentially overwriting them.    |
+| Argument       | Meaning                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| `<repo>`       | The registered repo to export into — see [`repos add`](./repos.md#repos-add-name-path).                    |
+| `<skills...>`  | Store skills to copy. Each must exist, and pass the portability check, before any destination is examined. |
+| `--all-skills` | Every skill the store holds, instead of naming any.                                                        |
+| `--force`      | Replaces the destination even when git reports uncommitted changes there, potentially overwriting them.    |
 
-At least one skill is required. A name given twice counts once, keeping its first position.
+One of `<skills...>` or `--all-skills` is required, and the two are mutually exclusive. A name given twice counts once,
+keeping its first position.
 
 ## What `export` checks
 
@@ -220,15 +223,48 @@ A run with any failed skill exits 1, whether or not other skills were exported o
 [every skill declined](#when-every-skill-is-declined) form applies only when no skill failed; declines alongside a failure
 print as warnings.
 
+## `export <repo> --all-skills [--force]`
+
+Every skill the store holds, in name order. Each is treated exactly as if it had been named, so outcomes, grouping, warnings,
+and the exit code follow the rules above, with name order in place of argument order. `--force` applies to every destination.
+
+```shell
+$ grimoire export library --all-skills
+exported review → library
+exported triage → library
+```
+
+The same run made again before a commit finds [every skill declined](#when-every-skill-is-declined):
+
+```shell
+$ grimoire export library --all-skills
+error: nothing exported:
+  could not export review → library: /Users/me/library/review has uncommitted changes
+  could not export triage → library: /Users/me/library/triage has uncommitted changes
+  commit first, or use --force to overwrite them
+```
+
+If the store holds no skills, the exit code is 0:
+
+```shell
+$ grimoire export library --all-skills
+nothing to export: the store holds no skills
+```
+
 ## What `export` refuses
 
 A refusal exits 1 and touches nothing. The checks run in the order below.
 
-**1. Skills are given.**
+**1. Skills are given, or `--all-skills`, and not both.**
 
 ```shell
 $ grimoire export library
-error: missing required argument 'skills'
+error: missing required argument 'skills' (or use --all-skills)
+```
+
+```shell
+$ grimoire export library triage --all-skills
+error: --all-skills cannot be combined with named skills
 ```
 
 **2. The repo is registered.**
@@ -246,7 +282,8 @@ $ grimoire export library triage ghost
 error: no skill named "ghost"
 ```
 
-**4. Every skill passes the portability check.** Under `--force` too.
+**4. Every skill passes the portability check.** Under `--force` too. Every skill is verified before any destination is
+examined, so under `--all-skills` one unportable skill refuses the whole run.
 
 ```shell
 $ grimoire export library triage

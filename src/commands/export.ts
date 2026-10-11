@@ -14,16 +14,35 @@ export function exportCommand(params: ExportCommandParams): Command {
   const { storeManager } = params;
   const exportSkills = createExportSkillsUseCase({ storeManager });
 
-  return new Command('export')
+  const command = new Command('export')
     .description('Copy store skills into a repo, replacing what is there')
     .argument('<repo>', 'registered repo to export into')
-    .argument('<skills...>', 'store skills to export')
+    .argument('[skills...]', 'store skills to export, unless --all-skills')
+    .option('--all-skills', 'export every skill the store holds')
     .option(
       '--force',
       'replace the destination even when git reports uncommitted changes there, potentially overwriting them',
     )
-    .action((repo: string, skills: string[], options: { force?: boolean }) => {
-      const result = exportSkills({ repoName: repo, skillNames: skills, force: options.force });
+    .action((repo: string, skills: string[], options: { allSkills?: boolean; force?: boolean }) => {
+      const { allSkills, force } = options;
+
+      if (skills.length > 0 && allSkills) {
+        command.error('error: --all-skills cannot be combined with named skills');
+      }
+
+      if (skills.length === 0 && !allSkills) {
+        command.error("error: missing required argument 'skills' (or use --all-skills)");
+      }
+
+      const skillNames = allSkills ? storeManager.listSkillNames() : skills;
+
+      const result = exportSkills({ repoName: repo, skillNames, force });
+
+      // After the use case, not before it: an empty store still gets the repo checks.
+      if (skillNames.length === 0) {
+        console.log('nothing to export: the store holds no skills');
+        return;
+      }
 
       report(result);
 
@@ -31,6 +50,8 @@ export function exportCommand(params: ExportCommandParams): Command {
         throw new ExportFailedError({ failures: result.failed });
       }
     });
+
+  return command;
 }
 
 // ----------------------------------------------------------------------------

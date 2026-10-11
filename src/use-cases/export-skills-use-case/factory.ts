@@ -22,7 +22,7 @@ type ExportSkillsUseCaseFactoryParams = {
 
 export type ExportSkillsUseCaseParams = {
   repoName: string;
-  /** Store names, deduplicated keeping first position. At least one. */
+  /** Store names, deduplicated keeping first position. */
   skillNames: string[];
   /** Skip the git check: replace whatever is at the destination. */
   force?: boolean;
