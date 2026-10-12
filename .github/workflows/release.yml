@@ -40,8 +40,8 @@ jobs:
           fi
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Publish to npm
-        run: npm publish
+      - name: Stage the version on npm
+        run: npm stage publish
 
   github-release:
     needs: publish
