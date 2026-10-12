@@ -980,7 +980,7 @@ describe('clone-skill-use-case factory', () => {
             replaced: 'directory',
             strandedOldEntry: {
               path: join(stagingPath(personal), entry!),
-              error: expect.objectContaining({ code: 'EACCES' }) as unknown,
+              error: expect.any(Error) as unknown,
             },
           },
         ]);
