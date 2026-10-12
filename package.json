@@ -1,6 +1,6 @@
 {
   "name": "@ghamadi/grimoire",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Authoring and distribution for agent skills",
   "keywords": [
     "agent-skills",
@@ -21,8 +21,8 @@
   "author": "Ghaleb Hamadi",
   "type": "module",
   "bin": {
-    "grimoire": "./dist/cli.js",
-    "grim": "./dist/cli.js"
+    "grimoire": "dist/cli.js",
+    "grim": "dist/cli.js"
   },
   "files": [
     "dist"
