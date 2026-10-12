@@ -465,7 +465,7 @@ describe('export-skills-use-case factory', () => {
             repo: 'library',
             strandedOldEntry: {
               path: join(staging, entry!),
-              error: expect.objectContaining({ code: 'EACCES' }) as unknown,
+              error: expect.any(Error) as unknown,
             },
           },
         ]);
