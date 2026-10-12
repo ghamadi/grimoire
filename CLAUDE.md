@@ -6,6 +6,9 @@ holds the rule every command keeps outside the store, and [`docs/state.md`](./do
 
 Verify: `pnpm typecheck && pnpm lint && pnpm test`
 
+CI also runs `pnpm format:check`, on macOS and Linux across the supported Node versions. `main` takes pull requests only
+(direct pushes are rejected), so changes land as a squash-merged pull request from a branch.
+
 ## Code layout
 
 DDD-flavored, in layers that only call downward:
