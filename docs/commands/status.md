@@ -1,7 +1,7 @@
 # `status`
 
-`status` is a read-only inventory of every deployment, grouped by where it lives. Problems print in their own section, last,
-each with its fix.
+`status` is a read-only inventory of every deployment, in four sections: the registered workspaces, a grid of skills by
+workspace, the clones outside workspaces, and the problems, each with its fix.
 
 ```shell
 grimoire status
@@ -13,22 +13,34 @@ It takes no arguments and no flags.
 
 ```shell
 $ grimoire status
-personal  auto-link  /Users/me/.claude/skills
-  linked   brainstorm, deploy, triage (entry "tri")
+Workspaces  3 registered
+┌──────────┬───────────┬─────────────┬───────────────────────────────┐
+│ NAME     │ MODE      │ STATE       │ PATH                          │
+├──────────┼───────────┼─────────────┼───────────────────────────────┤
+│ personal │ auto-link │ 1 problem   │ /Users/me/.claude/skills      │
+│ scratch  │ manual    │ unreachable │ /Volumes/ext/skills           │
+│ work     │ manual    │ 2 problems  │ /Users/me/work/.agents/skills │
+└──────────┴───────────┴─────────────┴───────────────────────────────┘
 
-scratch   manual     /Volumes/ext/skills
-  cloned   deploy
-  unreachable
+Skills  6 in /Users/me/.grimoire/skills · 2 not deployed
+┌────────────────────┬─────────────┬─────────┬───────────────┐
+│ SKILL              │ personal    │ scratch │ work          │
+├────────────────────┼─────────────┼─────────┼───────────────┤
+│ brainstorm         │ link        │ ?       │ ·             │
+│ deploy             │ link        │ clone ? │ clone         │
+│ lint               │ ·           │ ?       │ clone missing │
+│ notes              │ ·           │ ?       │ ·             │
+│ old (not in store) │ ·           │ ?       │ clone         │
+│ review             │ ·           │ ?       │ ·             │
+│ triage             │ link as tri │ ?       │ link          │
+└────────────────────┴─────────────┴─────────┴───────────────┘
 
-work      manual     /Users/me/work/.agents/skills
-  linked   triage
-  cloned   deploy, old
-
-/Users/me/old/skills  recorded by path
-  cloned   notes
-
-store     /Users/me/.grimoire/skills
-  not deployed  review
+Clones outside workspaces  directories recorded by path
+┌───────┬─────────┬──────────────────────┐
+│ SKILL │ STATE   │ DIRECTORY            │
+├───────┼─────────┼──────────────────────┤
+│ notes │ present │ /Users/me/old/skills │
+└───────┴─────────┴──────────────────────┘
 
 Problems  6
 
@@ -58,71 +70,93 @@ Problems  6
     Move it out of the store, or add it to "ignore" in /Users/me/.grimoire/state.json.
 ```
 
-- Blocks are separated by one blank line.
-- The name column is padded to the widest workspace name, or to `store` if that is wider. The mode column is padded to
-  `auto-link`.
-- Lines inside a block are indented two spaces and print in order: `linked`, `cloned`, `not deployed`.
-- Lists are comma-separated on one line.
-- The block of an unreachable or unreadable workspace ends with one line saying which: `unreachable` or `unreadable`.
-- No problem prints inside a block. The `Problems` section follows the store block after one blank line. Its title line is
-  `Problems`, two spaces, and the number of problems.
+- Sections are separated by one blank line.
+- A section starts with a title line: the title, two spaces, a caption. Its table follows with no blank line.
+- A section with no rows has no table.
+- Tables are boxed. Every column is left-aligned and as wide as its longest cell.
+- No problem prints inside a table. The `Problems` title line is `Problems`, two spaces, and the number of problems.
 - Each problem is an entry. One blank line follows the title, and one separates entries.
 - An entry starts with ` !` and a headline naming the kind of entity and its name. Its other lines are indented four spaces.
 - A fix that is a command prints alone on its line, exactly as it would be typed, indented six spaces. A fix that is not a
   command is a sentence.
 - No line of an entry is wrapped by grimoire.
 
-## Blocks
+## Sections
 
-Blocks print in three kinds, in this order:
+Sections print in this order:
 
-1. **Workspace blocks.** Every registered workspace, sorted by name.
-2. **Recorded-path blocks.** One per directory named by `{ path }` clone records that no registered workspace's path equals,
-   sorted by path.
-3. **The store block.** Always printed, last.
+1. **Workspaces.** Every registered workspace. Always printed.
+2. **Skills.** Every skill, against every registered workspace. Always printed.
+3. **Clones outside workspaces.** The clones in directories named by `{ path }` clone records that no registered workspace's
+   path equals. Printed only when there is one.
+4. **Problems.** Always printed, last. See [Problems](#problems).
 
-### Workspace blocks
+### Workspaces
 
-The heading line is `<name>  <mode>  <path>`.
+One row per registered workspace, sorted by name. The caption is `<n> registered`.
 
-- `linked` lists the store skills linked into the workspace: a symlink in the workspace that resolves, following chains, to a
-  store skill. A skill whose workspace entry has a different name is followed by `(entry "<name>")`.
-- `cloned` lists the skills with a clone record naming the workspace's directory.
+- `MODE` is `auto-link` or `manual`.
+- `STATE` is `unreachable` or `unreadable` when the workspace carries that problem. Otherwise it is `ok`, or the count of the
+  workspace's problems: `1 problem`, `2 problems`.
 
 A workspace whose path does not resolve to a directory is unreachable. It gets a single `workspace-unreachable` problem, and
-no links are read. `cloned` lists its records unverified, because the path may be an unmounted volume with everything intact.
+no links are read. Its clone records are unverified, because the path may be an unmounted volume with everything intact.
 
 A workspace whose path is a directory that grimoire cannot list or enter, or that sits under a directory it cannot enter, is
-unreadable. It is treated like an unreachable one: a single problem, no links read, and `cloned` listing its records
-unverified. The problem is `workspace-unreadable`.
+unreadable. It is treated like an unreachable one: a single problem, no links read, and its clone records unverified. The
+problem is `workspace-unreadable`.
 
-### Recorded-path blocks
+### Skills
 
-The heading line is `<path>  recorded by path`. These blocks hold clones only. They are never scanned for links, because
-grimoire tracks links only in registered workspaces.
+One column per registered workspace, sorted by name, after `SKILL`. One row per store skill, plus one per skill that a
+workspace holds a clone record for when the skill is not in the store. Rows sort by name. A cell says what that workspace
+holds of that skill:
 
-A recorded path that no longer resolves or cannot be read earns no block-level problem. Each of its clones reads as
-`clone-missing`, whose remedy is an [`unclone`](./unclone.md) naming that path.
+| Cell              | Meaning                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `link`            | a symlink in the workspace that resolves, following chains, to the skill, under the skill's name |
+| `link as <entry>` | such a link whose workspace entry has another name                                               |
+| `clone`           | a recorded clone whose directory is there                                                        |
+| `clone missing`   | a recorded clone whose directory is gone                                                         |
+| `clone ?`         | a recorded clone in an unreachable or unreadable workspace, unverified                           |
+| `·`               | nothing                                                                                          |
+| `?`               | nothing recorded, in an unreachable or unreadable workspace                                      |
 
-### The store block
+A cell holding more than one of these joins them with `, `. A skill that is not in the store has ` (not in store)` after its
+name.
 
-The heading line is `store  <skills path>`. `not deployed` lists the store skills with no link in any reachable workspace and
-no clone listed in any block.
+The caption is `<n> in <skills path>`, counting store skills, followed by ` · <n> not deployed` when any are. A skill is not
+deployed when it has no link in any reachable workspace and no clone whose directory is there, in a workspace or outside one.
 
-It is computed only from what could be read, so a skill linked only into an unreachable or unreadable workspace reads as not
-deployed. That workspace's `unreachable` or `unreadable` line, and its entry in `Problems`, are the caveat.
+`not deployed` is computed only from what could be read, so a skill linked only into an unreachable or unreadable workspace
+reads as not deployed. That workspace's `STATE`, its `?` cells, and its entry in `Problems` are the caveat.
+
+With no workspace registered, the grid has the `SKILL` column alone.
+
+### Clones outside workspaces
+
+One row per clone in a directory named by `{ path }` clone records that no registered workspace's path equals, sorted by
+directory, then skill. The caption is `directories recorded by path`.
+
+- `STATE` is `present` when `<directory>/<skill>` is a directory, and `missing` otherwise.
+- A skill that is not in the store has ` (not in store)` after its name.
+
+These directories hold clones only. They are never scanned for links, because grimoire tracks links only in registered
+workspaces.
+
+A recorded path that no longer resolves or cannot be read earns no problem of its own. Each of its clones reads as `missing`
+and as a `clone-missing` problem, whose remedy is an [`unclone`](./unclone.md) naming that path.
 
 ### A clone belongs to its directory
 
 A clone record's identity is the directory it resolves to, compared canonically — see
-[what counts as the clone](./clone.md#what-counts-as-the-clone). A record appears in every block whose directory it resolves
-to:
+[what counts as the clone](./clone.md#what-counts-as-the-clone). A record shows in every workspace column and every
+`Clones outside workspaces` row whose directory it resolves to:
 
-- A `{ path }` record for a registered workspace's path shows in that workspace's block.
+- A `{ path }` record for a registered workspace's path shows in that workspace's column.
 - Two workspaces registered at one path both show what is there.
 
-`cloned` lists each skill once per block, and only when `<dir>/<skill>` is a directory. A record whose directory is gone
-shows only as a problem.
+A skill shows once per directory, however many records name it there.
 
 ## Problems
 
@@ -136,7 +170,7 @@ shows only as a problem.
 | `clone-unregistered-workspace` | a `{ workspace }` clone record names a workspace that is not registered                              | store                    |
 | `stray-entry`                  | an entry in the store's `skills/` directory is not a skill directory and matches no glob in `ignore` | store                    |
 
-Each problem prints as an entry in the `Problems` section, in the order the blocks print: each workspace's, then each
+Each problem prints as an entry in the `Problems` section, in this order: each workspace's, by workspace name, then each
 recorded path's, then the store's.
 
 ```
@@ -230,24 +264,29 @@ The planned `doctor` command is where these get repaired.
 
 ## Empty cases
 
-- No workspace registered: the line `No workspaces registered.` replaces the workspace blocks. Recorded-path blocks and the
-  store block still follow.
-- A reachable workspace with no links and no clones prints `  nothing deployed`.
-- An unreachable or unreadable workspace's block prints its `unreachable` or `unreadable` line, never `nothing deployed`.
-- An empty store's block has `  no skills` as its only content line.
+- No workspace registered: the `Workspaces` section is the one line `Workspaces  none registered`, with no table.
+- An empty store with no clone recorded in a workspace: the `Skills` section is its title line, `Skills  0 in <skills path>`,
+  with no table.
+- No clone recorded outside a workspace: the `Clones outside workspaces` section does not print.
 - With no problems, the `Problems` section is the one line `Problems  none ✓`.
 
 ## Colors
 
-On a color-capable stdout only. Piped output, or `NO_COLOR` set, prints plain.
+On a color-capable stdout only. Piped output, or `NO_COLOR` set, keeps the layout and the box-drawing characters and prints
+plain.
 
-- Block names are bold. The mode, the heading path, and `recorded by path` are dim.
-- The `linked` and `cloned` labels are cyan.
-- `not deployed`, `nothing deployed`, `no skills`, and the `unreachable` or `unreadable` line are dim.
-- The `Problems` title is bold. The count is yellow, and `none ✓` is green.
-- In an entry, `!` is yellow, the headline is bold, and a fix command is cyan.
+| Text                                                                                                        | Style   |
+| ----------------------------------------------------------------------------------------------------------- | ------- |
+| section titles, table headers, problem headlines                                                            | bold    |
+| captions, table borders, `·`, `?`                                                                           | dim     |
+| the name of a skill that is not deployed, in the `Skills` grid                                              | dim     |
+| `ok`, `none ✓`                                                                                              | green   |
+| `link`, `link as <entry>`, fix commands                                                                     | cyan    |
+| `clone`, `present`                                                                                          | magenta |
+| every other `STATE`, `clone missing`, `clone ?`, `missing`, ` (not in store)` names, `!`, the problem count | yellow  |
 
-Content text and an entry's sentences are never styled.
+A cell has one style. A cell that joins several states is yellow when any of them is, and otherwise takes the style of its
+first. Paths, other names, and an entry's sentences are never styled.
 
 ## Exit code and refusals
 

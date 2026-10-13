@@ -1,3 +1,4 @@
+import { formatSectionTitle } from '@/commands/status/section-title';
 import type { TextStyler } from '@/lib/text-styler';
 import { assertUnreachable } from '@/lib/utils';
 import type {
@@ -26,13 +27,21 @@ export function formatProblemsSection(params: {
 }): string[] {
   const { report, textStyler } = params;
   const problemEntries = getProblemEntries(report);
-  const title = textStyler('bold', 'Problems');
 
   if (problemEntries.length === 0) {
-    return [`${title}  ${textStyler('green', 'none ✓')}`];
+    return [
+      formatSectionTitle({ title: 'Problems', caption: 'none ✓', captionStyle: 'green', textStyler }),
+    ];
   }
 
-  const lines = [`${title}  ${textStyler('yellow', String(problemEntries.length))}`];
+  const lines = [
+    formatSectionTitle({
+      title: 'Problems',
+      caption: `${problemEntries.length}`,
+      captionStyle: 'yellow',
+      textStyler,
+    }),
+  ];
 
   for (const problemEntry of problemEntries) {
     lines.push('', ...formatProblemEntry({ problemEntry, textStyler }));

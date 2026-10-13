@@ -46,13 +46,21 @@ $ grimoire link triage work
 linked triage → work
 
 $ grimoire status
-personal  auto-link  /Users/me/.claude/skills
-  linked   brainstorm, triage
+Workspaces  2 registered
+┌──────────┬───────────┬───────┬───────────────────────────────┐
+│ NAME     │ MODE      │ STATE │ PATH                          │
+├──────────┼───────────┼───────┼───────────────────────────────┤
+│ personal │ auto-link │ ok    │ /Users/me/.claude/skills      │
+│ work     │ manual    │ ok    │ /Users/me/.claude-work/skills │
+└──────────┴───────────┴───────┴───────────────────────────────┘
 
-work      manual     /Users/me/.claude-work/skills
-  linked   triage
-
-store     /Users/me/.grimoire/skills
+Skills  2 in /Users/me/.grimoire/skills
+┌────────────┬──────────┬──────┐
+│ SKILL      │ personal │ work │
+├────────────┼──────────┼──────┤
+│ brainstorm │ link     │ ·    │
+│ triage     │ link     │ link │
+└────────────┴──────────┴──────┘
 
 Problems  none ✓
 ```

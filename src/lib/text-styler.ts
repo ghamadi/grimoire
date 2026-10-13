@@ -1,4 +1,4 @@
-export type TextStyle = 'bold' | 'dim' | 'cyan' | 'yellow' | 'red' | 'green';
+export type TextStyle = 'bold' | 'dim' | 'cyan' | 'yellow' | 'red' | 'green' | 'magenta';
 
 /** Applies a format to text, or returns it unchanged when color doesn't apply. */
 export type TextStyler = (style: TextStyle, text: string) => string;

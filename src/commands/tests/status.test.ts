@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { dirname, join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { TextStyler } from '@/lib/text-styler';
+import type { TextStyle, TextStyler } from '@/lib/text-styler';
+import { formatTable, type TableCell } from '@/lib/text-table';
 import { GrimoireStore } from '@/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '@/domains/skill/index';
 import { buildProgram, type ProgramDependencies } from '@/program';
@@ -14,11 +15,11 @@ afterEach(() => {
 });
 
 describe('status', () => {
-  it('prints a block per workspace and recorded path, then the store', async () => {
+  it('prints the workspaces, the skills grid, the clones outside workspaces, then the problems', async () => {
     const { run, store } = await newCli();
     const old = await newDirectory('old');
 
-    for (const skill of ['brainstorm', 'deploy', 'notes', 'old', 'review', 'triage']) {
+    for (const skill of ['brainstorm', 'deploy', 'notes', 'review', 'triage']) {
       storeSkill(store, skill);
     }
 
@@ -45,99 +46,286 @@ describe('status', () => {
     const { stdout, stderr } = run('status');
 
     expect(stdout).toEqual([
-      `personal  auto-link  ${personal}`,
-      '  linked   brainstorm, deploy, triage (entry "tri")',
+      'Workspaces  3 registered',
+      ...table(
+        ['NAME', 'MODE', 'STATE', 'PATH'],
+        [
+          cells('personal', 'auto-link', 'ok', personal),
+          cells('scratch', 'manual', 'unreachable', scratch),
+          cells('work', 'manual', '1 problem', work),
+        ],
+      ),
       '',
-      `scratch   manual     ${scratch}`,
-      '  cloned   deploy',
-      '  unreachable',
+      `Skills  5 in ${store.paths.skills} · 1 not deployed`,
+      ...table(
+        ['SKILL', 'personal', 'scratch', 'work'],
+        [
+          cells('brainstorm', 'link', '?', '·'),
+          cells('deploy', 'link', 'clone ?', 'clone'),
+          cells('notes', '·', '?', '·'),
+          cells('old (not in store)', '·', '?', 'clone'),
+          cells('review', '·', '?', '·'),
+          cells('triage', 'link as tri', '?', 'link'),
+        ],
+      ),
       '',
-      `work      manual     ${work}`,
-      '  linked   triage',
-      '  cloned   deploy, old',
+      'Clones outside workspaces  directories recorded by path',
+      ...table(['SKILL', 'STATE', 'DIRECTORY'], [cells('notes', 'present', old)]),
       '',
-      `${old}  recorded by path`,
-      '  cloned   notes',
-      '',
-      `store     ${store.paths.skills}`,
-      '  not deployed  review',
-      '',
-      'Problems  1',
+      'Problems  2',
       '',
       '  ! workspace scratch is unreachable',
       `    ${scratch} does not resolve.`,
       '    Make it readable, or unregister it:',
       '      grimoire workspaces remove scratch',
+      '',
+      '  ! clone of old in workspace work is no longer in the store',
+      '    Forget the record:',
+      '      grimoire unclone old work',
     ]);
     expect(stderr).toEqual([]);
   });
 
-  it('says no workspace is registered, and pads the store heading to its own name', async () => {
-    const { run, store } = await newCli();
+  describe('the Workspaces table', () => {
+    it('prints none registered, and no table, when no workspace is registered', async () => {
+      const { run, store } = await newCli();
 
-    storeSkill(store, 'triage');
+      const { stdout, stderr } = run('status');
 
-    const { stdout, stderr } = run('status');
+      expect(stdout).toEqual([
+        'Workspaces  none registered',
+        '',
+        `Skills  0 in ${store.paths.skills}`,
+        '',
+        'Problems  none ✓',
+      ]);
+      expect(stderr).toEqual([]);
+    });
 
-    expect(stdout).toEqual([
-      'No workspaces registered.',
-      '',
-      `store  ${store.paths.skills}`,
-      '  not deployed  triage',
-      '',
-      'Problems  none ✓',
-    ]);
-    expect(stderr).toEqual([]);
+    it('prints ok, 1 problem and 2 problems as the STATE of a reachable workspace', async () => {
+      const { run, store } = await newCli();
+
+      run('workspaces', 'add', 'healthy', await newDirectory('healthy'));
+      run('workspaces', 'add', 'one', await newDirectory('one'));
+      run('workspaces', 'add', 'two', await newDirectory('two'));
+      recordClone(store, 'gone', { workspace: 'one' });
+      recordClone(store, 'gone', { workspace: 'two' });
+      recordClone(store, 'lost', { workspace: 'two' });
+
+      expect(sectionLines(run('status').stdout, 'Workspaces')).toEqual([
+        'Workspaces  3 registered',
+        ...table(
+          ['NAME', 'MODE', 'STATE', 'PATH'],
+          [
+            cells('healthy', 'manual', 'ok', registeredPath(store, 'healthy')),
+            cells('one', 'manual', '1 problem', registeredPath(store, 'one')),
+            cells('two', 'manual', '2 problems', registeredPath(store, 'two')),
+          ],
+        ),
+      ]);
+    });
+
+    it('prints unreachable as the STATE of a workspace whose path does not resolve', async () => {
+      const { run, store } = await newCli();
+
+      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+
+      const scratch = registeredPath(store, 'scratch');
+
+      rmSync(scratch, { recursive: true });
+
+      expect(sectionLines(run('status').stdout, 'Workspaces')).toEqual([
+        'Workspaces  1 registered',
+        ...table(
+          ['NAME', 'MODE', 'STATE', 'PATH'],
+          [cells('scratch', 'manual', 'unreachable', scratch)],
+        ),
+      ]);
+    });
   });
 
-  it('says nothing is deployed in a reachable workspace holding nothing', async () => {
-    const { run, store } = await newCli();
+  describe('the Skills grid', () => {
+    it('prints each cell kind, with rows sorted by skill and columns by workspace name', async () => {
+      const { run, store } = await newCli();
 
-    storeSkill(store, 'triage');
-    run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      for (const skill of ['triage', 'notes', 'lint', 'deploy', 'brainstorm']) {
+        storeSkill(store, skill);
+      }
 
-    const { stdout, stderr } = run('status');
+      run('workspaces', 'add', 'home', await newDirectory('home'));
+      run('workspaces', 'add', 'away', await newDirectory('away'));
 
-    expect(stdout).toEqual([
-      `personal  manual     ${registeredPath(store, 'personal')}`,
-      '  nothing deployed',
-      '',
-      `store     ${store.paths.skills}`,
-      '  not deployed  triage',
-      '',
-      'Problems  none ✓',
-    ]);
-    expect(stderr).toEqual([]);
+      const home = registeredPath(store, 'home');
+
+      run('link', 'brainstorm', 'home');
+      symlinkSync(join(store.paths.skills, 'triage'), join(home, 'tri'));
+      run('clone', 'deploy', 'home');
+      run('clone', 'lint', 'home');
+      rmSync(join(home, 'lint'), { recursive: true });
+      run('clone', 'deploy', 'away');
+      rmSync(registeredPath(store, 'away'), { recursive: true });
+
+      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+        `Skills  5 in ${store.paths.skills} · 2 not deployed`,
+        ...table(
+          ['SKILL', 'away', 'home'],
+          [
+            cells('brainstorm', '?', 'link'),
+            cells('deploy', 'clone ?', 'clone'),
+            cells('lint', '?', 'clone missing'),
+            cells('notes', '?', '·'),
+            cells('triage', '?', 'link as tri'),
+          ],
+        ),
+      ]);
+    });
+
+    it('joins two links to one skill in one cell', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'triage');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('link', 'triage', 'personal');
+      symlinkSync(join(store.paths.skills, 'triage'), join(registeredPath(store, 'personal'), 'tri'));
+
+      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+        `Skills  1 in ${store.paths.skills}`,
+        ...table(['SKILL', 'personal'], [cells('triage', 'link as tri, link')]),
+      ]);
+    });
+
+    it('adds a not in store row for a present clone and for a missing one', async () => {
+      const { run, store } = await newCli();
+
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      mkdirSync(join(registeredPath(store, 'personal'), 'old'));
+      recordClone(store, 'old', { workspace: 'personal' });
+      recordClone(store, 'gone', { workspace: 'personal' });
+
+      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+        `Skills  0 in ${store.paths.skills}`,
+        ...table(
+          ['SKILL', 'personal'],
+          [cells('gone (not in store)', 'clone missing'), cells('old (not in store)', 'clone')],
+        ),
+      ]);
+    });
+
+    it('leaves not deployed out of the caption when every skill is deployed', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'triage');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('link', 'triage', 'personal');
+
+      expect(run('status').stdout).toContain(`Skills  1 in ${store.paths.skills}`);
+    });
+
+    it('counts the skills deployed nowhere in the caption', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'brainstorm');
+      storeSkill(store, 'review');
+      storeSkill(store, 'triage');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('link', 'triage', 'personal');
+
+      expect(run('status').stdout).toContain(`Skills  3 in ${store.paths.skills} · 2 not deployed`);
+    });
+
+    it('prints the title line alone for an empty store, even with a workspace registered', async () => {
+      const { run, store } = await newCli();
+
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+
+      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+        `Skills  0 in ${store.paths.skills}`,
+      ]);
+    });
+
+    it('prints a SKILL-only grid when no workspace is registered', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'brainstorm');
+
+      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+        `Skills  2 in ${store.paths.skills} · 2 not deployed`,
+        ...table(['SKILL'], [cells('brainstorm'), cells('triage')]),
+      ]);
+    });
   });
 
-  it('says the store holds no skills', async () => {
-    const { run, store } = await newCli();
+  describe('the Clones outside workspaces table', () => {
+    it('is absent when no clone is recorded by path', async () => {
+      const { run, store } = await newCli();
 
-    const { stdout, stderr } = run('status');
+      storeSkill(store, 'triage');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('clone', 'triage', 'personal');
 
-    expect(stdout).toEqual([
-      'No workspaces registered.',
-      '',
-      `store  ${store.paths.skills}`,
-      '  no skills',
-      '',
-      'Problems  none ✓',
-    ]);
-    expect(stderr).toEqual([]);
-  });
+      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
+    });
 
-  it('prints only the store heading when every skill is deployed', async () => {
-    const { run, store } = await newCli();
+    it('prints present for a clone whose directory is there and missing for one whose is gone', async () => {
+      const { run, store } = await newCli();
+      const elsewhere = await newDirectory('elsewhere');
 
-    storeSkill(store, 'triage');
-    run('workspaces', 'add', 'personal', await newDirectory('personal'));
-    run('link', 'triage', 'personal');
+      storeSkill(store, 'deploy');
+      storeSkill(store, 'notes');
+      mkdirSync(join(elsewhere, 'notes'));
+      recordClone(store, 'notes', { path: elsewhere });
+      recordClone(store, 'deploy', { path: elsewhere });
 
-    expect(run('status').stdout.slice(-3)).toEqual([
-      `store     ${store.paths.skills}`,
-      '',
-      'Problems  none ✓',
-    ]);
+      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([
+        'Clones outside workspaces  directories recorded by path',
+        ...table(
+          ['SKILL', 'STATE', 'DIRECTORY'],
+          [cells('deploy', 'missing', elsewhere), cells('notes', 'present', elsewhere)],
+        ),
+      ]);
+    });
+
+    it('marks a present clone of a skill that is not in the store', async () => {
+      const { run, store } = await newCli();
+      const elsewhere = await newDirectory('elsewhere');
+
+      mkdirSync(join(elsewhere, 'old'));
+      recordClone(store, 'old', { path: elsewhere });
+
+      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([
+        'Clones outside workspaces  directories recorded by path',
+        ...table(['SKILL', 'STATE', 'DIRECTORY'], [cells('old (not in store)', 'present', elsewhere)]),
+      ]);
+    });
+
+    it('orders rows by directory, then skill', async () => {
+      const { run, store } = await newCli();
+      const [first = '', second = ''] = [await newDirectory('one'), await newDirectory('two')].sort(
+        (a, b) => a.localeCompare(b),
+      );
+
+      for (const skill of ['brainstorm', 'notes', 'triage']) {
+        storeSkill(store, skill);
+      }
+
+      recordClone(store, 'triage', { path: second });
+      recordClone(store, 'notes', { path: first });
+      recordClone(store, 'brainstorm', { path: second });
+      recordClone(store, 'triage', { path: first });
+
+      expect(sectionLines(run('status').stdout, 'Clones outside workspaces').slice(1)).toEqual(
+        table(
+          ['SKILL', 'STATE', 'DIRECTORY'],
+          [
+            cells('notes', 'missing', first),
+            cells('triage', 'missing', first),
+            cells('brainstorm', 'missing', second),
+            cells('triage', 'missing', second),
+          ],
+        ),
+      );
+    });
   });
 
   describe('stray store entries', () => {
@@ -150,10 +338,10 @@ describe('status', () => {
       const { stdout, stderr } = run('status');
 
       expect(stdout).toEqual([
-        'No workspaces registered.',
+        'Workspaces  none registered',
         '',
-        `store  ${store.paths.skills}`,
-        '  not deployed  triage',
+        `Skills  1 in ${store.paths.skills} · 1 not deployed`,
+        ...table(['SKILL'], [cells('triage')]),
         '',
         'Problems  1',
         '',
@@ -163,15 +351,14 @@ describe('status', () => {
       expect(stderr).toEqual([]);
     });
 
-    it('prints no skills in the store block of a store holding only a stray entry', async () => {
+    it('counts no skill in a store holding only a stray entry', async () => {
       const { run, store } = await newCli();
 
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
 
       expect(run('status').stdout.slice(2)).toEqual([
-        `store  ${store.paths.skills}`,
-        '  no skills',
+        `Skills  0 in ${store.paths.skills}`,
         '',
         'Problems  1',
         '',
@@ -187,8 +374,7 @@ describe('status', () => {
       writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
 
       expect(run('status').stdout.slice(2)).toEqual([
-        `store  ${store.paths.skills}`,
-        '  no skills',
+        `Skills  0 in ${store.paths.skills}`,
         '',
         'Problems  none ✓',
       ]);
@@ -212,11 +398,21 @@ describe('status', () => {
       const { stdout, stderr } = run('status');
 
       expect(stdout).toEqual([
-        `personal  manual     ${personal}`,
-        '  cloned   old',
+        'Workspaces  1 registered',
+        ...table(
+          ['NAME', 'MODE', 'STATE', 'PATH'],
+          [cells('personal', 'manual', '3 problems', personal)],
+        ),
         '',
-        `store     ${store.paths.skills}`,
-        '  not deployed  triage',
+        `Skills  1 in ${store.paths.skills} · 1 not deployed`,
+        ...table(
+          ['SKILL', 'personal'],
+          [
+            cells('gone (not in store)', 'clone missing'),
+            cells('old (not in store)', 'clone'),
+            cells('triage', 'clone missing'),
+          ],
+        ),
         '',
         'Problems  3',
         '',
@@ -249,13 +445,16 @@ describe('status', () => {
       const { stdout, stderr } = run('status');
 
       expect(stdout).toEqual([
-        'No workspaces registered.',
+        'Workspaces  none registered',
         '',
-        `${elsewhere}  recorded by path`,
-        '  cloned   old',
+        `Skills  1 in ${store.paths.skills} · 1 not deployed`,
+        ...table(['SKILL'], [cells('deploy')]),
         '',
-        `store  ${store.paths.skills}`,
-        '  not deployed  deploy',
+        'Clones outside workspaces  directories recorded by path',
+        ...table(
+          ['SKILL', 'STATE', 'DIRECTORY'],
+          [cells('deploy', 'missing', elsewhere), cells('old (not in store)', 'present', elsewhere)],
+        ),
         '',
         'Problems  2',
         '',
@@ -279,10 +478,10 @@ describe('status', () => {
       const { stdout, stderr } = run('status');
 
       expect(stdout).toEqual([
-        'No workspaces registered.',
+        'Workspaces  none registered',
         '',
-        `store  ${store.paths.skills}`,
-        '  not deployed  triage',
+        `Skills  1 in ${store.paths.skills} · 1 not deployed`,
+        ...table(['SKILL'], [cells('triage')]),
         '',
         'Problems  1',
         '',
@@ -324,7 +523,7 @@ describe('status', () => {
       expect(() => run('status')).not.toThrow();
     });
 
-    it('clears clone-not-in-store with the printed unclone', async () => {
+    it('clears clone-not-in-store with the printed unclone, and its row disappears', async () => {
       const { run, store } = await newCli();
 
       run('workspaces', 'add', 'personal', await newDirectory('personal'));
@@ -341,10 +540,10 @@ describe('status', () => {
       const { stdout } = run('status');
 
       expect(stdout.some((line) => line.includes('is no longer in the store'))).toBe(false);
-      expect(stdout.some((line) => line.includes('cloned'))).toBe(false);
+      expect(stdout.some((line) => line.includes('old (not in store)'))).toBe(false);
     });
 
-    it('clears a recloneable clone-missing with the printed clone, and the skill reappears under cloned', async () => {
+    it('clears a recloneable clone-missing with the printed clone, and the cell reads clone', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
@@ -356,11 +555,13 @@ describe('status', () => {
 
       const { stdout } = run('status');
 
-      expect(stdout).toContain('  cloned   triage');
+      expect(sectionLines(stdout, 'Skills').slice(1)).toEqual(
+        table(['SKILL', 'personal'], [cells('triage', 'clone')]),
+      );
       expect(stdout.some((line) => line.includes('is missing'))).toBe(false);
     });
 
-    it('clears a recorded-path clone-missing with the printed unclone, and the block disappears', async () => {
+    it('clears a recorded-path clone-missing with the printed unclone, and the section disappears', async () => {
       const { run, store } = await newCli();
       const elsewhere = await newDirectory('elsewhere');
 
@@ -369,27 +570,12 @@ describe('status', () => {
 
       run(...printedRemedy(run('status').stdout, `clone of deploy in ${elsewhere} is missing`));
 
-      expect(run('status').stdout.some((line) => line.includes('recorded by path'))).toBe(false);
+      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
     });
   });
 
   describe('workspace problems', () => {
-    it('prints unreachable, not nothing deployed, in the block of an unreachable workspace holding no clones', async () => {
-      const { run, store } = await newCli();
-
-      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
-
-      const scratch = registeredPath(store, 'scratch');
-
-      rmSync(scratch, { recursive: true });
-
-      expect(run('status').stdout.slice(0, 2)).toEqual([
-        `scratch  manual     ${scratch}`,
-        '  unreachable',
-      ]);
-    });
-
-    it('clears workspace-unreachable with the printed workspaces remove, and the block disappears', async () => {
+    it('clears workspace-unreachable with the printed workspaces remove, and its row disappears', async () => {
       const { run, store } = await newCli();
 
       run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
@@ -397,11 +583,11 @@ describe('status', () => {
 
       run(...printedRemedy(run('status').stdout, 'workspace scratch is unreachable'));
 
-      expect(run('status').stdout.some((line) => line.startsWith('scratch'))).toBe(false);
+      expect(run('status').stdout.some((line) => line.startsWith('│ scratch'))).toBe(false);
     });
 
     describe.skipIf(runsAsRoot)('an unreadable workspace', () => {
-      it('prints unreadable in its block and the workspace-unreadable entry, and nothing on stderr', async () => {
+      it('prints unreadable as its STATE and the workspace-unreadable entry, and nothing on stderr', async () => {
         const { run, store } = await newCli();
 
         run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
@@ -413,11 +599,13 @@ describe('status', () => {
         const { stdout, stderr } = run('status');
 
         expect(stdout).toEqual([
-          `scratch  manual     ${scratch}`,
-          '  unreadable',
+          'Workspaces  1 registered',
+          ...table(
+            ['NAME', 'MODE', 'STATE', 'PATH'],
+            [cells('scratch', 'manual', 'unreadable', scratch)],
+          ),
           '',
-          `store    ${store.paths.skills}`,
-          '  no skills',
+          `Skills  0 in ${store.paths.skills}`,
           '',
           'Problems  1',
           '',
@@ -429,7 +617,7 @@ describe('status', () => {
         expect(stderr).toEqual([]);
       });
 
-      it('clears workspace-unreadable with the printed workspaces remove --force, and the block disappears', async () => {
+      it('clears workspace-unreadable with the printed workspaces remove --force, and its row disappears', async () => {
         const { run, store } = await newCli();
 
         run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
@@ -437,13 +625,13 @@ describe('status', () => {
 
         run(...printedRemedy(run('status').stdout, 'workspace scratch is unreadable'));
 
-        expect(run('status').stdout.some((line) => line.startsWith('scratch'))).toBe(false);
+        expect(run('status').stdout.some((line) => line.startsWith('│ scratch'))).toBe(false);
       });
     });
   });
 
   describe('dangling links', () => {
-    it('prints the problem in the Problems section, not in the workspace block', async () => {
+    it('prints the problem in the Problems section, and no grid row for the link', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'brainstorm');
@@ -456,10 +644,14 @@ describe('status', () => {
       const { stdout, stderr } = run('status');
 
       expect(stdout).toEqual([
-        `personal  manual     ${registeredPath(store, 'personal')}`,
-        '  linked   brainstorm',
+        'Workspaces  1 registered',
+        ...table(
+          ['NAME', 'MODE', 'STATE', 'PATH'],
+          [cells('personal', 'manual', '1 problem', registeredPath(store, 'personal'))],
+        ),
         '',
-        `store     ${store.paths.skills}`,
+        `Skills  1 in ${store.paths.skills}`,
+        ...table(['SKILL', 'personal'], [cells('brainstorm', 'link')]),
         '',
         'Problems  1',
         '',
@@ -469,44 +661,61 @@ describe('status', () => {
       ]);
       expect(stderr).toEqual([]);
     });
-
-    it('says nothing is deployed when a dangling link is all the workspace holds', async () => {
-      const { run, store } = await newCli();
-
-      storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'triage', 'personal');
-      rmSync(join(store.paths.skills, 'triage'), { recursive: true });
-
-      const { stdout } = run('status');
-
-      expect(stdout).toContain('  nothing deployed');
-      expect(stdout).toContain('  ! link triage in workspace personal resolves nowhere');
-    });
   });
 
   describe('status colors', () => {
     const taggingTextStyler: TextStyler = (style, text) => `<${style}>${text}</${style}>`;
 
-    it('styles labels, block names, problem headlines and fix commands, never sentences', async () => {
+    it('styles titles, captions, cells by state, problem headlines and fix commands, never paths or sentences', async () => {
       const { store, paths } = await newColorFixture();
       const { run } = await newCli({ store, textStyler: taggingTextStyler });
+      const nothing = styled('dim', '·');
+      const unknown = styled('dim', '?');
 
       expect(run('status').stdout).toEqual([
-        `<bold>personal</bold>  <dim>auto-link</dim>  <dim>${paths.personal}</dim>`,
-        '  <cyan>linked</cyan>   brainstorm',
-        '  <cyan>cloned</cyan>   deploy',
+        '<bold>Workspaces</bold>  <dim>3 registered</dim>',
+        ...table(
+          ['NAME', 'MODE', 'STATE', 'PATH'],
+          [
+            cells('personal', 'auto-link', styled('yellow', '2 problems'), paths.personal),
+            cells('scratch', 'manual', styled('yellow', 'unreachable'), paths.scratch),
+            cells('work', 'manual', styled('green', 'ok'), paths.work),
+          ],
+          taggingTextStyler,
+        ),
         '',
-        `<bold>scratch</bold>   <dim>manual</dim>     <dim>${paths.scratch}</dim>`,
-        '  <dim>unreachable</dim>',
+        `<bold>Skills</bold>  <dim>5 in ${store.paths.skills} · 1 not deployed</dim>`,
+        ...table(
+          ['SKILL', 'personal', 'scratch', 'work'],
+          [
+            cells('brainstorm', styled('cyan', 'link'), unknown, nothing),
+            cells('deploy', styled('magenta', 'clone'), unknown, nothing),
+            cells('notes', nothing, unknown, nothing),
+            cells(styled('yellow', 'old (not in store)'), styled('magenta', 'clone'), unknown, nothing),
+            cells(styled('dim', 'review'), nothing, unknown, nothing),
+            cells('triage', styled('yellow', 'link as tri, clone missing'), unknown, nothing),
+          ],
+          taggingTextStyler,
+        ),
         '',
-        `<bold>${paths.gone}</bold>  <dim>recorded by path</dim>`,
-        '  <cyan>cloned</cyan>   notes',
+        '<bold>Clones outside workspaces</bold>  <dim>directories recorded by path</dim>',
+        ...table(
+          ['SKILL', 'STATE', 'DIRECTORY'],
+          [cells('notes', styled('magenta', 'present'), paths.gone)],
+          taggingTextStyler,
+        ),
         '',
-        `<bold>store</bold>     <dim>${store.paths.skills}</dim>`,
-        '  <dim>not deployed</dim>  review',
+        '<bold>Problems</bold>  <yellow>3</yellow>',
         '',
-        '<bold>Problems</bold>  <yellow>1</yellow>',
+        '  <yellow>!</yellow> <bold>clone of old in workspace personal is no longer in the store</bold>',
+        '    Forget the record:',
+        '      <cyan>grimoire unclone old personal</cyan>',
+        '',
+        '  <yellow>!</yellow> <bold>clone of triage in workspace personal is missing</bold>',
+        '    Copy it again:',
+        '      <cyan>grimoire clone triage personal</cyan>',
+        '    Or forget the record:',
+        '      <cyan>grimoire unclone triage personal</cyan>',
         '',
         '  <yellow>!</yellow> <bold>workspace scratch is unreachable</bold>',
         `    ${paths.scratch} does not resolve.`,
@@ -517,11 +726,11 @@ describe('status', () => {
 
     it('never moves a column when styling is applied', async () => {
       const { store } = await newColorFixture();
-      const styled = await newCli({ store, textStyler: taggingTextStyler });
+      const tagged = await newCli({ store, textStyler: taggingTextStyler });
       const plain = await newCli({ store, textStyler: plainTextStyler });
-      const untag = (line: string) => line.replace(/<\/?(bold|dim|cyan|yellow|green)>/g, '');
+      const untag = (line: string) => line.replace(/<\/?(bold|dim|cyan|yellow|green|magenta)>/g, '');
 
-      expect(styled.run('status').stdout.map(untag)).toEqual(plain.run('status').stdout);
+      expect(tagged.run('status').stdout.map(untag)).toEqual(plain.run('status').stdout);
     });
 
     it('greens none ✓ when there are no problems', async () => {
@@ -530,21 +739,17 @@ describe('status', () => {
       expect(run('status').stdout.at(-1)).toBe('<bold>Problems</bold>  <green>none ✓</green>');
     });
 
-    it('dims nothing deployed', async () => {
-      const { run } = await newCli({ textStyler: taggingTextStyler });
+    it('yellows clone ? in an unreachable workspace', async () => {
+      const { run, store } = await newCli({ textStyler: taggingTextStyler });
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      storeSkill(store, 'deploy');
+      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+      run('clone', 'deploy', 'scratch');
+      rmSync(registeredPath(store, 'scratch'), { recursive: true });
 
-      expect(run('status').stdout).toContain('  <dim>nothing deployed</dim>');
-    });
-
-    it('dims no skills, and leaves No workspaces registered. plain', async () => {
-      const { run } = await newCli({ textStyler: taggingTextStyler });
-
-      const { stdout } = run('status');
-
-      expect(stdout[0]).toBe('No workspaces registered.');
-      expect(stdout).toContain('  <dim>no skills</dim>');
+      expect(sectionLines(run('status').stdout, '<bold>Skills</bold>').slice(1)).toEqual(
+        table(['SKILL', 'scratch'], [cells('deploy', styled('yellow', 'clone ?'))], taggingTextStyler),
+      );
     });
   });
 
@@ -559,6 +764,37 @@ describe('status', () => {
 });
 
 const plainTextStyler: TextStyler = (_style, text) => text;
+
+/** The lines `status` prints for a table, so a test pins its cells and not its box. */
+function table(
+  headers: string[],
+  rows: TableCell[][],
+  textStyler: TextStyler = plainTextStyler,
+): string[] {
+  return formatTable({ headers, rows, textStyler });
+}
+
+/** A table row; a bare string is an unstyled cell. */
+function cells(...row: (string | TableCell)[]): TableCell[] {
+  return row.map((cell) => (typeof cell === 'string' ? { text: cell } : cell));
+}
+
+function styled(style: TextStyle, text: string): TableCell {
+  return { text, style };
+}
+
+/** The section whose title line starts with `title`, up to the blank line that ends it. */
+function sectionLines(stdout: string[], title: string): string[] {
+  const titleIndex = stdout.findIndex((line) => line.startsWith(`${title}  `));
+
+  if (titleIndex === -1) {
+    return [];
+  }
+
+  const endIndex = stdout.indexOf('', titleIndex);
+
+  return stdout.slice(titleIndex, endIndex === -1 ? undefined : endIndex);
+}
 
 async function newCli(options: ProgramDependencies & { store?: GrimoireStore } = {}) {
   const { store = new GrimoireStore(await tempRoot()), ...dependencies } = options;
@@ -587,33 +823,35 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
   return { run, store };
 }
 
-/**
- * A store exercising every styled token: a reachable workspace with a link and
- * a clone, an unreachable one, a recorded path, and a skill deployed nowhere.
- * Workspace names differ in length so padding shows up outside the tags.
- */
+/** A store exercising every styled token. */
 async function newColorFixture() {
   const { run, store } = await newCli();
   const gone = await newDirectory('gone');
 
-  for (const skill of ['brainstorm', 'deploy', 'notes', 'review']) {
+  for (const skill of ['brainstorm', 'deploy', 'notes', 'review', 'triage']) {
     storeSkill(store, skill);
   }
 
   run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
   run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+  run('workspaces', 'add', 'work', await newDirectory('work'));
   run('workspaces', 'add', 'gone', gone);
-  run('link', 'brainstorm', 'personal');
-  run('clone', 'deploy', 'personal');
-  run('clone', 'notes', 'gone');
-  run('workspaces', 'remove', 'gone');
 
   const paths = {
     personal: registeredPath(store, 'personal'),
     scratch: registeredPath(store, 'scratch'),
+    work: registeredPath(store, 'work'),
     gone,
   };
 
+  run('link', 'brainstorm', 'personal');
+  run('clone', 'deploy', 'personal');
+  mkdirSync(join(paths.personal, 'old'));
+  recordClone(store, 'old', { workspace: 'personal' });
+  symlinkSync(join(store.paths.skills, 'triage'), join(paths.personal, 'tri'));
+  recordClone(store, 'triage', { workspace: 'personal' });
+  run('clone', 'notes', 'gone');
+  run('workspaces', 'remove', 'gone');
   rmSync(paths.scratch, { recursive: true });
 
   return { store, paths };
