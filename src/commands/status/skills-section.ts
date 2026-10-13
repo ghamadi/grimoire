@@ -6,11 +6,7 @@ import {
 import { formatSectionTitle } from '@/commands/status/section-title';
 import type { TextStyler } from '@/lib/text-styler';
 import { formatTable, type TableCell } from '@/lib/text-table';
-import type {
-  StatusReport,
-  StoreStatus,
-  WorkspaceStatus,
-} from '@/use-cases/report-status-use-case/factory';
+import type { StatusReport, WorkspaceStatus } from '@/use-cases/report-status-use-case/factory';
 
 /** The `Skills` section of `grimoire status`: a title line, then one row per skill and one column per workspace. */
 export function formatSkillsSection(params: {
@@ -41,7 +37,7 @@ export function formatSkillsSection(params: {
     ...formatTable({
       headers: ['SKILL', ...workspaceStatuses.map(({ name }) => name)],
       rows: rowSkills.map((skill) => [
-        getSkillCell({ skill, storeStatus }),
+        getSkillCell({ skill, report }),
         ...workspaceStatuses.map((workspaceStatus) => getWorkspaceCell({ skill, workspaceStatus })),
       ]),
       textStyler,
@@ -66,19 +62,34 @@ function getRowSkills(report: StatusReport): string[] {
     ...getMissingCloneSkills(problems),
   ]);
 
-  return [...new Set([...storeStatus.skills, ...workspaceCloneSkills])].sort((a, b) =>
-    a.localeCompare(b),
-  );
+  return [
+    ...new Set([
+      ...storeStatus.skills,
+      ...workspaceCloneSkills,
+      ...getWorkspaceLinkSkills(workspaceStatuses),
+    ]),
+  ].sort((a, b) => a.localeCompare(b));
 }
 
-function getSkillCell(params: { skill: string; storeStatus: StoreStatus }): TableCell {
-  const { skill, storeStatus } = params;
+function getWorkspaceLinkSkills(workspaceStatuses: WorkspaceStatus[]): string[] {
+  return workspaceStatuses.flatMap(({ linked }) => linked.map(({ skill }) => skill));
+}
 
-  if (!storeStatus.skills.includes(skill)) {
-    return getNotInStoreCell(skill);
+function getSkillCell(params: { skill: string; report: StatusReport }): TableCell {
+  const { skill, report } = params;
+  const { workspaceStatuses, storeStatus } = report;
+
+  if (storeStatus.skills.includes(skill)) {
+    return storeStatus.notDeployed.includes(skill) ? { text: skill, style: 'dim' } : { text: skill };
   }
 
-  return storeStatus.notDeployed.includes(skill) ? { text: skill, style: 'dim' } : { text: skill };
+  return getWorkspaceLinkSkills(workspaceStatuses).includes(skill)
+    ? getNotASkillCell(skill)
+    : getNotInStoreCell(skill);
+}
+
+function getNotASkillCell(skill: string): TableCell {
+  return { text: `${skill} (not a skill)`, style: 'yellow' };
 }
 
 function getWorkspaceCell(params: { skill: string; workspaceStatus: WorkspaceStatus }): TableCell {

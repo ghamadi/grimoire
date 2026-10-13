@@ -109,21 +109,22 @@ problem is `workspace-unreadable`.
 ### Skills
 
 One column per registered workspace, sorted by name, after `SKILL`. One row per store skill, plus one per skill that a
-workspace holds a clone record for when the skill is not in the store. Rows sort by name. A cell says what that workspace
-holds of that skill:
+workspace holds a clone record for when the skill is not in the store, plus one per store entry that is not a skill when a
+workspace links to it. Rows sort by name. A cell says what that workspace holds of that skill:
 
-| Cell              | Meaning                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------ |
-| `link`            | a symlink in the workspace that resolves, following chains, to the skill, under the skill's name |
-| `link as <entry>` | such a link whose workspace entry has another name                                               |
-| `clone`           | a recorded clone whose directory is there                                                        |
-| `clone missing`   | a recorded clone whose directory is gone                                                         |
-| `clone ?`         | a recorded clone in an unreachable or unreadable workspace, unverified                           |
-| `·`               | nothing                                                                                          |
-| `?`               | nothing recorded, in an unreachable or unreadable workspace                                      |
+| Cell              | Meaning                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| `link`            | a symlink in the workspace that resolves, following chains, to the row's skill or store entry, under its name |
+| `link as <entry>` | such a link whose workspace entry has another name                                                            |
+| `clone`           | a recorded clone whose directory is there                                                                     |
+| `clone missing`   | a recorded clone whose directory is gone                                                                      |
+| `clone ?`         | a recorded clone in an unreachable or unreadable workspace, unverified                                        |
+| `·`               | nothing                                                                                                       |
+| `?`               | nothing recorded, in an unreachable or unreadable workspace                                                   |
 
 A cell holding more than one of these joins them with `, `. A skill that is not in the store has ` (not in store)` after its
-name.
+name. A store entry that is not a skill directory has ` (not a skill)` after its name when a workspace links to it, even when
+a workspace also holds a clone record for it.
 
 The caption is `<n> in <skills path>`, counting store skills, followed by ` · <n> not deployed` when any are. A skill is not
 deployed when it has no link in any reachable workspace and no clone whose directory is there, in a workspace or outside one.
@@ -292,6 +293,9 @@ A stray entry is an entry in the store's `skills/` directory that is not a skill
 
 An entry that is a symlink cycle, or that cannot be read, is not a skill directory, so it is a stray entry.
 
+A stray entry that a workspace links to also has a row in the `Skills` grid, and so does a linked entry that `ignore` hides,
+which earns no problem.
+
 There is no exemption for dot-entries. A version-controlled store's `.git` prints as stray until it is added to `ignore`.
 `status` is the only command that reads `ignore`.
 
@@ -306,8 +310,8 @@ The planned `doctor` command is where these get repaired.
 ## Empty cases
 
 - No workspace registered: the `Workspaces` section is the one line `Workspaces  none registered`, with no table.
-- An empty store with no clone recorded in a workspace: the `Skills` section is its title line, `Skills  0 in <skills path>`,
-  with no table.
+- No store skill, no clone recorded in a workspace, and no workspace link into the store: the grid has no row, so the
+  `Skills` section is its title line, `Skills  0 in <skills path>`, with no table.
 - No clone recorded outside a workspace: the `Clones outside workspaces` section does not print.
 - With no problems, the `Problems` section is the one line `Problems  none ✓`.
 
@@ -316,15 +320,15 @@ The planned `doctor` command is where these get repaired.
 On a color-capable stdout only. Piped output, or `NO_COLOR` set, keeps the layout and the box-drawing characters and prints
 plain.
 
-| Text                                                                                                        | Style   |
-| ----------------------------------------------------------------------------------------------------------- | ------- |
-| section titles, table headers, problem headlines                                                            | bold    |
-| captions, table borders, `·`, `?`                                                                           | dim     |
-| the name of a skill that is not deployed, in the `Skills` grid                                              | dim     |
-| `ok`, `none ✓`                                                                                              | green   |
-| `link`, `link as <entry>`, fix commands                                                                     | cyan    |
-| `clone`, `present`                                                                                          | magenta |
-| every other `STATE`, `clone missing`, `clone ?`, `missing`, ` (not in store)` names, `!`, the problem count | yellow  |
+| Text                                                                                                                             | Style   |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| section titles, table headers, problem headlines                                                                                 | bold    |
+| captions, table borders, `·`, `?`                                                                                                | dim     |
+| the name of a skill that is not deployed, in the `Skills` grid                                                                   | dim     |
+| `ok`, `none ✓`                                                                                                                   | green   |
+| `link`, `link as <entry>`, fix commands                                                                                          | cyan    |
+| `clone`, `present`                                                                                                               | magenta |
+| every other `STATE`, `clone missing`, `clone ?`, `missing`, ` (not in store)` and ` (not a skill)` names, `!`, the problem count | yellow  |
 
 A cell has one style. A cell that joins several states is yellow when any of them is, and otherwise takes the style of its
 first. Paths, other names, and an entry's sentences are never styled.

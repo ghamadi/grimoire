@@ -211,6 +211,75 @@ describe('status', () => {
       ]);
     });
 
+    it('adds a not a skill row for a store entry a workspace links to', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'draft');
+      storeSkill(store, 'triage');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('link', 'draft', 'personal');
+      run('link', 'triage', 'personal');
+      rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
+
+      const { stdout, stderr } = run('status');
+
+      expect(stdout).toEqual([
+        'Workspaces  1 registered',
+        ...table(
+          ['NAME', 'MODE', 'STATE', 'PATH'],
+          [cells('personal', 'manual', 'ok', registeredPath(store, 'personal'))],
+        ),
+        '',
+        `Skills  1 in ${store.paths.skills}`,
+        ...table(['SKILL', 'personal'], [cells('draft (not a skill)', 'link'), cells('triage', 'link')]),
+        '',
+        'Problems  1',
+        '',
+        '  ! store entry draft is not a skill directory',
+        `    Move it out of the store, or add it to "ignore" in ${store.paths.state}.`,
+      ]);
+      expect(stderr).toEqual([]);
+    });
+
+    it('says not a skill for a linked name that is also cloned, and keeps not in store for a clone-only one', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'draft');
+      storeSkill(store, 'old');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('workspaces', 'add', 'work', await newDirectory('work'));
+      run('link', 'draft', 'personal');
+      run('clone', 'draft', 'work');
+      run('clone', 'old', 'work');
+      rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
+      rmSync(join(store.paths.skills, 'old', SKILL_MANIFEST));
+
+      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+        `Skills  0 in ${store.paths.skills}`,
+        ...table(
+          ['SKILL', 'personal', 'work'],
+          [cells('draft (not a skill)', 'link', 'clone'), cells('old (not in store)', '·', 'clone')],
+        ),
+      ]);
+    });
+
+    it('adds the row for a linked entry that ignore hides, with no problem', async () => {
+      const { run, store } = await newCli();
+
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      mkdirSync(store.paths.skills, { recursive: true });
+      writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
+      symlinkSync(join(store.paths.skills, '.DS_Store'), join(registeredPath(store, 'personal'), 'ds'));
+
+      const { stdout } = run('status');
+
+      expect(sectionLines(stdout, 'Skills')).toEqual([
+        `Skills  0 in ${store.paths.skills}`,
+        ...table(['SKILL', 'personal'], [cells('.DS_Store (not a skill)', 'link as ds')]),
+      ]);
+      expect(stdout.at(-1)).toBe('Problems  none ✓');
+    });
+
     it('leaves not deployed out of the caption when every skill is deployed', async () => {
       const { run, store } = await newCli();
 
@@ -749,6 +818,23 @@ describe('status', () => {
 
       expect(sectionLines(run('status').stdout, '<bold>Skills</bold>').slice(1)).toEqual(
         table(['SKILL', 'scratch'], [cells('deploy', styled('yellow', 'clone ?'))], taggingTextStyler),
+      );
+    });
+
+    it('yellows a not a skill name and keeps its link cyan', async () => {
+      const { run, store } = await newCli({ textStyler: taggingTextStyler });
+
+      storeSkill(store, 'draft');
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      run('link', 'draft', 'personal');
+      rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
+
+      expect(sectionLines(run('status').stdout, '<bold>Skills</bold>').slice(1)).toEqual(
+        table(
+          ['SKILL', 'personal'],
+          [cells(styled('yellow', 'draft (not a skill)'), styled('cyan', 'link'))],
+          taggingTextStyler,
+        ),
       );
     });
   });
