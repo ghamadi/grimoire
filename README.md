@@ -53,6 +53,8 @@ work      manual     /Users/me/.claude-work/skills
   linked   triage
 
 store     /Users/me/.grimoire/skills
+
+Problems  none ✓
 ```
 
 `skills add` copied each skill into `~/.grimoire/skills/` and replaced the original directory with a symlink to it. An edit

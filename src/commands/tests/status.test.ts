@@ -50,7 +50,7 @@ describe('status', () => {
       '',
       `scratch   manual     ${scratch}`,
       '  cloned   deploy',
-      `  problem  ${scratch} does not resolve — make it readable, or unregister it with \`grimoire workspaces remove scratch\``,
+      '  unreachable',
       '',
       `work      manual     ${work}`,
       '  linked   triage',
@@ -61,6 +61,13 @@ describe('status', () => {
       '',
       `store     ${store.paths.skills}`,
       '  not deployed  review',
+      '',
+      'Problems  1',
+      '',
+      '  ! workspace scratch is unreachable',
+      `    ${scratch} does not resolve.`,
+      '    Make it readable, or unregister it:',
+      '      grimoire workspaces remove scratch',
     ]);
     expect(stderr).toEqual([]);
   });
@@ -77,6 +84,8 @@ describe('status', () => {
       '',
       `store  ${store.paths.skills}`,
       '  not deployed  triage',
+      '',
+      'Problems  none ✓',
     ]);
     expect(stderr).toEqual([]);
   });
@@ -95,6 +104,8 @@ describe('status', () => {
       '',
       `store     ${store.paths.skills}`,
       '  not deployed  triage',
+      '',
+      'Problems  none ✓',
     ]);
     expect(stderr).toEqual([]);
   });
@@ -109,6 +120,8 @@ describe('status', () => {
       '',
       `store  ${store.paths.skills}`,
       '  no skills',
+      '',
+      'Problems  none ✓',
     ]);
     expect(stderr).toEqual([]);
   });
@@ -120,11 +133,15 @@ describe('status', () => {
     run('workspaces', 'add', 'personal', await newDirectory('personal'));
     run('link', 'triage', 'personal');
 
-    expect(run('status').stdout.at(-1)).toBe(`store     ${store.paths.skills}`);
+    expect(run('status').stdout.slice(-3)).toEqual([
+      `store     ${store.paths.skills}`,
+      '',
+      'Problems  none ✓',
+    ]);
   });
 
   describe('stray store entries', () => {
-    it('prints a non-skill entry in the store block, after not deployed', async () => {
+    it('prints a non-skill entry in the Problems section', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
@@ -137,12 +154,16 @@ describe('status', () => {
         '',
         `store  ${store.paths.skills}`,
         '  not deployed  triage',
-        `  problem  notes.txt is not a skill directory — move it out of the store, or add it to "ignore" in ${store.paths.state}`,
+        '',
+        'Problems  1',
+        '',
+        '  ! store entry notes.txt is not a skill directory',
+        `    Move it out of the store, or add it to "ignore" in ${store.paths.state}.`,
       ]);
       expect(stderr).toEqual([]);
     });
 
-    it('prints no skills, then the problem, for a store holding only a stray entry', async () => {
+    it('prints no skills in the store block of a store holding only a stray entry', async () => {
       const { run, store } = await newCli();
 
       mkdirSync(store.paths.skills, { recursive: true });
@@ -151,7 +172,11 @@ describe('status', () => {
       expect(run('status').stdout.slice(2)).toEqual([
         `store  ${store.paths.skills}`,
         '  no skills',
-        `  problem  notes.txt is not a skill directory — move it out of the store, or add it to "ignore" in ${store.paths.state}`,
+        '',
+        'Problems  1',
+        '',
+        '  ! store entry notes.txt is not a skill directory',
+        `    Move it out of the store, or add it to "ignore" in ${store.paths.state}.`,
       ]);
     });
 
@@ -161,12 +186,17 @@ describe('status', () => {
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
 
-      expect(run('status').stdout.slice(2)).toEqual([`store  ${store.paths.skills}`, '  no skills']);
+      expect(run('status').stdout.slice(2)).toEqual([
+        `store  ${store.paths.skills}`,
+        '  no skills',
+        '',
+        'Problems  none ✓',
+      ]);
     });
   });
 
   describe('clone record problems', () => {
-    it('prints the clone problems of a workspace block after cloned, with the workspace name as target', async () => {
+    it('prints the clone problems of a workspace with the workspace name as target', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
@@ -184,17 +214,30 @@ describe('status', () => {
       expect(stdout).toEqual([
         `personal  manual     ${personal}`,
         '  cloned   old',
-        '  problem  old is no longer in the store — forget the record with `grimoire unclone old personal`',
-        '  problem  the clone of gone is missing — forget it with `grimoire unclone gone personal`',
-        '  problem  the clone of triage is missing — copy it again with `grimoire clone triage personal`, or forget it with `grimoire unclone triage personal`',
         '',
         `store     ${store.paths.skills}`,
         '  not deployed  triage',
+        '',
+        'Problems  3',
+        '',
+        '  ! clone of old in workspace personal is no longer in the store',
+        '    Forget the record:',
+        '      grimoire unclone old personal',
+        '',
+        '  ! clone of gone in workspace personal is missing',
+        '    Forget the record:',
+        '      grimoire unclone gone personal',
+        '',
+        '  ! clone of triage in workspace personal is missing',
+        '    Copy it again:',
+        '      grimoire clone triage personal',
+        '    Or forget the record:',
+        '      grimoire unclone triage personal',
       ]);
       expect(stderr).toEqual([]);
     });
 
-    it('prints the clone problems of a recorded-path block with the path as target', async () => {
+    it('prints the clone problems of a recorded path with the path as location and target', async () => {
       const { run, store } = await newCli();
       const elsewhere = await newDirectory('elsewhere');
 
@@ -210,16 +253,24 @@ describe('status', () => {
         '',
         `${elsewhere}  recorded by path`,
         '  cloned   old',
-        `  problem  old is no longer in the store — forget the record with \`grimoire unclone old ${elsewhere}\``,
-        `  problem  the clone of deploy is missing — forget it with \`grimoire unclone deploy ${elsewhere}\``,
         '',
         `store  ${store.paths.skills}`,
         '  not deployed  deploy',
+        '',
+        'Problems  2',
+        '',
+        `  ! clone of old in ${elsewhere} is no longer in the store`,
+        '    Forget the record:',
+        `      grimoire unclone old ${elsewhere}`,
+        '',
+        `  ! clone of deploy in ${elsewhere} is missing`,
+        '    Forget the record:',
+        `      grimoire unclone deploy ${elsewhere}`,
       ]);
       expect(stderr).toEqual([]);
     });
 
-    it('prints a record naming an unregistered workspace in the store block, after not deployed', async () => {
+    it('prints a record naming an unregistered workspace in the Problems section', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
@@ -232,9 +283,35 @@ describe('status', () => {
         '',
         `store  ${store.paths.skills}`,
         '  not deployed  triage',
-        `  problem  a clone of triage is recorded under "ghost", which is not registered — remove it from ${store.paths.state}`,
+        '',
+        'Problems  1',
+        '',
+        '  ! clone of triage is recorded under "ghost", which is not a registered workspace',
+        `    Remove the record from ${store.paths.state}.`,
       ]);
       expect(stderr).toEqual([]);
+    });
+
+    it('orders problems by workspace, then recorded path, then store, and counts them in the title', async () => {
+      const { run, store } = await newCli();
+      const elsewhere = await newDirectory('elsewhere');
+
+      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      recordClone(store, 'gone', { workspace: 'personal' });
+      recordClone(store, 'deploy', { path: elsewhere });
+      recordClone(store, 'triage', { workspace: 'ghost' });
+      mkdirSync(store.paths.skills, { recursive: true });
+      writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
+
+      const { stdout } = run('status');
+
+      expect(stdout).toContain('Problems  4');
+      expect(stdout.filter((line) => line.startsWith('  ! '))).toEqual([
+        '  ! clone of gone in workspace personal is missing',
+        `  ! clone of deploy in ${elsewhere} is missing`,
+        '  ! clone of triage is recorded under "ghost", which is not a registered workspace',
+        '  ! store entry notes.txt is not a skill directory',
+      ]);
     });
 
     it('completes without throwing while problems are present', async () => {
@@ -254,11 +331,16 @@ describe('status', () => {
       mkdirSync(join(registeredPath(store, 'personal'), 'old'));
       recordClone(store, 'old', { workspace: 'personal' });
 
-      run(...printedRemedy(run('status').stdout, 'old is no longer in the store'));
+      run(
+        ...printedRemedy(
+          run('status').stdout,
+          'clone of old in workspace personal is no longer in the store',
+        ),
+      );
 
       const { stdout } = run('status');
 
-      expect(stdout.some((line) => line.includes('old is no longer in the store'))).toBe(false);
+      expect(stdout.some((line) => line.includes('is no longer in the store'))).toBe(false);
       expect(stdout.some((line) => line.includes('cloned'))).toBe(false);
     });
 
@@ -270,7 +352,7 @@ describe('status', () => {
       run('clone', 'triage', 'personal');
       rmSync(join(registeredPath(store, 'personal'), 'triage'), { recursive: true });
 
-      run(...printedRemedy(run('status').stdout, 'the clone of triage is missing'));
+      run(...printedRemedy(run('status').stdout, 'clone of triage in workspace personal is missing'));
 
       const { stdout } = run('status');
 
@@ -285,26 +367,41 @@ describe('status', () => {
       storeSkill(store, 'deploy');
       recordClone(store, 'deploy', { path: elsewhere });
 
-      run(...printedRemedy(run('status').stdout, 'the clone of deploy is missing'));
+      run(...printedRemedy(run('status').stdout, `clone of deploy in ${elsewhere} is missing`));
 
       expect(run('status').stdout.some((line) => line.includes('recorded by path'))).toBe(false);
     });
   });
 
   describe('workspace problems', () => {
+    it('prints unreachable, not nothing deployed, in the block of an unreachable workspace holding no clones', async () => {
+      const { run, store } = await newCli();
+
+      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+
+      const scratch = registeredPath(store, 'scratch');
+
+      rmSync(scratch, { recursive: true });
+
+      expect(run('status').stdout.slice(0, 2)).toEqual([
+        `scratch  manual     ${scratch}`,
+        '  unreachable',
+      ]);
+    });
+
     it('clears workspace-unreachable with the printed workspaces remove, and the block disappears', async () => {
       const { run, store } = await newCli();
 
       run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
       rmSync(registeredPath(store, 'scratch'), { recursive: true });
 
-      run(...printedRemedy(run('status').stdout, 'does not resolve'));
+      run(...printedRemedy(run('status').stdout, 'workspace scratch is unreachable'));
 
       expect(run('status').stdout.some((line) => line.startsWith('scratch'))).toBe(false);
     });
 
     describe.skipIf(runsAsRoot)('an unreadable workspace', () => {
-      it('prints its heading and the workspace-unreadable problem, and nothing on stderr', async () => {
+      it('prints unreadable in its block and the workspace-unreadable entry, and nothing on stderr', async () => {
         const { run, store } = await newCli();
 
         run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
@@ -315,10 +412,20 @@ describe('status', () => {
 
         const { stdout, stderr } = run('status');
 
-        expect(stdout).toContain(`scratch  manual     ${scratch}`);
-        expect(stdout).toContain(
-          `  problem  ${scratch} cannot be read — make it readable, or unregister it anyway with \`grimoire workspaces remove scratch --force\``,
-        );
+        expect(stdout).toEqual([
+          `scratch  manual     ${scratch}`,
+          '  unreadable',
+          '',
+          `store    ${store.paths.skills}`,
+          '  no skills',
+          '',
+          'Problems  1',
+          '',
+          '  ! workspace scratch is unreadable',
+          `    ${scratch} cannot be read.`,
+          '    Make it readable, or unregister it anyway:',
+          '      grimoire workspaces remove scratch --force',
+        ]);
         expect(stderr).toEqual([]);
       });
 
@@ -328,7 +435,7 @@ describe('status', () => {
         run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
         lockDirectory({ path: registeredPath(store, 'scratch') });
 
-        run(...printedRemedy(run('status').stdout, 'cannot be read'));
+        run(...printedRemedy(run('status').stdout, 'workspace scratch is unreadable'));
 
         expect(run('status').stdout.some((line) => line.startsWith('scratch'))).toBe(false);
       });
@@ -336,7 +443,7 @@ describe('status', () => {
   });
 
   describe('dangling links', () => {
-    it('prints the problem in the workspace block after linked', async () => {
+    it('prints the problem in the Problems section, not in the workspace block', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'brainstorm');
@@ -351,14 +458,19 @@ describe('status', () => {
       expect(stdout).toEqual([
         `personal  manual     ${registeredPath(store, 'personal')}`,
         '  linked   brainstorm',
-        '  problem  triage is a link into the store that resolves nowhere — delete it yourself',
         '',
         `store     ${store.paths.skills}`,
+        '',
+        'Problems  1',
+        '',
+        '  ! link triage in workspace personal resolves nowhere',
+        '    It points into the store, at a skill that is not there.',
+        '    Delete the link yourself.',
       ]);
       expect(stderr).toEqual([]);
     });
 
-    it('does not say nothing is deployed when a dangling link is all the workspace holds', async () => {
+    it('says nothing is deployed when a dangling link is all the workspace holds', async () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
@@ -368,17 +480,15 @@ describe('status', () => {
 
       const { stdout } = run('status');
 
-      expect(stdout).toContain(
-        '  problem  triage is a link into the store that resolves nowhere — delete it yourself',
-      );
-      expect(stdout).not.toContain('  nothing deployed');
+      expect(stdout).toContain('  nothing deployed');
+      expect(stdout).toContain('  ! link triage in workspace personal resolves nowhere');
     });
   });
 
   describe('status colors', () => {
     const taggingTextStyler: TextStyler = (style, text) => `<${style}>${text}</${style}>`;
 
-    it('styles labels and block names, never content', async () => {
+    it('styles labels, block names, problem headlines and fix commands, never sentences', async () => {
       const { store, paths } = await newColorFixture();
       const { run } = await newCli({ store, textStyler: taggingTextStyler });
 
@@ -388,14 +498,20 @@ describe('status', () => {
         '  <cyan>cloned</cyan>   deploy',
         '',
         `<bold>scratch</bold>   <dim>manual</dim>     <dim>${paths.scratch}</dim>`,
-        '  <yellow>problem</yellow>  ' +
-          `${paths.scratch} does not resolve — make it readable, or unregister it with \`grimoire workspaces remove scratch\``,
+        '  <dim>unreachable</dim>',
         '',
         `<bold>${paths.gone}</bold>  <dim>recorded by path</dim>`,
         '  <cyan>cloned</cyan>   notes',
         '',
         `<bold>store</bold>     <dim>${store.paths.skills}</dim>`,
         '  <dim>not deployed</dim>  review',
+        '',
+        '<bold>Problems</bold>  <yellow>1</yellow>',
+        '',
+        '  <yellow>!</yellow> <bold>workspace scratch is unreachable</bold>',
+        `    ${paths.scratch} does not resolve.`,
+        '    Make it readable, or unregister it:',
+        '      <cyan>grimoire workspaces remove scratch</cyan>',
       ]);
     });
 
@@ -403,9 +519,15 @@ describe('status', () => {
       const { store } = await newColorFixture();
       const styled = await newCli({ store, textStyler: taggingTextStyler });
       const plain = await newCli({ store, textStyler: plainTextStyler });
-      const untag = (line: string) => line.replace(/<\/?(bold|dim|cyan|yellow)>/g, '');
+      const untag = (line: string) => line.replace(/<\/?(bold|dim|cyan|yellow|green)>/g, '');
 
       expect(styled.run('status').stdout.map(untag)).toEqual(plain.run('status').stdout);
+    });
+
+    it('greens none ✓ when there are no problems', async () => {
+      const { run } = await newCli({ textStyler: taggingTextStyler });
+
+      expect(run('status').stdout.at(-1)).toBe('<bold>Problems</bold>  <green>none ✓</green>');
     });
 
     it('dims nothing deployed', async () => {
@@ -581,13 +703,22 @@ function readState(store: GrimoireStore): {
   return JSON.parse(readFileSync(store.paths.state, 'utf8')) as ReturnType<typeof readState>;
 }
 
-/** The first `grimoire …` command the problem line containing `fragment` prints, as argv without the program name. */
+/**
+ * The first `grimoire …` command line of the problem entry whose line contains `fragment`,
+ * as argv without the program name.
+ */
 function printedRemedy(stdout: string[], fragment: string): string[] {
-  const line = stdout.find((candidate) => candidate.includes(fragment));
-  const command = line?.match(/`grimoire ([^`]+)`/)?.[1];
+  const fragmentIndex = stdout.findIndex((candidate) => candidate.includes(fragment));
+  const linesAfterFragment = fragmentIndex === -1 ? [] : stdout.slice(fragmentIndex + 1);
+  const entryEndIndex = linesAfterFragment.indexOf('');
+  const entryLines =
+    entryEndIndex === -1 ? linesAfterFragment : linesAfterFragment.slice(0, entryEndIndex);
+  const command = entryLines
+    .map((line) => /^ {6}grimoire (.+)$/.exec(line)?.[1])
+    .find((match) => match !== undefined);
 
   if (command === undefined) {
-    throw new Error(`no printed remedy on a line containing "${fragment}"`);
+    throw new Error(`no printed remedy after a line containing "${fragment}"`);
   }
 
   return command.split(' ');

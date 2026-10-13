@@ -1,7 +1,7 @@
 # `status`
 
-`status` is a read-only inventory of every deployment, grouped by where it lives. Each problem is flagged in the block it
-concerns, together with the command that fixes it.
+`status` is a read-only inventory of every deployment, grouped by where it lives. Problems print in their own section, last,
+each with its fix.
 
 ```shell
 grimoire status
@@ -15,33 +15,62 @@ It takes no arguments and no flags.
 $ grimoire status
 personal  auto-link  /Users/me/.claude/skills
   linked   brainstorm, deploy, triage (entry "tri")
-  problem  gone is a link into the store that resolves nowhere — delete it yourself
+
+scratch   manual     /Volumes/ext/skills
+  cloned   deploy
+  unreachable
 
 work      manual     /Users/me/work/.agents/skills
   linked   triage
   cloned   deploy, old
-  problem  old is no longer in the store — forget the record with `grimoire unclone old work`
-  problem  the clone of lint is missing — copy it again with `grimoire clone lint work`, or forget it with `grimoire unclone lint work`
-
-scratch   manual     /Volumes/ext/skills
-  cloned   deploy
-  problem  /Volumes/ext/skills does not resolve — make it readable, or unregister it with `grimoire workspaces remove scratch`
 
 /Users/me/old/skills  recorded by path
   cloned   notes
 
 store     /Users/me/.grimoire/skills
   not deployed  review
-  problem  notes.txt is not a skill directory — move it out of the store, or add it to "ignore" in /Users/me/.grimoire/state.json
-  problem  a clone of triage is recorded under "ghost", which is not registered — remove it from /Users/me/.grimoire/state.json
+
+Problems  6
+
+  ! link gone in workspace personal resolves nowhere
+    It points into the store, at a skill that is not there.
+    Delete the link yourself.
+
+  ! workspace scratch is unreachable
+    /Volumes/ext/skills does not resolve.
+    Make it readable, or unregister it:
+      grimoire workspaces remove scratch
+
+  ! clone of old in workspace work is no longer in the store
+    Forget the record:
+      grimoire unclone old work
+
+  ! clone of lint in workspace work is missing
+    Copy it again:
+      grimoire clone lint work
+    Or forget the record:
+      grimoire unclone lint work
+
+  ! clone of triage is recorded under "ghost", which is not a registered workspace
+    Remove the record from /Users/me/.grimoire/state.json.
+
+  ! store entry notes.txt is not a skill directory
+    Move it out of the store, or add it to "ignore" in /Users/me/.grimoire/state.json.
 ```
 
 - Blocks are separated by one blank line.
 - The name column is padded to the widest workspace name, or to `store` if that is wider. The mode column is padded to
   `auto-link`.
-- Lines inside a block are indented two spaces and print in order: `linked`, `cloned`, `not deployed`, then problems.
+- Lines inside a block are indented two spaces and print in order: `linked`, `cloned`, `not deployed`.
 - Lists are comma-separated on one line.
-- A problem is one line and is never hard-wrapped.
+- The block of an unreachable or unreadable workspace ends with one line saying which: `unreachable` or `unreadable`.
+- No problem prints inside a block. The `Problems` section follows the store block after one blank line. Its title line is
+  `Problems`, two spaces, and the number of problems.
+- Each problem is an entry. One blank line follows the title, and one separates entries.
+- An entry starts with ` !` and a headline naming the kind of entity and its name. Its other lines are indented four spaces.
+- A fix that is a command prints alone on its line, exactly as it would be typed, indented six spaces. A fix that is not a
+  command is a sentence.
+- No line of an entry is wrapped by grimoire.
 
 ## Blocks
 
@@ -69,8 +98,8 @@ unverified. The problem is `workspace-unreadable`.
 
 ### Recorded-path blocks
 
-The heading line is `<path>  recorded by path`. These blocks hold clones and clone problems only. They are never scanned for
-links, because grimoire tracks links only in registered workspaces.
+The heading line is `<path>  recorded by path`. These blocks hold clones only. They are never scanned for links, because
+grimoire tracks links only in registered workspaces.
 
 A recorded path that no longer resolves or cannot be read earns no block-level problem. Each of its clones reads as
 `clone-missing`, whose remedy is an [`unclone`](./unclone.md) naming that path.
@@ -81,7 +110,7 @@ The heading line is `store  <skills path>`. `not deployed` lists the store skill
 no clone listed in any block.
 
 It is computed only from what could be read, so a skill linked only into an unreachable or unreadable workspace reads as not
-deployed. The `workspace-unreachable` or `workspace-unreadable` problem printed above it is the caveat.
+deployed. That workspace's `unreachable` or `unreadable` line, and its entry in `Problems`, are the caveat.
 
 ### A clone belongs to its directory
 
@@ -107,22 +136,65 @@ shows only as a problem.
 | `clone-unregistered-workspace` | a `{ workspace }` clone record names a workspace that is not registered                              | store                    |
 | `stray-entry`                  | an entry in the store's `skills/` directory is not a skill directory and matches no glob in `ignore` | store                    |
 
-The text after `problem  ` is one of the following. `<target>` is the workspace name in a workspace block, and the path in a
-recorded-path block.
+Each problem prints as an entry in the `Problems` section, in the order the blocks print: each workspace's, then each
+recorded path's, then the store's.
 
 ```
-workspace-unreachable         <path> does not resolve — make it readable, or unregister it with `grimoire workspaces remove <name>`
-workspace-unreadable          <path> cannot be read — make it readable, or unregister it anyway with `grimoire workspaces remove <name> --force`
-dangling-link                 <entry> is a link into the store that resolves nowhere — delete it yourself
-clone-not-in-store            <skill> is no longer in the store — forget the record with `grimoire unclone <skill> <target>`
-clone-missing (recloneable)   the clone of <skill> is missing — copy it again with `grimoire clone <skill> <name>`, or forget it with `grimoire unclone <skill> <name>`
-clone-missing                 the clone of <skill> is missing — forget it with `grimoire unclone <skill> <target>`
-clone-unregistered-workspace  a clone of <skill> is recorded under "<workspace>", which is not registered — remove it from <statePath>
-stray-entry                   <entry> is not a skill directory — move it out of the store, or add it to "ignore" in <statePath>
+  ! <headline>
+    <sentence>
+    <sentence that introduces a command>:
+      grimoire <command>
 ```
 
-The recloneable form of `clone-missing` appears only in a workspace block, for a skill still in the store. A recorded-path
-block has no workspace name to `clone` into, and a skill gone from the store has nothing to copy.
+`<location>` is `workspace <name>` for a workspace and the directory for a recorded path. `<target>` is the workspace name,
+or the directory for a recorded path.
+
+```
+workspace-unreachable
+  ! workspace <name> is unreachable
+    <path> does not resolve.
+    Make it readable, or unregister it:
+      grimoire workspaces remove <name>
+
+workspace-unreadable
+  ! workspace <name> is unreadable
+    <path> cannot be read.
+    Make it readable, or unregister it anyway:
+      grimoire workspaces remove <name> --force
+
+dangling-link
+  ! link <entry> in workspace <name> resolves nowhere
+    It points into the store, at a skill that is not there.
+    Delete the link yourself.
+
+clone-not-in-store
+  ! clone of <skill> in <location> is no longer in the store
+    Forget the record:
+      grimoire unclone <skill> <target>
+
+clone-missing (recloneable)
+  ! clone of <skill> in workspace <name> is missing
+    Copy it again:
+      grimoire clone <skill> <name>
+    Or forget the record:
+      grimoire unclone <skill> <name>
+
+clone-missing
+  ! clone of <skill> in <location> is missing
+    Forget the record:
+      grimoire unclone <skill> <target>
+
+clone-unregistered-workspace
+  ! clone of <skill> is recorded under "<workspace>", which is not a registered workspace
+    Remove the record from <state path>.
+
+stray-entry
+  ! store entry <entry> is not a skill directory
+    Move it out of the store, or add it to "ignore" in <state path>.
+```
+
+The recloneable form of `clone-missing` appears only for a workspace, for a skill still in the store. A recorded path has no
+workspace name to `clone` into, and a skill gone from the store has nothing to copy.
 
 ### `clone-missing` wins over `clone-not-in-store`
 
@@ -150,9 +222,9 @@ There is no exemption for dot-entries. A version-controlled store's `.git` print
 
 ### Remedies and `doctor`
 
-Every problem names its fix: a command where one exists, and otherwise the manual step. Three are manual today: dangling
-links, stray entries, and records naming an unregistered workspace. [`unclone`](./unclone.md) cannot reach the last one,
-because an unregistered name refuses.
+Every entry names its fix: a command alone on its line where one exists, and otherwise a sentence giving the manual step.
+Three are manual today: dangling links, stray entries, and records naming an unregistered workspace.
+[`unclone`](./unclone.md) cannot reach the last one, because an unregistered name refuses.
 
 The planned `doctor` command is where these get repaired.
 
@@ -160,18 +232,22 @@ The planned `doctor` command is where these get repaired.
 
 - No workspace registered: the line `No workspaces registered.` replaces the workspace blocks. Recorded-path blocks and the
   store block still follow.
-- A reachable workspace with no links, no clones, and no problems prints `  nothing deployed`.
-- An empty store's block has `  no skills` as its only content line, followed by any problems.
+- A reachable workspace with no links and no clones prints `  nothing deployed`.
+- An unreachable or unreadable workspace's block prints its `unreachable` or `unreadable` line, never `nothing deployed`.
+- An empty store's block has `  no skills` as its only content line.
+- With no problems, the `Problems` section is the one line `Problems  none ✓`.
 
 ## Colors
 
 On a color-capable stdout only. Piped output, or `NO_COLOR` set, prints plain.
 
 - Block names are bold. The mode, the heading path, and `recorded by path` are dim.
-- The `linked` and `cloned` labels are cyan, and the `problem` label is yellow.
-- `not deployed`, `nothing deployed`, and `no skills` are dim.
+- The `linked` and `cloned` labels are cyan.
+- `not deployed`, `nothing deployed`, `no skills`, and the `unreachable` or `unreadable` line are dim.
+- The `Problems` title is bold. The count is yellow, and `none ✓` is green.
+- In an entry, `!` is yellow, the headline is bold, and a fix command is cyan.
 
-Content text is never styled.
+Content text and an entry's sentences are never styled.
 
 ## Exit code and refusals
 

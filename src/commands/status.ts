@@ -1,14 +1,13 @@
 import { Command } from 'commander';
+import { formatProblemsSection } from '@/commands/status/problems-section';
 import type { TextStyle, TextStyler } from '@/lib/text-styler';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { assertUnreachable } from '@/lib/utils';
 import {
   createReportStatusUseCase,
   type DeploymentProblem,
   type LinkedSkill,
   type RecordedPathStatus,
   type StatusReport,
-  type StoreProblem,
   type StoreStatus,
   type WorkspaceStatus,
 } from '@/use-cases/report-status-use-case/factory';
@@ -39,7 +38,12 @@ export function statusCommand(params: StatusCommandParams): Command {
 const STORE_LABEL = 'store';
 const AUTO_LINK_LABEL = 'auto-link';
 const MANUAL_LABEL = 'manual';
-const PROBLEM_LABEL = 'problem';
+const CONTENT_LABEL_WIDTH = 7;
+
+const WORKSPACE_STATE_BY_PROBLEM_KIND: Partial<Record<DeploymentProblem['kind'], string>> = {
+  'workspace-unreachable': 'unreachable',
+  'workspace-unreadable': 'unreadable',
+};
 
 function formatStatus(params: { report: StatusReport; textStyler: TextStyler }): string[] {
   const { report, textStyler } = params;
@@ -60,7 +64,11 @@ function formatStatus(params: { report: StatusReport; textStyler: TextStyler }):
     formatStoreBlock({ storeStatus: report.storeStatus, nameWidth, textStyler }),
   ];
 
-  return formattedBlocks.flatMap((block, index) => (index === 0 ? block : ['', ...block]));
+  return [
+    ...formattedBlocks.flatMap((block, index) => (index === 0 ? block : ['', ...block])),
+    '',
+    ...formatProblemsSection({ report, textStyler }),
+  ];
 }
 
 function formatWorkspaceStatusBlock(params: {
@@ -86,14 +94,11 @@ function formatWorkspaceStatusBlock(params: {
     ...(cloned.length > 0
       ? [formatContentLine({ label: 'cloned', labelStyle: 'cyan', text: cloned.join(', '), textStyler })]
       : []),
-    ...problems.map((problem) =>
-      formatContentLine({
-        label: PROBLEM_LABEL,
-        labelStyle: 'yellow',
-        text: describeDeploymentProblem(problem, { target: name, path }),
-        textStyler,
-      }),
-    ),
+    ...problems.flatMap(({ kind }) => {
+      const state = WORKSPACE_STATE_BY_PROBLEM_KIND[kind];
+
+      return state === undefined ? [] : [`  ${textStyler('dim', state)}`];
+    }),
   ];
 
   return [
@@ -111,21 +116,13 @@ function formatRecordedPathBlock(params: {
   textStyler: TextStyler;
 }): string[] {
   const { recordedPathStatus, textStyler } = params;
-  const { path, cloned, problems } = recordedPathStatus;
+  const { path, cloned } = recordedPathStatus;
 
   return [
     `${textStyler('bold', path)}  ${textStyler('dim', 'recorded by path')}`,
     ...(cloned.length > 0
       ? [formatContentLine({ label: 'cloned', labelStyle: 'cyan', text: cloned.join(', '), textStyler })]
       : []),
-    ...problems.map((problem) =>
-      formatContentLine({
-        label: PROBLEM_LABEL,
-        labelStyle: 'yellow',
-        text: describeDeploymentProblem(problem, { target: path, path }),
-        textStyler,
-      }),
-    ),
   ];
 }
 
@@ -149,18 +146,9 @@ function formatStoreBlock(params: {
           }),
         ]
       : []),
-    ...storeStatus.problems.map((problem) =>
-      formatContentLine({
-        label: PROBLEM_LABEL,
-        labelStyle: 'yellow',
-        text: describeStoreProblem(problem, { statePath: storeStatus.statePath }),
-        textStyler,
-      }),
-    ),
   ];
 }
 
-/** Labels are padded to `problem`, the longest of the short ones; `not deployed` overruns it. */
 function formatContentLine(params: {
   label: string;
   labelStyle: TextStyle;
@@ -170,7 +158,7 @@ function formatContentLine(params: {
   const { label, labelStyle, text, textStyler } = params;
   const paddedLabel = formatPaddedStyledToken({
     token: label,
-    width: PROBLEM_LABEL.length,
+    width: CONTENT_LABEL_WIDTH,
     style: labelStyle,
     textStyler,
   });
@@ -191,48 +179,4 @@ function formatPaddedStyledToken(params: {
 
 function describeLinked({ skill, entry }: LinkedSkill): string {
   return skill === entry ? skill : `${skill} (entry "${entry}")`;
-}
-
-/** `target` is what the remedy command takes: the workspace name, or the path in a recorded-path block. */
-function describeDeploymentProblem(
-  problem: DeploymentProblem,
-  where: { target: string; path: string },
-): string {
-  switch (problem.kind) {
-    case 'workspace-unreachable':
-      return `${where.path} does not resolve — make it readable, or unregister it with \`grimoire workspaces remove ${where.target}\``;
-
-    case 'workspace-unreadable':
-      return `${where.path} cannot be read — make it readable, or unregister it anyway with \`grimoire workspaces remove ${where.target} --force\``;
-
-    case 'dangling-link':
-      return `${problem.entry} is a link into the store that resolves nowhere — delete it yourself`;
-
-    case 'clone-not-in-store':
-      return `${problem.skill} is no longer in the store — forget the record with \`grimoire unclone ${problem.skill} ${where.target}\``;
-
-    case 'clone-missing': {
-      const forget = `forget it with \`grimoire unclone ${problem.skill} ${where.target}\``;
-
-      return problem.recloneable
-        ? `the clone of ${problem.skill} is missing — copy it again with \`grimoire clone ${problem.skill} ${where.target}\`, or ${forget}`
-        : `the clone of ${problem.skill} is missing — ${forget}`;
-    }
-
-    default:
-      return assertUnreachable(problem);
-  }
-}
-
-function describeStoreProblem(problem: StoreProblem, where: { statePath: string }): string {
-  switch (problem.kind) {
-    case 'clone-unregistered-workspace':
-      return `a clone of ${problem.skill} is recorded under "${problem.workspace}", which is not registered — remove it from ${where.statePath}`;
-
-    case 'stray-entry':
-      return `${problem.entry} is not a skill directory — move it out of the store, or add it to "ignore" in ${where.statePath}`;
-
-    default:
-      return assertUnreachable(problem);
-  }
 }
