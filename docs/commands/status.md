@@ -158,6 +158,47 @@ A clone record's identity is the directory it resolves to, compared canonically 
 
 A skill shows once per directory, however many records name it there.
 
+## Width
+
+On a terminal, each table is fitted to the terminal's width. Piped output is never fitted.
+
+| Table                     | When it is too wide                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| Workspaces                | the `PATH` cell wraps inside its column                                               |
+| Clones outside workspaces | the `DIRECTORY` cell wraps the same way                                               |
+| Skills                    | the workspace columns are dealt into stacked grids, each repeating the `SKILL` column |
+
+A wrapped path breaks after a `/`. The row's other cells are blank on its extra lines.
+
+```
+┌──────┬────────┬───────┬────────────────────────────┐
+│ NAME │ MODE   │ STATE │ PATH                       │
+├──────┼────────┼───────┼────────────────────────────┤
+│ app  │ manual │ ok    │ /Users/me/projects/my-app/ │
+│      │        │       │ .claude/skills             │
+└──────┴────────┴───────┴────────────────────────────┘
+```
+
+The workspace columns keep their order across the stacked grids, which have no line between them.
+
+```
+┌─────────┬──────────┬───────┐
+│ SKILL   │ personal │ work  │
+├─────────┼──────────┼───────┤
+│ archify │ link     │ clone │
+└─────────┴──────────┴───────┘
+┌─────────┬───────┬────────┐
+│ SKILL   │ codex │ gemini │
+├─────────┼───────┼────────┤
+│ archify │ link  │ link   │
+└─────────┴───────┴────────┘
+```
+
+Title lines and problem entries are never fitted.
+
+Two things still print whole and overflow the terminal: a path segment longer than its column, on that one line, and a grid
+whose skill name and one workspace column are together wider than the terminal.
+
 ## Problems
 
 | Problem                        | Reported when                                                                                        | Block                    |

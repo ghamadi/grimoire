@@ -8,6 +8,8 @@ import type {
   StoreStatus,
 } from '@/use-cases/report-status-use-case/factory';
 
+const OUTSIDE_CLONE_HEADERS = ['SKILL', 'STATE', 'DIRECTORY'];
+
 /**
  * The `Clones outside workspaces` section of `grimoire status`: a title line, then one row
  * per clone recorded by path. No lines when there is no such clone.
@@ -15,8 +17,9 @@ import type {
 export function formatOutsideClonesSection(params: {
   report: StatusReport;
   textStyler: TextStyler;
+  maxWidth?: number;
 }): string[] {
-  const { report, textStyler } = params;
+  const { report, textStyler, maxWidth } = params;
   const { recordedPathStatuses, storeStatus } = report;
 
   const rows = recordedPathStatuses.flatMap((recordedPathStatus) =>
@@ -34,7 +37,13 @@ export function formatOutsideClonesSection(params: {
       captionStyle: 'dim',
       textStyler,
     }),
-    ...formatTable({ headers: ['SKILL', 'STATE', 'DIRECTORY'], rows, textStyler }),
+    ...formatTable({
+      headers: OUTSIDE_CLONE_HEADERS,
+      rows,
+      textStyler,
+      maxWidth,
+      overflow: { kind: 'wrap-column', columnIndex: OUTSIDE_CLONE_HEADERS.indexOf('DIRECTORY') },
+    }),
   ];
 }
 

@@ -13,8 +13,12 @@ import type {
 } from '@/use-cases/report-status-use-case/factory';
 
 /** The `Skills` section of `grimoire status`: a title line, then one row per skill and one column per workspace. */
-export function formatSkillsSection(params: { report: StatusReport; textStyler: TextStyler }): string[] {
-  const { report, textStyler } = params;
+export function formatSkillsSection(params: {
+  report: StatusReport;
+  textStyler: TextStyler;
+  maxWidth?: number;
+}): string[] {
+  const { report, textStyler, maxWidth } = params;
   const { workspaceStatuses, storeStatus } = report;
   const { skills, notDeployed } = storeStatus;
   const skillCount = `${skills.length} in ${storeStatus.path}`;
@@ -41,6 +45,8 @@ export function formatSkillsSection(params: { report: StatusReport; textStyler: 
         ...workspaceStatuses.map((workspaceStatus) => getWorkspaceCell({ skill, workspaceStatus })),
       ]),
       textStyler,
+      maxWidth,
+      overflow: { kind: 'split-columns', frozenColumnCount: 1 },
     }),
   ];
 }

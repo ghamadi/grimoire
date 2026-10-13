@@ -4,12 +4,15 @@ import type { TextStyler } from '@/lib/text-styler';
 import { formatTable, type TableCell } from '@/lib/text-table';
 import type { StatusReport, WorkspaceStatus } from '@/use-cases/report-status-use-case/factory';
 
+const WORKSPACE_HEADERS = ['NAME', 'MODE', 'STATE', 'PATH'];
+
 /** The `Workspaces` section of `grimoire status`: a title line, then one row per registered workspace. */
 export function formatWorkspacesSection(params: {
   report: StatusReport;
   textStyler: TextStyler;
+  maxWidth?: number;
 }): string[] {
-  const { report, textStyler } = params;
+  const { report, textStyler, maxWidth } = params;
   const { workspaceStatuses } = report;
 
   const title = formatSectionTitle({
@@ -27,7 +30,7 @@ export function formatWorkspacesSection(params: {
   return [
     title,
     ...formatTable({
-      headers: ['NAME', 'MODE', 'STATE', 'PATH'],
+      headers: WORKSPACE_HEADERS,
       rows: workspaceStatuses.map((workspaceStatus): TableCell[] => [
         { text: workspaceStatus.name },
         { text: workspaceStatus.autoLink ? 'auto-link' : 'manual' },
@@ -35,6 +38,8 @@ export function formatWorkspacesSection(params: {
         { text: workspaceStatus.path },
       ]),
       textStyler,
+      maxWidth,
+      overflow: { kind: 'wrap-column', columnIndex: WORKSPACE_HEADERS.indexOf('PATH') },
     }),
   ];
 }

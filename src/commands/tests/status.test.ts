@@ -753,6 +753,67 @@ describe('status', () => {
     });
   });
 
+  describe('status width', () => {
+    it('wraps the path cell so the Workspaces and Clones outside workspaces tables fit the width', async () => {
+      const { runStatus, paths } = await newWidthFixture();
+      const unfittedStdout = runStatus(undefined);
+      const unfittedWorkspacesTable = sectionLines(unfittedStdout, 'Workspaces').slice(1);
+      const unfittedOutsideClonesTable = sectionLines(unfittedStdout, 'Clones outside workspaces').slice(
+        1,
+      );
+      const width = (unfittedWorkspacesTable[0]?.length ?? 0) - 3;
+
+      const stdout = runStatus(width);
+      const workspacesTable = sectionLines(stdout, 'Workspaces').slice(1);
+      const outsideClonesTable = sectionLines(stdout, 'Clones outside workspaces').slice(1);
+
+      expect(workspacesTable.length).toBeGreaterThan(unfittedWorkspacesTable.length);
+      expect(outsideClonesTable.length).toBeGreaterThan(unfittedOutsideClonesTable.length);
+      expect([...workspacesTable, ...outsideClonesTable].filter((line) => line.length > width)).toEqual(
+        [],
+      );
+      expect(lastColumnTexts(workspacesTable)).toEqual([paths.personal, paths.work]);
+      expect(lastColumnTexts(outsideClonesTable)).toEqual([paths.outside]);
+    });
+
+    it('stacks the Skills grid into tables that each repeat the SKILL column', async () => {
+      const { runStatus } = await newWidthFixture();
+      const unfittedSkillsTable = sectionLines(runStatus(undefined), 'Skills').slice(1);
+      const width = (unfittedSkillsTable[0]?.length ?? 0) - 1;
+
+      const skillsTable = sectionLines(runStatus(width), 'Skills').slice(1);
+      const headerRows = skillsTable.filter((_, index) => skillsTable[index - 1]?.startsWith('┌'));
+
+      expect(headerRows).toEqual([
+        expect.stringMatching(/^│ SKILL +│ personal +│$/),
+        expect.stringMatching(/^│ SKILL +│ work +│$/),
+      ]);
+      expect(skillsTable.filter((line) => line.length > width)).toEqual([]);
+    });
+
+    it('prints a problem line wider than the width whole', async () => {
+      const { runStatus } = await newWidthFixture();
+      const headline =
+        '  ! clone of triage is recorded under "ghost", which is not a registered workspace';
+
+      expect(runStatus(headline.length - 20)).toContain(headline);
+    });
+
+    it('reads the terminal width once per run', async () => {
+      const { runStatus, getTerminalWidth } = await newWidthFixture();
+
+      runStatus(80);
+
+      expect(getTerminalWidth).toHaveBeenCalledTimes(1);
+    });
+
+    it('prints what an unbounded width prints when every table fits', async () => {
+      const { runStatus } = await newWidthFixture();
+
+      expect(runStatus(10_000)).toEqual(runStatus(undefined));
+    });
+  });
+
   it('refuses an argument', async () => {
     const { run } = await newCli();
 
@@ -798,7 +859,13 @@ function sectionLines(stdout: string[], title: string): string[] {
 
 async function newCli(options: ProgramDependencies & { store?: GrimoireStore } = {}) {
   const { store = new GrimoireStore(await tempRoot()), ...dependencies } = options;
-  const program = silence(buildProgram(store, { textStyler: plainTextStyler, ...dependencies }));
+  const program = silence(
+    buildProgram(store, {
+      textStyler: plainTextStyler,
+      getTerminalWidth: () => undefined,
+      ...dependencies,
+    }),
+  );
 
   function run(...argv: string[]) {
     const stdout: string[] = [];
@@ -855,6 +922,63 @@ async function newColorFixture() {
   rmSync(paths.scratch, { recursive: true });
 
   return { store, paths };
+}
+
+/**
+ * Two workspaces at nested paths, a clone outside them in a directory nested deeper so that its
+ * table is the wider one, and a problem. `runStatus` prints `status` at the given terminal width.
+ */
+async function newWidthFixture() {
+  let terminalWidth: number | undefined;
+  const getTerminalWidth = vi.fn(() => terminalWidth);
+  const { run, store } = await newCli({ getTerminalWidth });
+  const outside = await newDirectory('a/b/c/d/e/f/g/h/i/j/outside');
+
+  for (const skill of ['brainstorm', 'deploy', 'notes', 'triage']) {
+    storeSkill(store, skill);
+  }
+
+  run('workspaces', 'add', 'personal', await newDirectory('a/b/c/d/personal'));
+  run('workspaces', 'add', 'work', await newDirectory('a/b/c/d/work'));
+  run('link', 'brainstorm', 'personal');
+  run('link', 'triage', 'personal');
+  run('link', 'triage', 'work');
+  run('clone', 'deploy', 'personal');
+  run('clone', 'deploy', 'work');
+  mkdirSync(join(outside, 'notes'));
+  recordClone(store, 'notes', { path: outside });
+  recordClone(store, 'triage', { workspace: 'ghost' });
+
+  function runStatus(width: number | undefined): string[] {
+    terminalWidth = width;
+
+    return run('status').stdout;
+  }
+
+  return {
+    runStatus,
+    getTerminalWidth,
+    paths: {
+      personal: registeredPath(store, 'personal'),
+      work: registeredPath(store, 'work'),
+      outside,
+    },
+  };
+}
+
+/** The last column's text for each row of a printed table, a wrapped cell rejoined from its lines. */
+function lastColumnTexts(tableLines: string[]): string[] {
+  return tableLines.slice(3, -1).reduce<string[]>((texts, line) => {
+    const cellTexts = line
+      .split('│')
+      .slice(1, -1)
+      .map((cellText) => cellText.trim());
+    const lastCellText = cellTexts.at(-1) ?? '';
+
+    return cellTexts[0] === ''
+      ? [...texts.slice(0, -1), `${texts.at(-1) ?? ''}${lastCellText}`]
+      : [...texts, lastCellText];
+  }, []);
 }
 
 /**

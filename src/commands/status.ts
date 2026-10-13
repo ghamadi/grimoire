@@ -13,17 +13,20 @@ import {
 export type StatusCommandParams = {
   storeManager: GrimoireStoreManager;
   textStyler: TextStyler;
+  getTerminalWidth: () => number | undefined;
 };
 
 /** `grimoire status`: every deployment, as tables. Prints problems, never fails on them. */
 export function statusCommand(params: StatusCommandParams): Command {
-  const { storeManager, textStyler } = params;
+  const { storeManager, textStyler, getTerminalWidth } = params;
   const reportStatus = createReportStatusUseCase({ storeManager });
 
   return new Command('status')
     .description('Show where skills are deployed, and what has gone stale')
     .action(() => {
-      for (const line of formatStatus({ report: reportStatus(), textStyler })) {
+      const maxWidth = getTerminalWidth();
+
+      for (const line of formatStatus({ report: reportStatus(), textStyler, maxWidth })) {
         console.log(line);
       }
     });
@@ -33,12 +36,18 @@ export function statusCommand(params: StatusCommandParams): Command {
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
 
-function formatStatus(params: { report: StatusReport; textStyler: TextStyler }): string[] {
+function formatStatus(params: {
+  report: StatusReport;
+  textStyler: TextStyler;
+  maxWidth: number | undefined;
+}): string[] {
+  const { report, textStyler } = params;
+
   const sections = [
     formatWorkspacesSection(params),
     formatSkillsSection(params),
     formatOutsideClonesSection(params),
-    formatProblemsSection(params),
+    formatProblemsSection({ report, textStyler }),
   ].filter((section) => section.length > 0);
 
   return sections.flatMap((section, index) => (index === 0 ? section : ['', ...section]));
