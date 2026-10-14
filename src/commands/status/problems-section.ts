@@ -1,4 +1,5 @@
 import { formatSectionTitle } from '@/commands/status/section-title';
+import { formatShellCommand } from '@/lib/shell-command';
 import type { TextStyler } from '@/lib/text-styler';
 import { assertUnreachable } from '@/lib/utils';
 import type {
@@ -9,8 +10,8 @@ import type {
 
 type ProblemEntry = { headline: string; lines: ProblemEntryLine[] };
 
-/** A `command` is what follows `grimoire ` on the line. */
-type ProblemEntryLine = { sentence: string } | { command: string };
+/** `commandArguments` are the words after `grimoire` on the line. */
+type ProblemEntryLine = { sentence: string } | { commandArguments: string[] };
 
 type ProblemLocation = {
   /** How a headline names the place: `workspace <name>`, or a recorded path's directory. */
@@ -83,8 +84,8 @@ function formatProblemEntry(params: { problemEntry: ProblemEntry; textStyler: Te
   return [
     `  ${textStyler('yellow', '!')} ${textStyler('bold', problemEntry.headline)}`,
     ...problemEntry.lines.map((line) =>
-      'command' in line
-        ? `      ${textStyler('cyan', `grimoire ${line.command}`)}`
+      'commandArguments' in line
+        ? `      ${textStyler('cyan', formatShellCommand(['grimoire', ...line.commandArguments]))}`
         : `    ${line.sentence}`,
     ),
   ];
@@ -104,7 +105,7 @@ function describeDeploymentProblem(params: {
         lines: [
           { sentence: `${path} does not resolve.` },
           { sentence: 'Make it readable, or unregister it:' },
-          { command: `workspaces remove ${target}` },
+          { commandArguments: ['workspaces', 'remove', target] },
         ],
       };
 
@@ -114,7 +115,7 @@ function describeDeploymentProblem(params: {
         lines: [
           { sentence: `${path} cannot be read.` },
           { sentence: 'Make it readable, or unregister it anyway:' },
-          { command: `workspaces remove ${target} --force` },
+          { commandArguments: ['workspaces', 'remove', target, '--force'] },
         ],
       };
 
@@ -130,7 +131,10 @@ function describeDeploymentProblem(params: {
     case 'clone-not-in-store':
       return {
         headline: `clone of ${problem.skill} in ${label} is no longer in the store`,
-        lines: [{ sentence: 'Forget the record:' }, { command: `unclone ${problem.skill} ${target}` }],
+        lines: [
+          { sentence: 'Forget the record:' },
+          { commandArguments: ['unclone', problem.skill, target] },
+        ],
       };
 
     case 'clone-missing':
@@ -139,11 +143,14 @@ function describeDeploymentProblem(params: {
         lines: problem.recloneable
           ? [
               { sentence: 'Copy it again:' },
-              { command: `clone ${problem.skill} ${target}` },
+              { commandArguments: ['clone', problem.skill, target] },
               { sentence: 'Or forget the record:' },
-              { command: `unclone ${problem.skill} ${target}` },
+              { commandArguments: ['unclone', problem.skill, target] },
             ]
-          : [{ sentence: 'Forget the record:' }, { command: `unclone ${problem.skill} ${target}` }],
+          : [
+              { sentence: 'Forget the record:' },
+              { commandArguments: ['unclone', problem.skill, target] },
+            ],
       };
 
     default:

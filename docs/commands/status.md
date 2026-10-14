@@ -77,8 +77,9 @@ Problems  6
 - No problem prints inside a table. The `Problems` title line is `Problems`, two spaces, and the number of problems.
 - Each problem is an entry. One blank line follows the title, and one separates entries.
 - An entry starts with ` !` and a headline naming the kind of entity and its name. Its other lines are indented four spaces.
-- A fix that is a command prints alone on its line, exactly as it would be typed, indented six spaces. A fix that is not a
-  command is a sentence.
+- A fix that is a command prints alone on its line, exactly as it would be typed, indented six spaces. A word holding any
+  character other than a letter, a digit, `_`, `.`, `/` or `-` prints in single quotes:
+  `grimoire unclone notes '/Users/me/My Projects/skills'`. A fix that is not a command is a sentence.
 - No line of an entry is wrapped by grimoire.
 
 ## Sections

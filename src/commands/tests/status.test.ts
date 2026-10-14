@@ -8,6 +8,7 @@ import { GrimoireStore } from '@/domains/grimoire-store/index';
 import { SKILL_MANIFEST } from '@/domains/skill/index';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
+import { getShellWords } from '@test-helpers/shell-words';
 import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
@@ -641,6 +642,36 @@ describe('status', () => {
 
       expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
     });
+
+    it('clears a recorded-path clone-missing with a space in its path with the printed unclone', async () => {
+      const { run, store } = await newCli();
+      const spaced = await newDirectory('My Projects');
+
+      storeSkill(store, 'deploy');
+      recordClone(store, 'deploy', { path: spaced });
+
+      run(...printedRemedy(run('status').stdout, `clone of deploy in ${spaced} is missing`));
+
+      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
+    });
+
+    it('quotes the words of a fix command that a shell would split', async () => {
+      const { run, store } = await newCli();
+      const spaced = await newDirectory('My Projects');
+
+      recordClone(store, 'my notes', { path: spaced });
+
+      const { stdout } = run('status');
+
+      // Problems is the last section, and a blank line follows its title, so `sectionLines` would stop there.
+      expect(stdout.slice(stdout.indexOf('Problems  1'))).toEqual([
+        'Problems  1',
+        '',
+        `  ! clone of my notes in ${spaced} is missing`,
+        '    Forget the record:',
+        `      grimoire unclone 'my notes' '${spaced}'`,
+      ]);
+    });
   });
 
   describe('workspace problems', () => {
@@ -1169,5 +1200,5 @@ function printedRemedy(stdout: string[], fragment: string): string[] {
     throw new Error(`no printed remedy after a line containing "${fragment}"`);
   }
 
-  return command.split(' ');
+  return getShellWords(command);
 }
