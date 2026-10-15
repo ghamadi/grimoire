@@ -76,7 +76,8 @@ Problems  6
 - Tables are boxed. Every column is left-aligned and as wide as its longest cell.
 - No problem prints inside a table. The `Problems` title line is `Problems`, two spaces, and the number of problems.
 - Each problem is an entry. One blank line follows the title, and one separates entries.
-- An entry starts with ` !` and a headline naming the kind of entity and its name. Its other lines are indented four spaces.
+- An entry starts with two spaces, `!`, a space, and a headline naming the kind of entity and its name. Its other lines are
+  indented four spaces.
 - A fix that is a command prints alone on its line, exactly as it would be typed, indented six spaces. A word holding any
   character other than a letter, a digit, `_`, `.`, `/` or `-` prints in single quotes:
   `grimoire unclone notes '/Users/me/My Projects/skills'`. A fix that is not a command is a sentence.
@@ -201,9 +202,14 @@ Title lines and problem entries are never fitted.
 Two things still print whole and overflow the terminal: a path segment longer than its column, on that one line, and a grid
 whose skill name and one workspace column are together wider than the terminal.
 
+Width is counted as string length, not in terminal columns. A row holding a character where the two differ is out of line
+with its table's borders: a CJK character or most emoji takes two columns and pushes the rest of the row right, and an accent
+stored as a separate mark pulls it left. The same row can make a fitted table wider than the terminal. Workspace names are
+ASCII, so only a path, a skill name or an entry name can hold one.
+
 ## Problems
 
-| Problem                        | Reported when                                                                                        | Block                    |
+| Problem                        | Reported when                                                                                        | Reported for             |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------ |
 | `workspace-unreachable`        | the registered path does not resolve to a directory                                                  | workspace                |
 | `workspace-unreadable`         | the registered path is a directory grimoire cannot list or enter, or sits under one it cannot enter  | workspace                |

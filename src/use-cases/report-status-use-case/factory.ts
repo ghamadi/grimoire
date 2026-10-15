@@ -24,7 +24,6 @@ export type LinkedSkill = {
   entry: string;
 };
 
-/** Printed in a workspace or recorded-path block. */
 export type DeploymentProblem =
   | { kind: 'workspace-unreachable' }
   | { kind: 'workspace-unreadable' }
@@ -32,7 +31,6 @@ export type DeploymentProblem =
   | { kind: 'clone-not-in-store'; skill: string }
   | { kind: 'clone-missing'; skill: string; recloneable: boolean };
 
-/** Printed in the store block. */
 export type StoreProblem =
   | { kind: 'clone-unregistered-workspace'; skill: string; workspace: string }
   | { kind: 'stray-entry'; entry: string };
@@ -94,12 +92,11 @@ const DEPLOYMENT_PROBLEM_RANK = {
 /**
  * Reports where every skill is deployed — what `grimoire status` runs. Read-only.
  *
- * The report has three kinds of block: one per registered workspace, one per
- * directory named by `{ path }` clone records that no workspace's path equals,
- * and the store's.
+ * The report has one status per registered workspace, one per directory named by
+ * `{ path }` clone records that no workspace's path equals, and the store's.
  *
  * A clone record belongs to the directory it resolves to, whichever arm names it,
- * so one record can appear in several blocks.
+ * so one record can appear in several statuses.
  */
 export function createReportStatusUseCase(
   factoryParams: ReportStatusUseCaseFactoryParams,
