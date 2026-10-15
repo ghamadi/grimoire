@@ -6,15 +6,13 @@ Anything you put in a workspace or a repo stays exactly as you left it, apart fr
 
 - Copies of store skills.
 - Its own symlinks.
-- A `.grimoire-staging/` directory — inside a workspace while a clone is being written, or inside a repo while an export is —
-  removed once it is empty.
+- A [`.grimoire-staging/`](./conventions.md#staged-writes) directory, in a workspace during a clone or in a repo during an
+  export. It is removed once empty.
 
 ## What grimoire removes outside `~/.grimoire/`
 
 - Its own symlinks.
-- A directory the store is proven to
-  [already hold in full](./commands/link.md#replacing-a-directory-the-store-already-holds), not counting a `.DS_Store`
-  written by Finder.
+- A directory the store is proven to [already hold in full](./conventions.md#containment).
 - A skill directory at a clone destination when
   [`clone --overwrite`](./commands/clone.md#--overwrite-replaces-a-skill-directory) is passed, once the store copy has
   replaced it.
@@ -23,13 +21,9 @@ Anything you put in a workspace or a repo stays exactly as you left it, apart fr
 
 ## Where content can be lost
 
-The last two removals delete content grimoire cannot prove it holds.
-
-- `clone --overwrite` does, and only on that explicit flag.
-- `export` does too. Replacing a repo entry is safe only for what git has committed, so
-  [ignored files](./commands/export.md#ignored-files-are-deleted) under that entry and
-  [`--force`](./commands/export.md#--force-skips-the-git-check-and-nothing-else) are the two places an export can lose
-  content.
+The last two removals can delete content grimoire cannot prove it holds. For `export`, git holds what is committed, so
+content is lost only through [ignored files](./commands/export.md#ignored-files-are-deleted) or
+[`--force`](./commands/export.md#--force-skips-the-git-check-and-nothing-else).
 
 ## What follows from it
 

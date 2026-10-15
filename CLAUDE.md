@@ -2,7 +2,8 @@
 
 Skill management and distribution CLI. Command behavior is specified in [`docs/commands/`](./docs/commands/); anything not
 committed there is undecided — don't infer its design from git history or old docs. [`docs/safety.md`](./docs/safety.md)
-holds the rule every command keeps outside the store, and [`docs/state.md`](./docs/state.md) the `~/.grimoire/` shape.
+holds the rule every command keeps outside the store, [`docs/conventions.md`](./docs/conventions.md) the behavior commands
+share, and [`docs/state.md`](./docs/state.md) the `~/.grimoire/` shape and what makes `state.json` valid.
 
 Verify: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -52,6 +53,16 @@ See @CLAUDE.local.md
 - Never explain why the code isn't buggy. Behavioral subtleties go in a test name.
 - Rejected alternatives earn a comment **only** when they might seem more intuitive, and a reader would otherwise "fix" the
   code back.
+
+### Docs
+
+- `docs/commands/` is the spec. Cut an observable behavior only when an example or another sentence still states it.
+- Shared behavior lives in [`docs/conventions.md`](./docs/conventions.md), and `state.json` validity in
+  [`docs/state.md`](./docs/state.md). Link to them; don't restate them.
+- A "why" stays only when a reader would otherwise think the behavior is arbitrary, or "fix" it back. Never argue that a
+  behavior obeys the safety rule.
+- Only what a user sees. No function names, internal reason codes or git plumbing.
+- Plain words, short sentences. No "X, not Y" reframes, no punchy closing lines, and em-dashes only sparingly.
 
 ## Branch review
 

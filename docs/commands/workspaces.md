@@ -71,13 +71,7 @@ A refusal exits 1 and registers nothing: `state.json` is left exactly as it was 
 The checks run in the order below, and only the first failure is reported. The name goes first because the path check can
 create a directory, and a refused `add` must leave nothing behind.
 
-**1. The name uses only letters, digits, `-` and `_`,** and starts with a letter or digit. ASCII only. That's how
-[`unclone`](./unclone.md) tells a workspace name from a recorded path.
-
-```shell
-$ grimoire workspaces add a/b ~/.claude/skills
-error: workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"
-```
+**1. The name follows [the name rule](../state.md#names).**
 
 **2. The name is free.** Within the workspace registry.
 
@@ -86,16 +80,7 @@ $ grimoire workspaces add personal ~/.config/other-agent/skills
 error: workspace "personal" is already registered
 ```
 
-**3. The path does not collide** with `~/.grimoire/` or with a registered [repo](./repos.md#the-path-rule) — see
-[the collision rule](#the-collision-rule).
-
-```shell
-$ grimoire workspaces add personal ~/.grimoire/skills
-error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
-
-$ grimoire workspaces add dotfiles ~/dotfiles/skills
-error: /Users/me/dotfiles/skills sits inside repo "library" (/Users/me/dotfiles)
-```
+**3. The path follows [the path rule](../state.md#the-path-rule)** against `~/.grimoire/` and registered repos.
 
 **4. The path is usable.** If it exists, it has to be a directory; if it does not, its parent has to exist.
 
@@ -106,32 +91,6 @@ error: /Users/me/notes.md is not a directory
 $ grimoire workspaces add personal ~/nope/skills
 error: /Users/me/nope does not exist
 ```
-
-### The collision rule
-
-`add` checks the path against `~/.grimoire/` and every registered [repo](./repos.md#the-path-rule) — never against other
-workspaces. Two workspaces may share a path, and one may be registered at an ancestor of another; both succeed. Registering a
-repo refuses a workspace's path the same way.
-
-When a path collides with both the store and a repo, the store is named. Among several repos, the first by name is.
-
-| Relation | Message                    |
-| -------- | -------------------------- |
-| equals   | `is the same directory as` |
-| inside   | `sits inside`              |
-| contains | `contains`                 |
-
-```
-grimoire store    /Users/me/.grimoire
-                  ├─ equals    /Users/me/.grimoire
-                  ├─ inside    /Users/me/.grimoire/skills
-                  └─ contains  /Users/me
-```
-
-Paths are compared canonically, with symlinks resolved. A refusal names the path as typed, not as resolved.
-
-The rule is checked again every time `state.json` is read. An overlap made later, by hand or through a repointed symlink,
-stops every command — see [`status`'s refusals](./status.md#exit-code-and-refusals).
 
 ## `workspaces remove <name> [--hard] [--force]` _(alias: `rm`)_
 

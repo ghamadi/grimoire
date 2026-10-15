@@ -83,8 +83,8 @@ to the store copy now shows in both workspaces, and dropping `--all` in a termin
 | [`trash`](./docs/commands/trash.md)           | Manage the trash that removed skills are moved to       |
 | [`status`](./docs/commands/status.md)         | Show where skills are deployed, and what has gone stale |
 
-What grimoire will and will not touch outside its store is in [`docs/safety.md`](./docs/safety.md), and the `~/.grimoire/`
-layout in [`docs/state.md`](./docs/state.md).
+What grimoire will and will not touch outside its store is in [`docs/safety.md`](./docs/safety.md), the `~/.grimoire/` layout
+in [`docs/state.md`](./docs/state.md), and the behavior commands share in [`docs/conventions.md`](./docs/conventions.md).
 
 ## License
 

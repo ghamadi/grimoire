@@ -15,10 +15,9 @@ grimoire unclone <skill> <targets...>
 
 ## What a target may be
 
-A target that could be a workspace name — only letters, digits, `-` and `_`, starting with a letter or digit — is one, and it
-must be registered. Anything else is a path: normalized, then matched against the directory each record resolves to. The two
-never overlap, because [`workspaces add`](./workspaces.md#workspaces-add-name-path---auto-link) refuses any other name. A
-relative path with no separator reads as a name, so write `./skills` rather than `skills`.
+A target that is a valid [workspace name](../state.md#names) is one, and it must be registered. Anything else is a path:
+normalized, then matched against the directory each record resolves to. A relative path with no separator reads as a name, so
+write `./skills` rather than `skills`.
 
 ## `unclone <skill> <targets...>`
 
