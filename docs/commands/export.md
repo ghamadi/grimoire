@@ -17,8 +17,8 @@ grimoire export <repo> --all-skills [--force]
 | `--all-skills` | Every skill the store holds, instead of naming any.                                                        |
 | `--force`      | Replaces the destination even when git reports uncommitted changes there, potentially overwriting them.    |
 
-One of `<skills...>` or `--all-skills` is required, and the two are mutually exclusive. A name given twice counts once,
-keeping its first position.
+One of `<skills...>` or `--all-skills` is required, and the two are mutually exclusive. Repeated names follow
+[the shared rule](../conventions.md#arguments).
 
 ## What `export` checks
 
@@ -28,8 +28,8 @@ keeping its first position.
 
 > If git reports nothing uncommitted at or under `<dest>`, replace whatever is there. Otherwise decline, unless `--force`.
 
-Git already holds every committed byte, so a destination git calls clean is safe to replace. There is no record, no
-`SKILL.md` check, and no comparison against the store — see [the rule](../safety.md).
+There is no record, no `SKILL.md` check and no comparison against the store. Every copy is
+[verbatim](../conventions.md#copies).
 
 "Uncommitted" is anything `git status` lists at or under `<dest>`: modified, staged, deleted, or untracked. Ignored files
 [do not count](#ignored-files-are-deleted).
@@ -37,19 +37,18 @@ Git already holds every committed byte, so a destination git calls clean is safe
 Git is asked about `<dest>` without regard to case, because a case-insensitive filesystem serves `Triage/` at `triage`. On a
 case-sensitive one, uncommitted changes under a sibling that differs only in case decline the export too.
 
-Git is run read-only. `export` asks two questions — `rev-parse`, for whether the repo is inside a work tree, and `status`,
-for what is uncommitted — and never stages, commits, or changes a config.
+Git is run read-only. `export` asks git whether the repo is inside a work tree and what is uncommitted. It never stages,
+commits or changes a config.
 
 ## `export <repo> <skills...> [--force]`
 
 Each skill gets one outcome:
 
-| At `<dest>`         | `--force` | Outcome  | Output                                                                              |
-| ------------------- | --------- | -------- | ----------------------------------------------------------------------------------- |
-| nothing uncommitted | either    | replaced | stdout `exported <skill> → <repo>`                                                  |
-| uncommitted changes | no        | declined | stderr `warning: could not export <skill> → <repo>: <dest> has uncommitted changes` |
-| uncommitted changes | yes       | replaced | stdout `exported <skill> → <repo>`                                                  |
-| (the write failed)  | either    | failed   | stderr `error: failed to export <skill> → <repo>: <reason>`, and the run carries on |
+| At `<dest>`                     | `--force` | Outcome  | Output                                                                              |
+| ------------------------------- | --------- | -------- | ----------------------------------------------------------------------------------- |
+| nothing, or nothing uncommitted | either    | replaced | stdout `exported <skill> → <repo>`                                                  |
+| uncommitted changes             | no        | declined | stderr `warning: could not export <skill> → <repo>: <dest> has uncommitted changes` |
+| uncommitted changes             | yes       | replaced | stdout `exported <skill> → <repo>`                                                  |
 
 ```shell
 $ grimoire export library triage review
@@ -68,15 +67,12 @@ warning: could not export triage → library: /Users/me/library/triage has uncom
 The `exported` line is the same whether or not something was replaced. What was replaced is git's to show: `git status` and
 `git diff` in the repo.
 
-Lines print grouped as `exported`, then warnings, then failures, each group in argument order. Warnings are the decline
-warnings first, then the [stranded old copy](#writes-are-staged) warnings. A decline alongside any exported skill prints as a
-warning on stderr, and the exit code stays 0. A skill whose write [failed](#when-a-write-fails) prints last, after every
-other line, and the exit code is 1 when any skill failed.
+Results print as `exported` lines, laid out as [the conventions](../conventions.md#outcomes) describe.
 
 ### A committed entry of the same name is replaced
 
-Whatever is committed at `<dest>` is replaced without `--force` — a skill directory, a directory that is not a skill, a file.
-Git holds it, so nothing is lost.
+Whatever is committed at `<dest>` is replaced without `--force`: a skill directory, a directory that is not a skill, or a
+file.
 
 ```shell
 $ ls ~/library
@@ -100,25 +96,18 @@ error: could not export triage → library: /Users/me/library/triage has uncommi
   commit first, or use --force to overwrite them
 ```
 
-In a bulk run, the decline warnings are the list of skills still waiting on a commit.
-
 ### `--force` skips the git check and nothing else
 
-Under `--force` git is not asked what is uncommitted at `<dest>`: whatever is there is replaced by the store copy. When the
-uncommitted change is only an earlier export, nothing is lost. An edit made in the repo's copy and never committed is
+Under `--force` git is not asked what is uncommitted at `<dest>`, and whatever is there is replaced by the store copy. When
+the uncommitted change is only an earlier export, nothing is lost. An edit made in the repo's copy and never committed is
 overwritten, and git cannot bring it back.
 
-[Everything `export` refuses](#what-export-refuses) is still refused — the repo must still be an existing directory inside a
-git work tree, and every skill must still exist and be portable.
+[Everything `export` refuses](#what-export-refuses) is still refused.
 
 ```shell
 $ grimoire export library triage --force
 exported triage → library
 ```
-
-### Nothing at the destination is clean
-
-Git reports nothing uncommitted where nothing exists, so a first export needs no flag.
 
 ### Ignored files are deleted
 
@@ -139,51 +128,22 @@ SKILL.md
 Ignored files are left out of the check on purpose. Counting them would let a globally ignored `.DS_Store` block every export
 once Finder had opened the folder.
 
-### The copy is verbatim
-
-`copyTree` — dotfiles, nested directories, and symlinks included, the same as [`clone`](./clone.md#the-copy-is-verbatim).
-Every skill is verified for portability first.
-
 ### Writes are staged
 
-Every write goes through `<repo path>/.grimoire-staging/`, the same mechanism and directory name `clone` uses in a workspace:
-see [Writes are staged](./clone.md#writes-are-staged) for the steps. `<dest>` only ever holds the whole old entry or the
-whole new copy, never a partial one.
-
-If `.grimoire-staging` exists and is not a real directory — a file, or a symlink — every skill [fails](#when-a-write-fails),
-leaving each `<dest>` untouched.
-
-```shell
-$ grimoire export library triage
-error: failed to export triage → library: /Users/me/library/.grimoire-staging is not a directory
-```
-
-A skill whose write fails leaves `<dest>` as it was: an old entry already moved aside is put back.
-
-A failed delete of the old copy is not a failure: the new copy is complete and in place, so the skill is `exported`, and a
-warning names the stranded `.outgoing` entry.
-
-```shell
-$ grimoire export library triage
-exported triage → library
-warning: exported triage → library, but the old copy at /Users/me/library/.grimoire-staging/triage.4f9a1c.outgoing could not be fully deleted: EACCES: permission denied, rmdir '/Users/me/library/.grimoire-staging/triage.4f9a1c.outgoing/refs'
-```
-
-In a repo, a `.grimoire-staging` left behind shows up as untracked in your own `git status`. It never blocks a later export:
-the check looks only at or under `<dest>`.
+Every write is [staged](../conventions.md#staged-writes) in `<repo path>/.grimoire-staging/`. One left behind shows up as
+untracked in your own `git status`. It never blocks a later export, because the check looks only at or under `<dest>`.
 
 ### When every skill is declined
 
-A run where every skill was declined, and no skill failed, exits 1 instead of warning. The error ends with a line naming
-`--force`. One refusal prints as a single sentence:
+The run exits 1 and prints the declines as an error,
+[as the conventions describe](../conventions.md#when-every-destination-is-declined), headed `nothing exported` when there are
+several. The error then ends with the line `commit first, or use --force to overwrite them`:
 
 ```shell
 $ grimoire export library triage
 error: could not export triage → library: /Users/me/library/triage has uncommitted changes
   commit first, or use --force to overwrite them
 ```
-
-Several print `error: nothing exported:`, followed by each sentence on its own line, indented two spaces:
 
 ```shell
 $ grimoire export library triage review
@@ -197,51 +157,18 @@ A decline warning beside an exported skill carries no `--force` line.
 
 ### When a write fails
 
-A failed [staged write](#writes-are-staged) is one skill's outcome, not the end of the run. The remaining skills are still
-attempted, and every `exported` and warning line prints. The failures print last, and the run exits 1.
-
-A failure reads `failed to export`, where a decline reads `could not export`: a decline touched nothing, a failure was a
-write that was attempted and undone.
-
-One failure prints as a single line:
-
-```shell
-$ grimoire export library triage
-error: failed to export triage → library: EACCES: permission denied, mkdir '/Users/me/library/.grimoire-staging'
-```
-
-Several print `error: exports failed:`, followed by each sentence on its own line, indented two spaces:
-
-```shell
-$ grimoire export library triage review
-error: exports failed:
-  failed to export triage → library: /Users/me/library/.grimoire-staging is not a directory
-  failed to export review → library: /Users/me/library/.grimoire-staging is not a directory
-```
-
-A run with any failed skill exits 1, whether or not other skills were exported or declined. The
-[every skill declined](#when-every-skill-is-declined) form applies only when no skill failed; declines alongside a failure
-print as warnings.
+Failures print last and the run exits 1, [as the conventions describe](../conventions.md#when-a-write-fails), headed
+`exports failed` when there are several.
 
 ## `export <repo> --all-skills [--force]`
 
-Every skill the store holds, in name order. Each is treated exactly as if it had been named, so outcomes, grouping, warnings,
-and the exit code follow the rules above, with name order in place of argument order. `--force` applies to every destination.
+Exports every skill the store holds in name order, [as if named](../conventions.md#arguments). `--force` applies to every
+destination.
 
 ```shell
 $ grimoire export library --all-skills
 exported review → library
 exported triage → library
-```
-
-The same run made again before a commit finds [every skill declined](#when-every-skill-is-declined):
-
-```shell
-$ grimoire export library --all-skills
-error: nothing exported:
-  could not export review → library: /Users/me/library/review has uncommitted changes
-  could not export triage → library: /Users/me/library/triage has uncommitted changes
-  commit first, or use --force to overwrite them
 ```
 
 If the store holds no skills, the exit code is 0:
@@ -251,16 +178,14 @@ $ grimoire export library --all-skills
 nothing to export: the store holds no skills
 ```
 
+Checks 2 and 5 of [What `export` refuses](#what-export-refuses) still run first, so an unknown repo, or one whose path fails
+check 5, refuses with exit 1 even when the store is empty.
+
 ## What `export` refuses
 
-A refusal exits 1 and touches nothing. The checks run in the order below.
+The [refusals](../conventions.md#refusals) run in this order:
 
 **1. Skills are given, or `--all-skills`, and not both.**
-
-```shell
-$ grimoire export library
-error: missing required argument 'skills' (or use --all-skills)
-```
 
 ```shell
 $ grimoire export library triage --all-skills
@@ -269,26 +194,10 @@ error: --all-skills cannot be combined with named skills
 
 **2. The repo is registered.**
 
-```shell
-$ grimoire export ghost triage
-error: no repo named "ghost"
-```
+**3. Every skill exists in the store.**
 
-**3. Every skill exists in the store.** Only the first unknown name is reported, and it is reported ahead of any skill that
-fails the next check.
-
-```shell
-$ grimoire export library triage ghost
-error: no skill named "ghost"
-```
-
-**4. Every skill passes the portability check.** Under `--force` too. Every skill is verified before any destination is
-examined, so under `--all-skills` one unportable skill refuses the whole run.
-
-```shell
-$ grimoire export library triage
-error: skill "/Users/me/.grimoire/skills/triage" is not portable. Contains a nested skill.
-```
+**4. Every skill passes the portability check.** Under `--force` too. Under `--all-skills`, one unportable skill refuses the
+whole run.
 
 **5. The repo path is an existing directory inside a git work tree, and git can be run.** A repo is checked when it is
 registered and again on every `export`, because the directory can change afterwards.
