@@ -87,7 +87,9 @@ describe('formatTable', () => {
       textStyler: taggingTextStyler,
     });
 
-    expect(taggedLines.map((line) => line.replace(/<\/?[a-z]+>/g, ''))).toEqual(plainLines);
+    expect(
+      taggedLines.map((line) => line.replace(/<\/?(bold|dim|cyan|yellow|red|green|magenta)>/g, '')),
+    ).toEqual(plainLines);
     expect(new Set(plainLines.map((line) => line.length)).size).toBe(1);
   });
 
