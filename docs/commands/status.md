@@ -129,7 +129,8 @@ name. A store entry that is not a skill directory has ` (not a skill)` after its
 a workspace also holds a clone record for it.
 
 The caption is `<n> in <skills path>`, counting store skills, followed by ` · <n> not deployed` when any are. A skill is not
-deployed when it has no link in any reachable workspace and no clone whose directory is there, in a workspace or outside one.
+deployed when it has no link in any reachable workspace and no clone. A clone counts when its directory is there, in a
+workspace or outside one, and when it is recorded in an unreachable or unreadable workspace, unverified.
 
 `not deployed` is computed only from what could be read, so a skill linked only into an unreachable or unreadable workspace
 reads as not deployed. That workspace's `STATE`, its `?` cells, and its entry in `Problems` are the caveat.
