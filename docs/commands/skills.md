@@ -1,6 +1,7 @@
 # `skills`
 
-The store at `~/.grimoire/skills/` is flat — one directory per skill. This group is what fills it, reads it, and empties it.
+The store at `~/.grimoire/skills/` is flat, with one directory per skill. This group is what fills it, reads it, and empties
+it.
 
 | Command                                                           | Purpose                                             |
 | ----------------------------------------------------------------- | --------------------------------------------------- |
@@ -30,13 +31,13 @@ already linked triage → personal
 
 A directory holding `SKILL.md` at its root is the skill itself. Otherwise, `<path>` is a container: the crawl descends
 indefinitely, skipping entries whose name starts with `.`, and stops the moment it identifies a skill. It reads no file
-contents beyond checking for `SKILL.md` — the same check the store already runs on its own entries.
+contents beyond checking for `SKILL.md`.
 
-Two directories under a container may hold a skill of the same name; both are found, and the second is handled as a collision
-against what the first just added — see [When the name is taken](#when-the-name-is-taken).
+Two directories under a container may hold a skill of the same name. Both are found, and the second is handled as a collision
+against what the first just added. See [When the name is taken](#when-the-name-is-taken).
 
-Once a directory is identified as a skill, nothing inside it is skipped: it's copied verbatim, including dotfiles, nested
-directories, and symlinks. A skill cannot itself contain another skill, though — that's refused as not portable:
+Once a directory is identified as a skill, it is [copied](../conventions.md#copies) whole, dotfiles included. A skill that
+contains another skill is refused as not portable:
 
 ```shell
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
@@ -62,9 +63,8 @@ nothing added: no skill selected
 
 ### The name in the store
 
-The store name is always the source directory's basename — there's no `--as`. Skipping it is what makes `add` double as
-adoption: run it from inside an auto-link workspace, on a skill written in place, and the workspace ends up linking to
-itself.
+The store name is always the source directory's basename. There's no `--as`, so `add` doubles as adoption: run it from inside
+an auto-link workspace, on a skill written in place, and the workspace ends up linking to itself.
 
 ```
 ~/.claude/skills/            (workspace "personal", auto-link)
@@ -74,9 +74,8 @@ $ grimoire skills add ~/.claude/skills/triage
 
   1. copy  ~/.claude/skills/triage  →  ~/.grimoire/skills/triage
   2. auto-link fires for "triage"
-  3. link finds ~/.claude/skills/triage occupied by a directory,
-     compares it to the store copy, gets `contained`, replaces it
-     with a symlink
+  3. link finds ~/.claude/skills/triage occupied by a directory
+     the store copy holds in full, and replaces it with a symlink
 
 ~/.claude/skills/
 └── triage  ──────►  ~/.grimoire/skills/triage
@@ -88,66 +87,47 @@ and the workspace would end up with two copies of the same skill.
 ### Auto-linking what was added
 
 Once the copy step is done, every skill now in the store under a name this run added or found already there gets linked into
-every [auto-link workspace](./workspaces.md#workspaces-add-name-path---auto-link). "Found already there" is what makes `add`
-idempotent — running it twice against the same source leaves the same end state, instead of leaving a plain copy the first
-run's link never reached.
+every [auto-link workspace](./workspaces.md#workspaces-add-name-path---auto-link). Linking skills found already there keeps
+`add` idempotent: running it twice against the same source leaves the same end state.
 
 ```shell
 linked brainstorm → personal
 already linked triage → personal
 ```
 
-A workspace that can't take the link warns on stderr and doesn't fail the run or move the exit code — the store copy is what
-was asked for, and it landed regardless. What makes a workspace decline a link, and the shape of that per destination,
-belongs to `link`'s own contract; this page only reports the outcome.
+Output is grouped as in [Outcomes](../conventions.md#outcomes), with the line shapes from
+[When the name is taken](#when-the-name-is-taken): `added`, `already in the store`, then warnings, then the auto-link lines
+in [`link`](./link.md)'s order.
+
+A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill-workspaces), prints a
+warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
 
 ### When the name is taken
 
-A source whose name is already in the store is decided by asking whether the store copy already holds everything the source
-does — not whether the two are equal:
+Each source gets one outcome, decided by what sits at its store path, `~/.grimoire/skills/<skill>`. "Holds in full" is
+[containment](../conventions.md#containment).
 
-| Store copy vs. source | Outcome                                                | Stream |
-| --------------------- | ------------------------------------------------------ | ------ |
-| identical             | `already in the store: triage`                         | stdout |
-| holds more            | `already in the store: triage (also holds "notes.md")` | stdout |
-| differs               | `warning: could not add …`                             | stderr |
+| At `<store path>`                                      | Outcome              | Output                                                                                                                              |
+| ------------------------------------------------------ | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| nothing                                                | added                | stdout `added <skill>`                                                                                                              |
+| a copy that holds the source in full, and nothing more | already in the store | stdout `already in the store: <skill>`                                                                                              |
+| a copy that holds the source in full, and more         | already in the store | stdout `already in the store: <skill> (also holds "<entry>")`                                                                       |
+| a copy that does not hold the source in full           | declined             | stderr `warning: could not add <skill>: the store holds a different <skill>, differing at "<entry>" — edit or replace <store path>` |
+| a copy that cannot be compared (a symlink)             | declined             | stderr `warning: could not add <skill>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                   |
 
 ```shell
 warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
-```
-
-The middle row is what containment buys over equality. A store copy carrying a file the source lacks still holds every byte
-of the skill being added, so there is nothing to refuse and nothing to warn about — the add is already done. Only the other
-direction is a refusal: an entry the source holds and the store doesn't means the store isn't the thing being added, and
-neither is a file whose contents, type, or execute bit disagree. Refusing over the store's extras instead would strand a
-plain copy in an auto-link workspace that no re-run could ever adopt, because auto-link only fires for what `add` copied or
-found already there.
-
-A `.DS_Store` written by Finder is left out of the comparison on both sides. One the source holds and the store lacks is not
-a difference, and one only the store holds is not named in the `(also holds …)` note. It is recognized by its name plus the
-header Finder writes, so a file that is merely named `.DS_Store` is compared like any other.
-
-The note is parenthetical because the extra is almost never part of the skill — a manifest referencing it would itself
-differ, and that's a refusal. It names the first entry the walk reaches rather than every one, in the same voice as the
-refusals above.
-
-Nothing here ever overwrites — there's no `--force`. The store copy is the user's editing surface, and a command that
-silently replaced it would destroy whatever edits made it differ. The warning names the remedy: edit the store copy, or
-replace it by hand. Either keeps every link. Running `grimoire skills remove <skill>` and adding again does not: `remove`
-clears every link, and the second `add` links the skill back into auto-link workspaces only.
-
-The comparison itself can fail to run at all, when a symlink the two trees share a path for means they can't be compared:
-
-```shell
 warning: could not add notes: /Users/me/dev/notes holds the symlink "ref", so the two copies cannot be compared
 ```
 
-A symlink only the store copy holds is not that case — it's one more thing the store holds and the source doesn't, and reads
-as the middle row above.
+The `(also holds …)` note names only the first extra entry. A `.DS_Store` only the store holds is never named in it. A
+symlink only the store copy holds reads as the "and more" row.
+
+There's no `--force`. The store copy is where you edit the skill, and replacing it would lose those edits.
 
 ### What `add` refuses
 
-A refusal exits 1.
+See [Refusals](../conventions.md#refusals).
 
 **1. The path does not sit inside the grimoire store.**
 
@@ -164,21 +144,9 @@ error: /Users/me/dev/skills holds 12 skills and no terminal to choose from
   use --all to add every one
 ```
 
-A source can also be declined on its own — differs from the store copy, isn't portable, or can't be compared — without
-failing the run; see [When the name is taken](#when-the-name-is-taken). Only when every source given is declined, and none is
-added or already present, does the run itself fail:
-
-```shell
-error: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
-```
-
-```shell
-error: nothing added:
-  could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
-  could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
-```
-
-The same shape `link` and `unlink` use.
+A declined source does not fail the run. When every source is declined, the run fails as in
+[When every destination is declined](../conventions.md#when-every-destination-is-declined): `error: could not add …` for one
+source, `error: nothing added:` for several.
 
 ## `skills list` _(alias: `ls`)_
 
@@ -189,8 +157,8 @@ deploy
 triage
 ```
 
-Sorted by name. The listing is the store's directory itself, not `state.json` — a skill with no links or clones anywhere
-still shows up here. Empty store prints `No skills in the store.`
+Sorted by name. It lists the store's directory, so a skill with no links or clones still shows up. Empty store prints
+`No skills in the store.`
 
 ## `skills remove <skills...> [--forget-clones]` _(alias: `rm`)_
 
@@ -198,9 +166,9 @@ still shows up here. Empty store prints `No skills in the store.`
 | -------- | ------------------------------------ |
 | `skills` | One or more skill names in the store |
 
-| Flag              | Default | Effect                                                                            |
-| ----------------- | ------- | --------------------------------------------------------------------------------- |
-| `--forget-clones` | false   | also forget the skill's whole `state.json` entry — no cloned directory is touched |
+| Flag              | Default | Effect                                           |
+| ----------------- | ------- | ------------------------------------------------ |
+| `--forget-clones` | false   | also forget the skill's whole `state.json` entry |
 
 ```shell
 $ grimoire skills remove triage
@@ -214,13 +182,9 @@ Report order, per skill in the order named on the command line: links first, the
 
 ### Links are cleared first
 
-Deleting the store copy before the links are gone would strand every one of them: once the target is gone, nothing can tell a
-stale link apart from an unrelated symlink someone made by hand. So links are always cleared first, and this order isn't a
-preference — it's forced.
-
-Links are matched by the store directory they resolve into, not by the workspace entry's name. A symlink's name and its
-target are independent — `mv triage tri` inside a workspace leaves `tri` still pointing at `skills/triage` — so the report
-names the entry when it differs from the skill:
+Every link is cleared before the store copy moves. A [link](../conventions.md#links-and-clones) is found by its target, so a
+link renamed with `mv triage tri` inside a workspace is still cleared. The report names the entry when it differs from the
+skill:
 
 ```shell
 unlinked triage → work (entry "tri")
@@ -228,7 +192,7 @@ unlinked triage → work (entry "tri")
 
 ### Where the copy goes
 
-The store copy is moved, not deleted, into one timestamped bin per skill per removal:
+The store copy is moved into the trash, one timestamped bin per skill per removal:
 
 ```
 ~/.grimoire/.trash/
@@ -246,17 +210,14 @@ A bin stays until [`grimoire trash empty`](./trash.md#trash-empty) deletes every
 
 ### Clones are kept
 
-Neither with nor without the flag does `skills remove` touch a cloned directory —
-[only `clone --overwrite` ever deletes one](../safety.md). Without `--forget-clones`, records and directories are both left
-exactly where they are — the store copy is gone, but the workspaces that cloned it keep their copy, and grimoire keeps the
-record of where it went:
+`skills remove` touches no cloned directory, with or without the flag. Without `--forget-clones`, the clone records stay too,
+and each is reported:
 
 ```shell
 clones left in place: triage → work
 ```
 
-`--forget-clones` drops the skill's whole `state.json` entry — by then nothing it described exists in the store anymore —
-while touching no directory:
+`--forget-clones` drops the skill's whole `state.json` entry:
 
 ```shell
 forgot clone triage → work
@@ -266,18 +227,14 @@ Forgetting one record at a time, for a skill still in the store, is [`unclone`](
 
 ### What `remove` refuses
 
-A refusal exits 1, and nothing is touched — not a link, not the store, not `state.json`.
+See [Refusals](../conventions.md#refusals).
 
 **1. Every named skill exists.**
 
-```shell
-$ grimoire skills remove ghost
-error: no skill named "ghost"
-```
-
-**2. Every registered workspace resolves.** A workspace whose path no longer reads as a directory — unmounted volume, deleted
-directory — might still hold a link inside it that `remove` can't see to clear, so the whole run refuses rather than risk
-stranding it:
+**2. Every registered workspace is reachable and readable.** An
+[unreachable or unreadable](../conventions.md#unreachable-and-unreadable-workspaces) workspace might hold a link `remove`
+cannot see to clear. Each such workspace is listed as `does not resolve` or `cannot be read`. The remedy line follows the
+first one listed:
 
 ```shell
 $ grimoire skills remove triage
@@ -286,12 +243,7 @@ error: cannot remove a skill while a workspace is unreadable
   make it readable, or unregister it with `grimoire workspaces remove work`
 ```
 
-The escape is one of the two ordinary commands named above: make the path resolve again and rerun, or unregister the
-workspace with `grimoire workspaces remove work` if it's gone for good.
-
-A workspace whose path is a directory that can't be listed or entered, or that sits under one that can't be entered, is
-listed as `cannot be read` instead. The remedy line follows the first workspace listed. When that one is unreadable, it
-points at `--force`:
+When the first one listed is unreadable, the remedy points at `--force`:
 
 ```shell
 $ grimoire skills remove triage

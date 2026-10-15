@@ -22,8 +22,7 @@ Every entry under `.trash/` is deleted, in name order, including anything put th
 
 Deletion is permanent. There is no prompt and no undo, so move anything worth keeping out with `mv` first.
 
-A symlink inside a bin is removed and what it points at is left alone, so [nothing outside `~/.grimoire/`](../safety.md) is
-removed.
+A symlink inside a bin is removed; what it points at is left alone.
 
 An empty trash is not an error, and exits 0:
 
@@ -32,21 +31,10 @@ $ grimoire trash empty
 nothing to delete: the trash is empty
 ```
 
-### What `empty` refuses
-
-An argument. `trash empty triage` reads like a request to empty one skill's bins, so it exits 1 and deletes nothing:
-
-```shell
-$ grimoire trash empty triage
-error: too many arguments for 'empty'. Expected 0 arguments but got 1: triage.
-```
-
 ## Colors
 
-On a color-capable stdout only. Piped output, or `NO_COLOR` set, prints plain.
+See [Colors](../conventions.md#colors).
 
 - `deleted` is red.
 - The count line is bold.
 - The empty-trash line is dim.
-
-Paths are never styled.
