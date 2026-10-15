@@ -15,7 +15,11 @@ import { workspacesCommand } from '@/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
 import { getVersion } from '@/lib/utils';
 
-export type ProgramDependencies = { skillPicker?: SkillPicker; textStyler?: TextStyler };
+export type ProgramDependencies = {
+  skillPicker?: SkillPicker;
+  textStyler?: TextStyler;
+  getTerminalWidth?: () => number | undefined;
+};
 
 /**
  * Assembles the CLI and hands it back unparsed.
@@ -25,7 +29,11 @@ export type ProgramDependencies = { skillPicker?: SkillPicker; textStyler?: Text
  * the real `process.argv` and the real `$HOME`.
  */
 export function buildProgram(store: GrimoireStore, dependencies: ProgramDependencies = {}): Command {
-  const { skillPicker = clackSkillPicker, textStyler = styleText } = dependencies;
+  const {
+    skillPicker = clackSkillPicker,
+    textStyler = styleText,
+    getTerminalWidth = getStdoutTerminalWidth,
+  } = dependencies;
   const program = new Command();
   const storeManager = new GrimoireStoreManager(store);
 
@@ -42,7 +50,15 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(cloneCommand({ storeManager }))
     .addCommand(uncloneCommand({ storeManager }))
     .addCommand(trashCommand({ storeManager, textStyler }))
-    .addCommand(statusCommand({ storeManager, textStyler }));
+    .addCommand(statusCommand({ storeManager, textStyler, getTerminalWidth }));
 
   return program;
+}
+
+// -----------------------------------------------------------------------------
+// INTERNAL HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+
+function getStdoutTerminalWidth(): number | undefined {
+  return process.stdout.isTTY ? process.stdout.columns : undefined;
 }

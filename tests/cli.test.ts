@@ -34,6 +34,19 @@ describe('grimoire cli', () => {
     expect(stdout).not.toContain('\x1b[');
   });
 
+  it('prints status with no table fitted to a width when stdout is piped', async () => {
+    const home = await tempRoot();
+    const longSegments = join('a'.repeat(60), 'b'.repeat(60));
+    const workspace = join(await tempRoot(), longSegments);
+
+    mkdirSync(workspace, { recursive: true });
+    await runCli(['workspaces', 'add', 'deep', workspace], { home });
+
+    const { stdout } = await runCli(['status'], { home });
+
+    expect(stdout.split('\n').some((line) => line.includes(longSegments))).toBe(true);
+  });
+
   it('reports a git that cannot be run as a refusal', async () => {
     const { path: repo } = await tempGitRepo();
 

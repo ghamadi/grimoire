@@ -224,6 +224,18 @@ describe('report-status-use-case factory', () => {
 
       expect(reportStatus().storeStatus.notDeployed).toEqual(['triage']);
     });
+
+    it('counts a skill cloned only into it as deployed', async () => {
+      const { reportStatus, store, root } = await newUseCase();
+
+      storeSkill(store, 'deploy');
+      handEditState(store, {
+        workspaces: { scratch: registration(join(root, 'gone')) },
+        skills: { deploy: { clones: [{ workspace: 'scratch' }] } },
+      });
+
+      expect(reportStatus().storeStatus.notDeployed).toEqual([]);
+    });
   });
 
   describe.skipIf(runsAsRoot)('an unreadable workspace', () => {
@@ -296,6 +308,20 @@ describe('report-status-use-case factory', () => {
       lockDirectory({ path: scratch });
 
       expect(reportStatus().storeStatus.notDeployed).toEqual(['triage']);
+    });
+
+    it('counts a skill cloned only into it as deployed', async () => {
+      const { reportStatus, store, root } = await newUseCase();
+      const scratch = newDirectory(root, 'scratch');
+
+      storeSkill(store, 'deploy');
+      handEditState(store, {
+        workspaces: { scratch: registration(scratch) },
+        skills: { deploy: { clones: [{ workspace: 'scratch' }] } },
+      });
+      lockDirectory({ path: scratch });
+
+      expect(reportStatus().storeStatus.notDeployed).toEqual([]);
     });
   });
 
