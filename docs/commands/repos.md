@@ -15,6 +15,7 @@ Repo names and [workspace](./workspaces.md) names are separate registries: a rep
 | --------------------------------------------- | --------------------- |
 | [`repos add`](#repos-add-name-path)           | Register a repo       |
 | [`repos remove`](#repos-remove-name-alias-rm) | Unregister a repo     |
+| [`repos rename`](#repos-rename-name-new-name) | Rename a repo         |
 | [`repos list`](#repos-list-alias-ls)          | List registered repos |
 
 ## `repos add <name> <path>`
@@ -85,6 +86,43 @@ error: no repo named "ghost"
 
 Unregisters only. The directory and everything exported into it are left as they are. There are no flags, and a registered
 name is never refused, even when its directory is already gone.
+
+## `repos rename <name> <new-name>`
+
+| Argument   | Meaning                       |
+| ---------- | ----------------------------- |
+| `name`     | Registered name               |
+| `new-name` | Name to file it under instead |
+
+```shell
+$ grimoire repos rename library docs
+renamed repo "library" → "docs"
+```
+
+Only the name changes. The path stays, and `rename` reads no directory and runs no git, so a repo whose directory is gone
+still renames. Names compare exactly, so `library` → `Library` is a rename.
+
+Renaming a repo to the name it already has changes nothing:
+
+```shell
+$ grimoire repos rename library library
+nothing to rename: repo "library" already has that name
+```
+
+### What `rename` rejects
+
+These checks run in order. A failed check is a [refusal](../conventions.md#refusals).
+
+**1. The name is registered.** This runs before the same-name check, so `rename ghost ghost` is refused.
+
+**2. The new name follows [the name rule](../state.md#names).**
+
+**3. The new name is free.** Within the repo registry, so a workspace may hold it.
+
+```shell
+$ grimoire repos rename library work
+error: repo "work" is already registered
+```
 
 ## `repos list` _(alias: `ls`)_
 

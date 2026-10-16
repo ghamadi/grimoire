@@ -10,6 +10,7 @@ import {
   InvalidNameError,
   InvalidPathError,
   PathCollisionError,
+  type RegistryEntity,
 } from '@/lib/errors/index';
 import { join, matchesGlob } from 'node:path';
 import { InvalidShapeError } from '@/lib/errors/invalid-shape';
@@ -516,6 +517,36 @@ export class GrimoireStoreManager {
   }
 
   /**
+   * Files a repo under a new name, keeping its path, and
+   * returns it as renamed. Renaming to the same name writes nothing and answers
+   * `renamed: false`. The path, the directory and git are never touched.
+   *
+   * @throws EntityNotFoundError if no repo is registered under `name`.
+   * @throws InvalidNameError if `newName` fails `Repo.isValidName`.
+   * @throws DuplicateNameError if another repo is registered under `newName`.
+   */
+  renameRepo(params: { name: string; newName: string }): { repo: RegisteredRepo; renamed: boolean } {
+    const storeState = this.loadState();
+    const { registration, isSameName } = checkRename({
+      entity: 'repo',
+      registry: storeState.reposRegistry,
+      name: params.name,
+      newName: params.newName,
+      isValidName: (name) => Repo.isValidName(name),
+    });
+
+    if (isSameName) {
+      return { repo: registration, renamed: false };
+    }
+
+    this.saveState(
+      storeState.withoutRepo(params.name).withRepo({ name: params.newName, path: registration.path }),
+    );
+
+    return { repo: { ...registration, name: params.newName }, renamed: true };
+  }
+
+  /**
    * Every registered repo, sorted by name.
    */
   listRegisteredRepos(): RegisteredRepo[] {
@@ -658,6 +689,42 @@ function findRegistered<T extends object>(
   name: string,
 ): ({ name: string } & T) | undefined {
   return Object.hasOwn(registry, name) ? { name, ...registry[name]! } : undefined;
+}
+
+/**
+ * The entry a rename starts from, and whether `newName` is its current name.
+ *
+ * @throws EntityNotFoundError if nothing is filed under `name`.
+ * @throws InvalidNameError if `newName` fails `isValidName`.
+ * @throws DuplicateNameError if another entry is filed under `newName`.
+ */
+function checkRename<T extends object>(params: {
+  entity: RegistryEntity;
+  registry: Readonly<Record<string, T>>;
+  name: string;
+  newName: string;
+  isValidName: (name: string) => boolean;
+}): { registration: { name: string } & T; isSameName: boolean } {
+  const { entity, registry, name, newName } = params;
+  const registration = findRegistered(registry, name);
+
+  if (!registration) {
+    throw new EntityNotFoundError({ entity, name });
+  }
+
+  if (newName === name) {
+    return { registration, isSameName: true };
+  }
+
+  if (!params.isValidName(newName)) {
+    throw new InvalidNameError({ entity, name: newName });
+  }
+
+  if (Object.hasOwn(registry, newName)) {
+    throw new DuplicateNameError({ entity, name: newName });
+  }
+
+  return { registration, isSameName: false };
 }
 
 function findRegisteredWorkspace(state: StoreState, name: string): RegisteredWorkspace | undefined {

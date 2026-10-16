@@ -259,6 +259,82 @@ describe('repos remove', () => {
   });
 });
 
+describe('repos rename', () => {
+  const library = { path: '/repos/library' };
+
+  /** A CLI whose registry holds `library`, at a path that does not exist. */
+  async function withLibrary() {
+    const cli = await newCli();
+
+    writeDocument(cli.store, { repos: { library } });
+
+    return cli;
+  }
+
+  it('files the repo under the new name, keeping its path, even with its directory gone', async () => {
+    const { run, store } = await withLibrary();
+
+    const { stdout } = run('repos', 'rename', 'library', 'docs');
+
+    expect(stdout).toEqual(['renamed repo "library" → "docs"']);
+    expect(readRepos(store)).toEqual({ docs: library });
+  });
+
+  it('says so when the new name is the current one', async () => {
+    const { run, store } = await withLibrary();
+
+    const { stdout } = run('repos', 'rename', 'library', 'library');
+
+    expect(stdout).toEqual(['nothing to rename: repo "library" already has that name']);
+    expect(readRepos(store)).toEqual({ library });
+  });
+
+  describe('refusals', () => {
+    it('refuses a name that is not registered', async () => {
+      const { run, store } = await withLibrary();
+
+      const error = captureError(() => run('repos', 'rename', 'ghost', 'docs'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no repo named "ghost"');
+      expect(readRepos(store)).toEqual({ library });
+    });
+
+    it('refuses a new name outside the allowed alphabet', async () => {
+      const { run, store } = await withLibrary();
+
+      const error = captureError(() => run('repos', 'rename', 'library', 'a/b'));
+
+      expect(error.message).toBe(
+        'repo name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"',
+      );
+      expect(readRepos(store)).toEqual({ library });
+    });
+
+    it('refuses a new name another repo holds', async () => {
+      const { run, store } = await withLibrary();
+      const docs = { path: '/repos/docs' };
+
+      writeDocument(store, { repos: { library, docs } });
+
+      const error = captureError(() => run('repos', 'rename', 'library', 'docs'));
+
+      expect(error).toBeInstanceOf(DuplicateNameError);
+      expect(error.message).toBe('repo "docs" is already registered');
+      expect(readRepos(store)).toEqual({ library, docs });
+    });
+
+    it('refuses an invocation naming no new name', async () => {
+      const { run, store } = await withLibrary();
+
+      const error = captureError(() => run('repos', 'rename', 'library'));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(readRepos(store)).toEqual({ library });
+    });
+  });
+});
+
 /**
  * A program wired to a throwaway store, driven in process.
  *

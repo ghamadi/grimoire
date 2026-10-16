@@ -547,6 +547,128 @@ describe('unregisterRepo', () => {
   );
 });
 
+describe('renameRepo', () => {
+  const repos = { library: { path: '/repos/library' }, docs: { path: '/repos/docs' } };
+
+  /** A manager whose state.json holds `repos` and whatever other `sections` a test adds. */
+  async function seededManager(sections: Parameters<typeof document>[0] = {}) {
+    const { manager, store } = await newManager();
+    const contents = document({ repos, ...sections });
+
+    writeState(store, contents);
+
+    return { manager, store, contents };
+  }
+
+  it('answers with the renamed repo, filing only the key under the new name', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameRepo({ name: 'library', newName: 'fresh' })).toEqual({
+      repo: { name: 'fresh', path: '/repos/library' },
+      renamed: true,
+    });
+    expect(manager.getRegistry().repos).toEqual({
+      fresh: { path: '/repos/library' },
+      docs: { path: '/repos/docs' },
+    });
+  });
+
+  it('leaves workspaces, clone records and ignore alone, even a workspace with the old name', async () => {
+    const sections = {
+      workspaces: { library: { path: '/work/project', autoLink: false } },
+      skills: { deploy: { clones: [{ workspace: 'library' }, { path: '/elsewhere' }] } },
+      ignore: ['.git'],
+    };
+    const { manager } = await seededManager(sections);
+
+    manager.renameRepo({ name: 'library', newName: 'fresh' });
+
+    expect(manager.getRegistry()).toEqual({
+      ...sections,
+      repos: { fresh: { path: '/repos/library' }, docs: { path: '/repos/docs' } },
+    });
+  });
+
+  it('renames a repo whose directory is gone', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerRepo({ name: 'library', path: repo.path });
+    rmSync(repo.path, { recursive: true, force: true });
+
+    manager.renameRepo({ name: 'library', newName: 'fresh' });
+
+    expect(manager.getRegistry().repos).toEqual({ fresh: { path: repo.path } });
+  });
+
+  it("renames to a registered workspace's name", async () => {
+    const { manager } = await seededManager({
+      workspaces: { personal: { path: '/work/project', autoLink: false } },
+    });
+
+    expect(manager.renameRepo({ name: 'library', newName: 'personal' }).renamed).toBe(true);
+    expect(manager.getRegistry().repos).toEqual({ personal: repos.library, docs: repos.docs });
+  });
+
+  it('treats a change of case as a rename', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameRepo({ name: 'library', newName: 'Library' }).renamed).toBe(true);
+    expect(manager.getRegistry().repos).toEqual({ Library: repos.library, docs: repos.docs });
+  });
+
+  it('writes nothing when the new name is the current one', async () => {
+    const { manager, store, contents } = await seededManager();
+
+    expect(manager.renameRepo({ name: 'library', newName: 'library' })).toEqual({
+      repo: { name: 'library', path: '/repos/library' },
+      renamed: false,
+    });
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+  });
+
+  describe('refusals, each leaving the registry', () => {
+    it.each(['ghost', 'toString'])('refuses the unregistered name %j', async (name) => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name, newName: 'fresh' }));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe(`no repo named "${name}"`);
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+
+    it('refuses an unregistered name renamed to itself', async () => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name: 'ghost', newName: 'ghost' }));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+
+    it('refuses a new name that breaks the name rule, naming it', async () => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name: 'library', newName: 'a/b' }));
+
+      expect(error).toBeInstanceOf(InvalidNameError);
+      expect(error.message).toContain('"a/b"');
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+
+    it('refuses a new name another repo holds, naming it', async () => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name: 'library', newName: 'docs' }));
+
+      expect(error).toBeInstanceOf(DuplicateNameError);
+      expect(error.message).toBe('repo "docs" is already registered');
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+  });
+});
+
 describe('listRegisteredRepos', () => {
   it('lists nothing for an empty registry', async () => {
     const { manager } = await newManager();
