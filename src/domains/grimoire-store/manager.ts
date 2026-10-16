@@ -7,9 +7,11 @@ import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-pa
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
+  GrimoireError,
   InvalidNameError,
   InvalidPathError,
   PathCollisionError,
+  type RegistryEntity,
 } from '@/lib/errors/index';
 import { join, matchesGlob } from 'node:path';
 import { InvalidShapeError } from '@/lib/errors/invalid-shape';
@@ -46,11 +48,8 @@ export type SkillClone = {
 export type FiledClone = {
   skill: string;
   record: CloneRecord;
-  /**
-   * `<workspace path or recorded path>/<skill>`, normalized — or `undefined` when `record`
-   * names a workspace that is not registered.
-   */
-  path: string | undefined;
+  /** `<workspace path or recorded path>/<skill>`, normalized. */
+  path: string;
 };
 
 /** A workspace as `state.json` holds it, carrying the name it is filed under. */
@@ -82,15 +81,11 @@ export class GrimoireStoreManager {
   registerWorkspace(params: RegisterWorkspaceParams) {
     const { name, autoLink = false } = params;
 
-    if (!Workspace.isValidName(name)) {
-      throw new InvalidNameError({ entity: 'workspace', name });
-    }
+    assertNameIsValid({ entity: 'workspace', name });
 
     const storeState = this.loadState();
 
-    if (Object.hasOwn(storeState.workspacesRegistry, name)) {
-      throw new DuplicateNameError({ entity: 'workspace', name });
-    }
+    assertNameIsAvailable({ entity: 'workspace', registry: storeState.workspacesRegistry, name });
 
     const collision =
       this.store.findCollisionWith(params.path) ??
@@ -119,36 +114,69 @@ export class GrimoireStoreManager {
   }
 
   requireRegisteredWorkspace(name: string): RegisteredWorkspace {
-    const workspace = findRegisteredWorkspace(this.loadState(), name);
-
-    if (!workspace) {
-      throw new EntityNotFoundError({ entity: 'workspace', name });
-    }
-
-    return workspace;
+    return requireRegistered({
+      entity: 'workspace',
+      registry: this.loadState().workspacesRegistry,
+      name,
+    });
   }
 
   /**
    * Drops a workspace from the registry and returns what it dropped.
    *
-   * The registration only: the directory, whatever it holds, and any clone
-   * record naming the workspace all outlive this call. A caller that has to
-   * settle those reads them through the name first, because the name stops
-   * resolving here.
+   * The registration only: the directory and whatever it holds outlive this call.
    *
    * @throws EntityNotFoundError if no workspace is registered under that name.
+   * @throws Error if a `{ workspace }` clone record still names it; settle those first.
    */
   unregisterWorkspace(name: string): RegisteredWorkspace {
     const storeState = this.loadState();
-    const workspace = findRegisteredWorkspace(storeState, name);
-
-    if (!workspace) {
-      throw new EntityNotFoundError({ entity: 'workspace', name });
-    }
+    const workspace = requireRegistered({
+      entity: 'workspace',
+      registry: storeState.workspacesRegistry,
+      name,
+    });
 
     this.saveState(storeState.withoutWorkspace(name));
 
     return workspace;
+  }
+
+  /**
+   * Files a workspace under a new name, keeping its path and auto-link setting,
+   * and returns it as renamed. Clone records naming the workspace follow it.
+   * Renaming to the same name writes nothing and answers `renamed: false`.
+   *
+   * @throws EntityNotFoundError if no workspace is registered under `name`.
+   * @throws InvalidNameError if `newName` fails `Workspace.isValidName`.
+   * @throws DuplicateNameError if another workspace is registered under `newName`.
+   */
+  renameWorkspace(params: { name: string; newName: string }): {
+    workspace: RegisteredWorkspace;
+    renamed: boolean;
+  } {
+    const storeState = this.loadState();
+    const { registration, isSameName } = checkRename({
+      entity: 'workspace',
+      registry: storeState.workspacesRegistry,
+      name: params.name,
+      newName: params.newName,
+    });
+
+    if (isSameName) {
+      return { workspace: registration, renamed: false };
+    }
+
+    const workspace = { ...registration, name: params.newName };
+
+    this.saveState(
+      storeState
+        .withoutWorkspace(params.name)
+        .withWorkspace(workspace)
+        .withClonesRecordedByName({ workspace: params.name, newName: params.newName }),
+    );
+
+    return { workspace, renamed: true };
   }
 
   /**
@@ -306,27 +334,25 @@ export class GrimoireStoreManager {
   /**
    * Every directory the skill is recorded as cloned into, in record order.
    *
-   * A record naming a workspace that is no longer registered resolves nowhere
-   * and is left out. The recorded path is joined as-is, not normalized, so
-   * `origin` prints the path the action takes.
+   * The recorded path is joined as-is, not normalized, so `origin` prints the
+   * path the action takes.
    */
   listSkillClones(name: string): SkillClone[] {
     const state = this.loadState();
 
-    return state.clonesOfSkill(name).flatMap((record): SkillClone[] => {
+    return state.clonesOfSkill(name).map((record): SkillClone => {
       if ('path' in record) {
-        return [{ origin: record.path, path: join(record.path, name), record }];
+        return { origin: record.path, path: join(record.path, name), record };
       }
 
-      const workspace = findRegisteredWorkspace(state, record.workspace);
+      const workspace = requireWorkspaceInState(state, record.workspace);
 
-      return workspace ? [{ origin: record.workspace, path: join(workspace.path, name), record }] : [];
+      return { origin: record.workspace, path: join(workspace.path, name), record };
     });
   }
 
   /**
-   * Every clone record in `state.json`, by skill name, then record order. Unlike
-   * `listSkillClones`, a record naming an unregistered workspace is kept, with no path.
+   * Every clone record in `state.json`, by skill name, then record order.
    */
   listFiledClones(): FiledClone[] {
     const state = this.loadState();
@@ -339,17 +365,16 @@ export class GrimoireStoreManager {
             return { skill, record, path: join(normalizePath(record.path), skill) };
           }
 
-          const workspace = findRegisteredWorkspace(state, record.workspace);
+          const workspace = requireWorkspaceInState(state, record.workspace);
 
-          return { skill, record, path: workspace && join(workspace.path, skill) };
+          return { skill, record, path: join(workspace.path, skill) };
         }),
       );
   }
 
   /**
    * The skill's recorded clone whose directory is `<directory>/<skill>`, by either record arm,
-   * compared canonically; the first in record order, or `undefined`. Built on `listSkillClones`,
-   * so a record naming an unregistered workspace never matches.
+   * compared canonically; the first in record order, or `undefined`.
    */
   findSkillClone(params: { skill: string; directory: string }): SkillClone | undefined {
     const target = join(params.directory, params.skill);
@@ -450,15 +475,11 @@ export class GrimoireStoreManager {
   registerRepo(params: { name: string; path: string }): RegisteredRepo {
     const { name } = params;
 
-    if (!Repo.isValidName(name)) {
-      throw new InvalidNameError({ entity: 'repo', name });
-    }
+    assertNameIsValid({ entity: 'repo', name });
 
     const storeState = this.loadState();
 
-    if (Object.hasOwn(storeState.reposRegistry, name)) {
-      throw new DuplicateNameError({ entity: 'repo', name });
-    }
+    assertNameIsAvailable({ entity: 'repo', registry: storeState.reposRegistry, name });
 
     const collision =
       this.store.findCollisionWith(params.path) ??
@@ -487,13 +508,7 @@ export class GrimoireStoreManager {
    * @throws EntityNotFoundError if no repo is registered under that name.
    */
   requireRegisteredRepo(name: string): RegisteredRepo {
-    const repo = findRegisteredRepo(this.loadState(), name);
-
-    if (!repo) {
-      throw new EntityNotFoundError({ entity: 'repo', name });
-    }
-
-    return repo;
+    return requireRegistered({ entity: 'repo', registry: this.loadState().reposRegistry, name });
   }
 
   /**
@@ -504,15 +519,39 @@ export class GrimoireStoreManager {
    */
   unregisterRepo(name: string): RegisteredRepo {
     const storeState = this.loadState();
-    const repo = findRegisteredRepo(storeState, name);
-
-    if (!repo) {
-      throw new EntityNotFoundError({ entity: 'repo', name });
-    }
+    const repo = requireRegistered({ entity: 'repo', registry: storeState.reposRegistry, name });
 
     this.saveState(storeState.withoutRepo(name));
 
     return repo;
+  }
+
+  /**
+   * Files a repo under a new name, keeping its path, and returns it as renamed.
+   * Renaming to the same name writes nothing and answers `renamed: false`.
+   *
+   * @throws EntityNotFoundError if no repo is registered under `name`.
+   * @throws InvalidNameError if `newName` fails `Repo.isValidName`.
+   * @throws DuplicateNameError if another repo is registered under `newName`.
+   */
+  renameRepo(params: { name: string; newName: string }): { repo: RegisteredRepo; renamed: boolean } {
+    const storeState = this.loadState();
+    const { registration, isSameName } = checkRename({
+      entity: 'repo',
+      registry: storeState.reposRegistry,
+      name: params.name,
+      newName: params.newName,
+    });
+
+    if (isSameName) {
+      return { repo: registration, renamed: false };
+    }
+
+    const repo = { ...registration, name: params.newName };
+
+    this.saveState(storeState.withoutRepo(params.name).withRepo(repo));
+
+    return { repo, renamed: true };
   }
 
   /**
@@ -537,21 +576,17 @@ export class GrimoireStoreManager {
    * a StoreManager does not load an invalid state, ever.
    */
   private loadState(): StoreState {
-    const state = this.readState();
-    assertNoCollidingRegistrations({ state, store: this.store });
-    return state;
-  }
-
-  /** The document as it sits on disk, shape vetted and nothing else. */
-  private readState(): StoreState {
     this.ensureLayout();
 
     const stateData = readJsonFile(this.store.paths.state);
 
-    return stateData === undefined ? StoreState.default() : StoreState.parse(stateData);
+    return stateData === undefined
+      ? StoreState.default()
+      : parseValidState({ data: stateData, store: this.store });
   }
 
   private saveState(state: StoreState): void {
+    assertWritable({ state, store: this.store });
     this.ensureLayout();
     writeAtomic(this.store.paths.state, JSON.stringify(state.toJSON(), null, 2));
   }
@@ -624,6 +659,34 @@ function assertNoCollidingRegistrations(query: { state: StoreState; store: Grimo
   }
 }
 
+/** `data` as a state, refused unless it keeps the schema and the path rule. */
+function parseValidState(params: { data: unknown; store: GrimoireStore }): StoreState {
+  const state = StoreState.parse(params.data);
+
+  assertNoCollidingRegistrations({ state, store: params.store });
+
+  return state;
+}
+
+/**
+ * Refuses a state that `loadState` would refuse. The state was loaded through these same
+ * checks and changed only by grimoire within the same action, so a refusal is a grimoire bug,
+ * not a hand edit: rethrown as a plain Error, which `cli.ts` prints with its stack.
+ */
+function assertWritable(params: { state: StoreState; store: GrimoireStore }): void {
+  try {
+    parseValidState({ data: params.state.toJSON(), store: params.store });
+  } catch (error) {
+    if (error instanceof GrimoireError) {
+      throw new Error(`refusing to write ${params.store.paths.state}: ${error.message}`, {
+        cause: error,
+      });
+    }
+
+    throw error;
+  }
+}
+
 function byName([a]: [string, unknown], [b]: [string, unknown]): number {
   return a.localeCompare(b);
 }
@@ -660,12 +723,68 @@ function findRegistered<T extends object>(
   return Object.hasOwn(registry, name) ? { name, ...registry[name]! } : undefined;
 }
 
-function findRegisteredWorkspace(state: StoreState, name: string): RegisteredWorkspace | undefined {
-  return findRegistered(state.workspacesRegistry, name);
+const isValidNameByEntity: Record<RegistryEntity, (name: string) => boolean> = {
+  workspace: (name) => Workspace.isValidName(name),
+  repo: (name) => Repo.isValidName(name),
+};
+
+function assertNameIsValid(params: { entity: RegistryEntity; name: string }): void {
+  const { entity, name } = params;
+
+  if (!isValidNameByEntity[entity](name)) {
+    throw new InvalidNameError({ entity, name });
+  }
 }
 
-function findRegisteredRepo(state: StoreState, name: string): RegisteredRepo | undefined {
-  return findRegistered(state.reposRegistry, name);
+function assertNameIsAvailable<T>(params: {
+  entity: RegistryEntity;
+  registry: Readonly<Record<string, T>>;
+  name: string;
+}): void {
+  const { entity, registry, name } = params;
+
+  if (Object.hasOwn(registry, name)) {
+    throw new DuplicateNameError({ entity, name });
+  }
+}
+
+function requireRegistered<T extends object>(params: {
+  entity: RegistryEntity;
+  registry: Readonly<Record<string, T>>;
+  name: string;
+}): { name: string } & T {
+  const { entity, registry, name } = params;
+  const registration = findRegistered(registry, name);
+
+  if (!registration) {
+    throw new EntityNotFoundError({ entity, name });
+  }
+
+  return registration;
+}
+
+function requireWorkspaceInState(state: StoreState, name: string): RegisteredWorkspace {
+  return requireRegistered({ entity: 'workspace', registry: state.workspacesRegistry, name });
+}
+
+/** The entry a rename starts from, and whether `newName` is its current name. */
+function checkRename<T extends object>(params: {
+  entity: RegistryEntity;
+  registry: Readonly<Record<string, T>>;
+  name: string;
+  newName: string;
+}): { registration: { name: string } & T; isSameName: boolean } {
+  const { entity, registry, name, newName } = params;
+  const registration = requireRegistered({ entity, registry, name });
+
+  if (newName === name) {
+    return { registration, isSameName: true };
+  }
+
+  assertNameIsValid({ entity, name: newName });
+  assertNameIsAvailable({ entity, registry, name: newName });
+
+  return { registration, isSameName: false };
 }
 
 /**

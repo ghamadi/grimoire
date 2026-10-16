@@ -83,6 +83,21 @@ export function workspacesCommand(params: WorkspacesCommandParams): Command {
     });
 
   command
+    .command('rename')
+    .description('Rename a registered workspace, keeping its path and clone records')
+    .argument('<name>', 'registered name')
+    .argument('<new-name>', 'name to file it under instead')
+    .action((name: string, newName: string) => {
+      const { workspace, renamed } = storeManager.renameWorkspace({ name, newName });
+
+      console.log(
+        renamed
+          ? `renamed workspace "${name}" → "${workspace.name}"`
+          : `nothing to rename: workspace "${workspace.name}" already has that name`,
+      );
+    });
+
+  command
     .command('list')
     .alias('ls')
     .description('List the registered workspaces')

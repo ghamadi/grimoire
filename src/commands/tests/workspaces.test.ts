@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -426,6 +426,110 @@ describe('workspaces remove', () => {
     expect(captureError(() => run('workspaces', 'add', 'work', workspacePath))).toBeInstanceOf(
       CollidingRegistrationError,
     );
+  });
+});
+
+describe('workspaces rename', () => {
+  /** A CLI with `personal` registered at a fresh directory, auto-linking. */
+  async function withPersonal() {
+    const cli = await newCli();
+    const path = await newDirectory('project');
+
+    cli.run('workspaces', 'add', 'personal', path, '--auto-link');
+
+    return { ...cli, path };
+  }
+
+  it('files the workspace under the new name, keeping its path and auto-link setting', async () => {
+    const { run, store, path } = await withPersonal();
+
+    const { stdout } = run('workspaces', 'rename', 'personal', 'fresh');
+
+    expect(stdout).toEqual(['renamed workspace "personal" → "fresh"']);
+    expect(readWorkspaces(store)).toEqual({ fresh: { path, autoLink: true } });
+  });
+
+  it('carries the clone records over without reporting them', async () => {
+    const { run, store } = await withPersonal();
+
+    recordClones(store, { deploy: [{ workspace: 'personal' }, { path: '/elsewhere' }] });
+
+    const { stdout } = run('workspaces', 'rename', 'personal', 'fresh');
+
+    expect(stdout).toEqual(['renamed workspace "personal" → "fresh"']);
+    expect(readClones(store)).toEqual({ deploy: [{ workspace: 'fresh' }, { path: '/elsewhere' }] });
+  });
+
+  it('says so when the new name is the current one', async () => {
+    const { run, store, path } = await withPersonal();
+
+    const { stdout } = run('workspaces', 'rename', 'personal', 'personal');
+
+    expect(stdout).toEqual(['nothing to rename: workspace "personal" already has that name']);
+    expect(readWorkspaces(store)).toEqual({ personal: { path, autoLink: true } });
+  });
+
+  it('renames a workspace whose directory is gone', async () => {
+    const { run, store, path } = await withPersonal();
+
+    rmSync(path, { recursive: true, force: true });
+
+    run('workspaces', 'rename', 'personal', 'fresh');
+
+    expect(readWorkspaces(store)).toEqual({ fresh: { path, autoLink: true } });
+  });
+
+  it.skipIf(runsAsRoot)('renames a workspace whose directory cannot be read', async () => {
+    const { run, store, path } = await withPersonal();
+
+    lockDirectory({ path });
+
+    run('workspaces', 'rename', 'personal', 'fresh');
+
+    expect(readWorkspaces(store)).toEqual({ fresh: { path, autoLink: true } });
+  });
+
+  describe('refusals', () => {
+    it.each([
+      ['ghost', 'fresh'],
+      ['ghost', 'ghost'],
+    ])('refuses the unregistered name in %s → %s', async (name, newName) => {
+      const { run, store, path } = await withPersonal();
+
+      const error = captureError(() => run('workspaces', 'rename', name, newName));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no workspace named "ghost"');
+      expect(readWorkspaces(store)).toEqual({ personal: { path, autoLink: true } });
+    });
+
+    it('refuses a new name outside the allowed alphabet', async () => {
+      const { run, store, path } = await withPersonal();
+
+      const error = captureError(() => run('workspaces', 'rename', 'personal', 'a/b'));
+
+      expect(error).toBeInstanceOf(InvalidNameError);
+      expect(error.message).toBe(
+        'workspace name "a/b" must start with a letter or digit and contain only letters, digits, "-" and "_"',
+      );
+      expect(readWorkspaces(store)).toEqual({ personal: { path, autoLink: true } });
+    });
+
+    it('refuses a new name another workspace holds', async () => {
+      const { run, store, path } = await withPersonal();
+      const workPath = await newDirectory('work');
+
+      run('workspaces', 'add', 'work', workPath);
+
+      const error = captureError(() => run('workspaces', 'rename', 'personal', 'work'));
+
+      expect(error).toBeInstanceOf(DuplicateNameError);
+      expect(error.message).toBe('workspace "work" is already registered');
+      expect(readWorkspaces(store)).toEqual({
+        personal: { path, autoLink: true },
+        work: { path: workPath, autoLink: false },
+      });
+    });
   });
 });
 

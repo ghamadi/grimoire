@@ -42,7 +42,7 @@ Clones outside workspaces  directories recorded by path
 │ notes │ present │ /Users/me/old/skills │
 └───────┴─────────┴──────────────────────┘
 
-Problems  6
+Problems  5
 
   ! link gone in workspace personal resolves nowhere
     It points into the store, at a skill that is not there.
@@ -62,9 +62,6 @@ Problems  6
       grimoire clone lint work
     Or forget the record:
       grimoire unclone lint work
-
-  ! clone of triage is recorded under "ghost", which is not a registered workspace
-    Remove the record from /Users/me/.grimoire/state.json.
 
   ! store entry notes.txt is not a skill directory
     Move it out of the store, or add it to "ignore" in /Users/me/.grimoire/state.json.
@@ -187,15 +184,14 @@ terminal.
 
 ## Problems
 
-| Problem                               | Reported when                                                                                   | Reported for             |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
-| unreachable workspace                 | the workspace is [unreachable](../conventions.md#unreachable-and-unreadable-workspaces)         | workspace                |
-| unreadable workspace                  | the workspace is [unreadable](../conventions.md#unreachable-and-unreadable-workspaces)          | workspace                |
-| dangling link                         | a link into the store does not resolve; see [Dangling links](#dangling-links)                   | workspace (reachable)    |
-| clone no longer in the store          | the record's `<dir>/<skill>` is a directory, and the skill is not in the store                  | workspace, recorded path |
-| missing clone                         | the record's `<dir>/<skill>` is not a directory                                                 | workspace, recorded path |
-| clone under an unregistered workspace | a `{ workspace }` clone record names a workspace that is not registered                         | store                    |
-| stray entry                           | a store entry is not a skill and is not ignored; see [Stray entries](#stray-entries-and-ignore) | store                    |
+| Problem                      | Reported when                                                                                   | Reported for             |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
+| unreachable workspace        | the workspace is [unreachable](../conventions.md#unreachable-and-unreadable-workspaces)         | workspace                |
+| unreadable workspace         | the workspace is [unreadable](../conventions.md#unreachable-and-unreadable-workspaces)          | workspace                |
+| dangling link                | a link into the store does not resolve; see [Dangling links](#dangling-links)                   | workspace (reachable)    |
+| clone no longer in the store | the record's `<dir>/<skill>` is a directory, and the skill is not in the store                  | workspace, recorded path |
+| missing clone                | the record's `<dir>/<skill>` is not a directory                                                 | workspace, recorded path |
+| stray entry                  | a store entry is not a skill and is not ignored; see [Stray entries](#stray-entries-and-ignore) | store                    |
 
 Each problem prints as an entry in the `Problems` section, in this order: each workspace's, by workspace name, then each
 recorded path's, then the store's.
@@ -239,9 +235,6 @@ or the directory for a recorded path.
     Forget the record:
       grimoire unclone <skill> <target>
 
-  ! clone of <skill> is recorded under "<workspace>", which is not a registered workspace
-    Remove the record from <state path>.
-
   ! store entry <entry> is not a skill directory
     Move it out of the store, or add it to "ignore" in <state path>.
 ```
@@ -269,8 +262,7 @@ There is no exemption for dot-entries. A version-controlled store's `.git` print
 
 ### Manual fixes
 
-Three problems have no fix command: dangling links, stray entries, and records under an unregistered workspace.
-[`unclone`](./unclone.md) cannot reach the last one, because an unregistered name refuses.
+Two problems have no fix command: dangling links and stray entries.
 
 ## Empty cases
 

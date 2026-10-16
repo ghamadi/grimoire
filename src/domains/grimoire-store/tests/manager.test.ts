@@ -547,6 +547,121 @@ describe('unregisterRepo', () => {
   );
 });
 
+describe('renameRepo', () => {
+  const repos = { library: { path: '/repos/library' }, docs: { path: '/repos/docs' } };
+
+  /** A manager whose state.json holds `repos` and whatever other `sections` a test adds. */
+  const seededManager = (sections: DocumentSections = {}) => seededStore({ repos, ...sections });
+
+  it('answers with the renamed repo, filing only the key under the new name', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameRepo({ name: 'library', newName: 'fresh' })).toEqual({
+      repo: { name: 'fresh', path: '/repos/library' },
+      renamed: true,
+    });
+    expect(manager.getRegistry().repos).toEqual({
+      fresh: { path: '/repos/library' },
+      docs: { path: '/repos/docs' },
+    });
+  });
+
+  it('leaves workspaces, clone records and ignore alone, even a workspace with the old name', async () => {
+    const sections = {
+      workspaces: { library: { path: '/work/project', autoLink: false } },
+      skills: { deploy: { clones: [{ workspace: 'library' }, { path: '/elsewhere' }] } },
+      ignore: ['.git'],
+    };
+    const { manager } = await seededManager(sections);
+
+    manager.renameRepo({ name: 'library', newName: 'fresh' });
+
+    expect(manager.getRegistry()).toEqual({
+      ...sections,
+      repos: { fresh: { path: '/repos/library' }, docs: { path: '/repos/docs' } },
+    });
+  });
+
+  it('renames a repo whose directory is gone', async () => {
+    const { manager } = await newManager();
+    const repo = await tempGitRepo();
+
+    manager.registerRepo({ name: 'library', path: repo.path });
+    rmSync(repo.path, { recursive: true, force: true });
+
+    manager.renameRepo({ name: 'library', newName: 'fresh' });
+
+    expect(manager.getRegistry().repos).toEqual({ fresh: { path: repo.path } });
+  });
+
+  it("renames to a registered workspace's name", async () => {
+    const { manager } = await seededManager({
+      workspaces: { personal: { path: '/work/project', autoLink: false } },
+    });
+
+    expect(manager.renameRepo({ name: 'library', newName: 'personal' }).renamed).toBe(true);
+    expect(manager.getRegistry().repos).toEqual({ personal: repos.library, docs: repos.docs });
+  });
+
+  it('treats a change of case as a rename', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameRepo({ name: 'library', newName: 'Library' }).renamed).toBe(true);
+    expect(manager.getRegistry().repos).toEqual({ Library: repos.library, docs: repos.docs });
+  });
+
+  it('writes nothing when the new name is the current one', async () => {
+    const { manager, store, contents } = await seededManager();
+
+    expect(manager.renameRepo({ name: 'library', newName: 'library' })).toEqual({
+      repo: { name: 'library', path: '/repos/library' },
+      renamed: false,
+    });
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+  });
+
+  describe('refusals, each leaving the registry', () => {
+    it.each(['ghost', 'toString'])('refuses the unregistered name %j', async (name) => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name, newName: 'fresh' }));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe(`no repo named "${name}"`);
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+
+    it('refuses an unregistered name renamed to itself', async () => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name: 'ghost', newName: 'ghost' }));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+
+    it('refuses a new name that breaks the name rule, naming it', async () => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name: 'library', newName: 'a/b' }));
+
+      expect(error).toBeInstanceOf(InvalidNameError);
+      expect(error.message).toContain('"a/b"');
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+
+    it('refuses a new name another repo holds, naming it', async () => {
+      const { manager } = await seededManager();
+
+      const error = refusalOf(() => manager.renameRepo({ name: 'library', newName: 'docs' }));
+
+      expect(error).toBeInstanceOf(DuplicateNameError);
+      expect(error.message).toBe('repo "docs" is already registered');
+      expect(manager.getRegistry().repos).toEqual(repos);
+    });
+  });
+});
+
 describe('listRegisteredRepos', () => {
   it('lists nothing for an empty registry', async () => {
     const { manager } = await newManager();
@@ -686,6 +801,25 @@ describe('reading state.json', () => {
 
     expect(message).toContain('skills.deploy.clones[0].workspace');
     expect(message).toContain('workspace name must start with a letter or digit');
+  });
+
+  it('refuses a clone record naming a workspace that is not registered, naming it', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ skills: { deploy: { clones: [{ workspace: 'home' }] } } }));
+
+    const { message } = refusal(() => manager.getRegistry());
+
+    expect(message).toContain('skills.deploy.clones[0].workspace');
+    expect(message).toContain('workspace "home" is not registered');
+  });
+
+  it('refuses a clone record naming a workspace an object inherits from its prototype', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ skills: { deploy: { clones: [{ workspace: 'toString' }] } } }));
+
+    refusal(() => manager.getRegistry());
   });
 
   // A file holding `null` parses fine and holds no state: absence is the
@@ -1086,32 +1220,206 @@ describe('unregisterWorkspace', () => {
     expect(() => manager.unregisterWorkspace('work')).toThrow(EntityNotFoundError);
     expect(manager.getRegistry().workspaces).toEqual({ personal: { path, autoLink: false } });
   });
+
+  it('refuses while a clone record still names it, writing nothing', async () => {
+    const { manager, store, contents } = await seededStore({
+      workspaces: { personal: { path: '/projects/app', autoLink: false } },
+      skills: { deploy: { clones: [{ workspace: 'personal' }] } },
+    });
+
+    const error = refusalOf(() => manager.unregisterWorkspace('personal'));
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(GrimoireError);
+    expect(error.message).toContain('skills.deploy.clones[0].workspace');
+    expect(error.message).toContain('workspace "personal" is not registered');
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+  });
+
+  it('is not blocked by a clone record kept by path', async () => {
+    const { manager } = await seededStore({
+      workspaces: { personal: { path: '/projects/app', autoLink: false } },
+      skills: { deploy: { clones: [{ path: '/elsewhere' }] } },
+    });
+
+    manager.unregisterWorkspace('personal');
+
+    expect(manager.getRegistry().workspaces).toEqual({});
+    expect(manager.getRegistry().skills.deploy?.clones).toEqual([{ path: '/elsewhere' }]);
+  });
+});
+
+describe('renameWorkspace', () => {
+  const workspaces = {
+    personal: { path: '/work/personal', autoLink: true },
+    work: { path: '/work/job', autoLink: false },
+  };
+
+  /** A manager whose state.json holds `workspaces` and whatever other `sections` a test adds. */
+  const seededManager = (sections: DocumentSections = {}) => seededStore({ workspaces, ...sections });
+
+  it('answers with the renamed workspace, keeping its path and auto-link setting', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameWorkspace({ name: 'personal', newName: 'fresh' })).toEqual({
+      workspace: { name: 'fresh', path: '/work/personal', autoLink: true },
+      renamed: true,
+    });
+    expect(manager.getRegistry().workspaces).toEqual({
+      fresh: workspaces.personal,
+      work: workspaces.work,
+    });
+  });
+
+  it("rewrites the workspace's clone records in order, leaving every other record and section alone", async () => {
+    const sections = {
+      repos: { personal: { path: '/repos/personal' } },
+      skills: {
+        deploy: {
+          clones: [{ workspace: 'personal' }, { path: '/elsewhere' }, { workspace: 'work' }],
+        },
+        triage: { clones: [{ workspace: 'work' }, { workspace: 'personal' }] },
+        review: { clones: [] },
+      },
+      ignore: ['.git'],
+    };
+    const { manager } = await seededManager(sections);
+
+    manager.renameWorkspace({ name: 'personal', newName: 'fresh' });
+
+    expect(manager.getRegistry()).toEqual({
+      workspaces: { fresh: workspaces.personal, work: workspaces.work },
+      repos: sections.repos,
+      skills: {
+        deploy: {
+          clones: [{ workspace: 'fresh' }, { path: '/elsewhere' }, { workspace: 'work' }],
+        },
+        triage: { clones: [{ workspace: 'work' }, { workspace: 'fresh' }] },
+        review: { clones: [] },
+      },
+      ignore: ['.git'],
+    });
+  });
+
+  it("renames to a registered repo's name", async () => {
+    const { manager } = await seededManager({ repos: { library: { path: '/repos/library' } } });
+
+    expect(manager.renameWorkspace({ name: 'personal', newName: 'library' }).renamed).toBe(true);
+    expect(manager.getRegistry().workspaces).toEqual({
+      library: workspaces.personal,
+      work: workspaces.work,
+    });
+  });
+
+  it('treats a change of case as a rename', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameWorkspace({ name: 'personal', newName: 'Personal' }).renamed).toBe(true);
+    expect(manager.getRegistry().workspaces).toEqual({
+      Personal: workspaces.personal,
+      work: workspaces.work,
+    });
+  });
+
+  it('renames to a name an object inherits from its prototype', async () => {
+    const { manager } = await seededManager();
+
+    expect(manager.renameWorkspace({ name: 'personal', newName: 'toString' }).renamed).toBe(true);
+    expect(manager.getRegistry().workspaces).toEqual({
+      toString: workspaces.personal,
+      work: workspaces.work,
+    });
+  });
+
+  it('renames a workspace whose directory is gone', async () => {
+    const { manager, root } = await newManager();
+    const path = join(root, 'project');
+
+    manager.registerWorkspace({ name: 'personal', path });
+    rmSync(path, { recursive: true, force: true });
+
+    manager.renameWorkspace({ name: 'personal', newName: 'fresh' });
+
+    expect(manager.getRegistry().workspaces).toEqual({ fresh: { path, autoLink: false } });
+  });
+
+  it('writes nothing when the new name is the current one', async () => {
+    const { manager, store, contents } = await seededManager({
+      skills: { deploy: { clones: [{ workspace: 'personal' }] } },
+    });
+
+    expect(manager.renameWorkspace({ name: 'personal', newName: 'personal' })).toEqual({
+      workspace: { name: 'personal', path: '/work/personal', autoLink: true },
+      renamed: false,
+    });
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+  });
+
+  describe('refusals, each leaving state.json', () => {
+    it.each(['ghost', 'toString'])('refuses the unregistered name %j', async (name) => {
+      const { manager, store, contents } = await seededManager();
+
+      const error = refusalOf(() => manager.renameWorkspace({ name, newName: 'fresh' }));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe(`no workspace named "${name}"`);
+      expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+    });
+
+    it('refuses an unregistered name renamed to itself', async () => {
+      const { manager, store, contents } = await seededManager();
+
+      const error = refusalOf(() => manager.renameWorkspace({ name: 'ghost', newName: 'ghost' }));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+    });
+
+    it('refuses a new name that breaks the name rule, naming it', async () => {
+      const { manager, store, contents } = await seededManager();
+
+      const error = refusalOf(() => manager.renameWorkspace({ name: 'personal', newName: 'a/b' }));
+
+      expect(error).toBeInstanceOf(InvalidNameError);
+      expect(error.message).toContain('"a/b"');
+      expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+    });
+
+    it('refuses a new name another workspace holds, naming it', async () => {
+      const { manager, store, contents } = await seededManager();
+
+      const error = refusalOf(() => manager.renameWorkspace({ name: 'personal', newName: 'work' }));
+
+      expect(error).toBeInstanceOf(DuplicateNameError);
+      expect(error.message).toBe('workspace "work" is already registered');
+      expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+    });
+  });
 });
 
 describe('clone records', () => {
+  const workspaces = {
+    personal: { path: '/projects/app', autoLink: false },
+    work: { path: '/projects/job', autoLink: false },
+  };
   const clonedIntoPersonal = { deploy: { clones: [{ workspace: 'personal' }] } };
 
   it('rewrites the records of a workspace to carry its path', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
-    writeState(store, document({ skills: clonedIntoPersonal }));
     manager.recordClonesByPath({ workspace: 'personal', path: '/projects/app' });
 
     expect(manager.getRegistry().skills).toEqual({ deploy: { clones: [{ path: '/projects/app' }] } });
   });
 
   it('answers with every skill it rewrote, sorted', async () => {
-    const { manager, store } = await newManager();
-
-    writeState(
-      store,
-      document({
-        skills: {
-          shipper: { clones: [{ workspace: 'personal' }] },
-          deploy: { clones: [{ workspace: 'personal' }] },
-        },
-      }),
-    );
+    const { manager } = await seededStore({
+      workspaces,
+      skills: {
+        shipper: { clones: [{ workspace: 'personal' }] },
+        deploy: { clones: [{ workspace: 'personal' }] },
+      },
+    });
 
     expect(manager.recordClonesByPath({ workspace: 'personal', path: '/projects/app' })).toEqual([
       'deploy',
@@ -1120,12 +1428,11 @@ describe('clone records', () => {
   });
 
   it('leaves the records of another workspace alone', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({
+      workspaces,
+      skills: { deploy: { clones: [{ workspace: 'work' }, { workspace: 'personal' }] } },
+    });
 
-    writeState(
-      store,
-      document({ skills: { deploy: { clones: [{ workspace: 'work' }, { workspace: 'personal' }] } } }),
-    );
     manager.recordClonesByPath({ workspace: 'personal', path: '/projects/app' });
 
     expect(manager.getRegistry().skills.deploy?.clones).toEqual([
@@ -1144,18 +1451,15 @@ describe('clone records', () => {
   });
 
   it('drops the records of a workspace under forget, answering with the skills', async () => {
-    const { manager, store } = await newManager();
-
-    writeState(store, document({ skills: clonedIntoPersonal }));
+    const { manager } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
     expect(manager.forgetSkillsClonedIntoWorkspace('personal')).toEqual(['deploy']);
   });
 
   // `clones: []` means "never cloned", which is what a forgotten record leaves.
   it('keeps the entry of a skill once its last record is forgotten', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
-    writeState(store, document({ skills: clonedIntoPersonal }));
     manager.forgetSkillsClonedIntoWorkspace('personal');
 
     expect(manager.getRegistry().skills).toEqual({ deploy: { clones: [] } });
@@ -1172,10 +1476,7 @@ describe('clone records', () => {
       (manager: GrimoireStoreManager) => manager.forgetSkillsClonedIntoWorkspace('work'),
     ],
   ])('writes nothing when no record names the workspace: %s', async (_method, run) => {
-    const { manager, store } = await newManager();
-    const contents = document({ skills: clonedIntoPersonal });
-
-    writeState(store, contents);
+    const { manager, store, contents } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
     expect(run(manager)).toEqual([]);
     expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
@@ -1282,17 +1583,6 @@ describe('listSkillClones', () => {
     ]);
   });
 
-  it('omits a record naming a workspace that is not registered', async () => {
-    const { manager, store } = await newManager();
-    const record = { path: '/projects/app' };
-
-    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'ghost' }, record] } } }));
-
-    expect(manager.listSkillClones('triage')).toEqual([
-      { origin: '/projects/app', path: '/projects/app/triage', record },
-    ]);
-  });
-
   it('answers nothing for a skill with no entry', async () => {
     const { manager } = await newManager();
 
@@ -1355,15 +1645,6 @@ describe('listFiledClones', () => {
     expect(manager.listFiledClones()).toEqual([
       { skill: 'triage', record, path: join(homedir(), 'old', 'triage') },
     ]);
-  });
-
-  it('keeps a record naming a workspace that is not registered, with no path', async () => {
-    const { manager, store } = await newManager();
-    const record = { workspace: 'ghost' };
-
-    writeState(store, document({ skills: { triage: { clones: [record] } } }));
-
-    expect(manager.listFiledClones()).toEqual([{ skill: 'triage', record, path: undefined }]);
   });
 
   it('sorts by skill name and keeps record order within a skill', async () => {
@@ -1467,19 +1748,6 @@ describe('findSkillClone', () => {
       origin: real,
       path: join(real, 'triage'),
       record,
-    });
-  });
-
-  it('never matches through an unregistered workspace, even with a matching sibling', async () => {
-    const { manager, store } = await newManager();
-    const sibling = { path: '/projects/app' };
-
-    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'ghost' }, sibling] } } }));
-
-    expect(manager.findSkillClone({ skill: 'triage', directory: '/projects/app' })).toEqual({
-      origin: '/projects/app',
-      path: '/projects/app/triage',
-      record: sibling,
     });
   });
 
@@ -1828,9 +2096,11 @@ describe('forgetSkill', () => {
 
   // Unlike forgetting a workspace's clones, which leaves `clones: []` behind.
   it('leaves no key behind, unlike forgetting the clones into a workspace', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({
+      workspaces: { personal: { path: '/ws', autoLink: false } },
+      skills: { triage: { clones: [{ workspace: 'personal' }] } },
+    });
 
-    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'personal' }] } } }));
     manager.forgetSkillsClonedIntoWorkspace('personal');
 
     expect(manager.getRegistry().skills).toEqual({ triage: { clones: [] } });
@@ -2096,6 +2366,16 @@ function writeState(store: GrimoireStore, contents: string): void {
   writeFileSync(store.paths.state, contents, 'utf8');
 }
 
+/** A manager whose state.json holds exactly `document(sections)`, returned with that text. */
+async function seededStore(sections: DocumentSections) {
+  const { manager, store } = await newManager();
+  const contents = document(sections);
+
+  writeState(store, contents);
+
+  return { manager, store, contents };
+}
+
 /** Puts a skill in the store and symlinks it into the workspace, the way `link` does. */
 function linkSkill(params: { store: GrimoireStore; workspace: string; skill: string }): void {
   const { store, workspace, skill } = params;
@@ -2105,13 +2385,15 @@ function linkSkill(params: { store: GrimoireStore; workspace: string; skill: str
   symlinkSync(target, join(workspace, skill));
 }
 
-/** A whole state.json, as text, carrying only the sections a test cares about. */
-function document(sections: {
+type DocumentSections = {
   workspaces?: unknown;
   repos?: unknown;
   skills?: unknown;
   ignore?: unknown;
-}): string {
+};
+
+/** A whole state.json, as text, carrying only the sections a test cares about. */
+function document(sections: DocumentSections): string {
   return JSON.stringify({ workspaces: {}, repos: {}, skills: {}, ignore: ['.DS_Store'], ...sections });
 }
 

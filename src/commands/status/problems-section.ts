@@ -162,12 +162,6 @@ function describeStoreProblem(params: { problem: StoreProblem; statePath: string
   const { problem, statePath } = params;
 
   switch (problem.kind) {
-    case 'clone-unregistered-workspace':
-      return {
-        headline: `clone of ${problem.skill} is recorded under "${problem.workspace}", which is not a registered workspace`,
-        lines: [{ sentence: `Remove the record from ${statePath}.` }],
-      };
-
     case 'stray-entry':
       return {
         headline: `store entry ${problem.entry} is not a skill directory`,
@@ -179,6 +173,6 @@ function describeStoreProblem(params: { problem: StoreProblem; statePath: string
       };
 
     default:
-      return assertUnreachable(problem);
+      return assertUnreachable(problem.kind);
   }
 }

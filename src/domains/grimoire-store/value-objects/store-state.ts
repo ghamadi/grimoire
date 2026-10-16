@@ -4,6 +4,7 @@ import { canBeRegistered } from '@/domains/grimoire-store/helpers/registered-pat
 import { Repo } from '@/domains/repo/index';
 import { Workspace } from '@/domains/workspace/index';
 import { InvalidShapeError } from '@/lib/errors/invalid-shape';
+import { NAME_RULE_MESSAGE } from '@/lib/errors/index';
 
 // ----------------------------------------------------------------------------
 // SCHEMAS
@@ -16,11 +17,9 @@ const registeredPath = z
   .refine(canBeRegistered, { error: 'must be an absolute path or start with ~/' })
   .transform(normalizePath);
 
-const INVALID_WORKSPACE_NAME =
-  'workspace name must start with a letter or digit and contain only letters, digits, "-" and "_"';
+const INVALID_WORKSPACE_NAME = `workspace name ${NAME_RULE_MESSAGE}`;
 
-const INVALID_REPO_NAME =
-  'repo name must start with a letter or digit and contain only letters, digits, "-" and "_"';
+const INVALID_REPO_NAME = `repo name ${NAME_RULE_MESSAGE}`;
 
 const workspaceNameSchema = z
   .string()
@@ -80,20 +79,34 @@ function registrySchema<T extends z.ZodType>(params: {
  * `workspaces`, `repos` and `skills` are records rather than strict objects: their
  * keys are names the user chose, so there is no such thing as an unrecognized one.
  */
-const stateDataSchema = z.strictObject({
-  workspaces: registrySchema({
-    entry: workspaceConfigSchema,
-    isValidName: (name) => Workspace.isValidName(name),
-    invalidNameMessage: INVALID_WORKSPACE_NAME,
-  }).default({}),
-  repos: registrySchema({
-    entry: repoConfigSchema,
-    isValidName: (name) => Repo.isValidName(name),
-    invalidNameMessage: INVALID_REPO_NAME,
-  }).default({}),
-  skills: z.record(z.string(), skillSchema).default({}),
-  ignore: z.array(z.string()).default(['.DS_Store']),
-});
+const stateDataSchema = z
+  .strictObject({
+    workspaces: registrySchema({
+      entry: workspaceConfigSchema,
+      isValidName: (name) => Workspace.isValidName(name),
+      invalidNameMessage: INVALID_WORKSPACE_NAME,
+    }).default({}),
+    repos: registrySchema({
+      entry: repoConfigSchema,
+      isValidName: (name) => Repo.isValidName(name),
+      invalidNameMessage: INVALID_REPO_NAME,
+    }).default({}),
+    skills: z.record(z.string(), skillSchema).default({}),
+    ignore: z.array(z.string()).default(['.DS_Store']),
+  })
+  .superRefine((data, ctx) => {
+    for (const [skill, { clones }] of Object.entries(data.skills)) {
+      clones.forEach((record, index) => {
+        if ('workspace' in record && !Object.hasOwn(data.workspaces, record.workspace)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['skills', skill, 'clones', index, 'workspace'],
+            message: `workspace "${record.workspace}" is not registered`,
+          });
+        }
+      });
+    }
+  });
 
 export type CloneRecord = z.infer<typeof cloneRecordSchema>;
 type WorkspaceRecord = z.infer<typeof workspaceConfigSchema>;
@@ -232,6 +245,14 @@ export class StoreState {
     const byPath = parseOrThrow(cloneRecordSchema, { path: params.path });
 
     return this.mapClones((record) => (isCloneInto(workspace)(record) ? byPath : record));
+  }
+
+  /** @returns a new config with the workspace's clones recorded under its new name. */
+  withClonesRecordedByName(params: { workspace: string; newName: string }): StoreState {
+    const { workspace } = params;
+    const byName = parseOrThrow(cloneRecordSchema, { workspace: params.newName });
+
+    return this.mapClones((record) => (isCloneInto(workspace)(record) ? byName : record));
   }
 
   /**

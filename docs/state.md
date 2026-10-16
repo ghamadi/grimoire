@@ -33,7 +33,7 @@ error: workspace name "a/b" must start with a letter or digit and contain only l
 
 For a repo, the message reads `repo name` instead.
 
-The rule is checked when a name is registered, and again on [every load](#load-failures). It is what lets
+The rule is checked when a name is registered or renamed, and again on [every load](#load-failures). It is what lets
 [`unclone`](./commands/unclone.md) tell a workspace name from a path.
 
 ## The path rule
@@ -88,6 +88,9 @@ That includes `repos remove`.
 - A registered path that breaks [the path rule](#the-path-rule) is refused. This can only happen by editing `state.json` by
   hand, or by repointing a symlink after registration. The message names the kind and the entry:
   `workspace "bad" cannot be used: …`, or `repo "bad" cannot be used: …`.
+- A `{ workspace }` clone record naming a workspace that is not registered is refused, and the message names the record. This
+  can only happen by editing `state.json` by hand. Otherwise, registering a workspace under that name would quietly take the
+  record over.
 
 ```shell
 $ grimoire status

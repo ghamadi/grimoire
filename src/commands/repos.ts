@@ -33,6 +33,21 @@ export function reposCommand(params: ReposCommandParams): Command {
     });
 
   command
+    .command('rename')
+    .description('Rename a registered repo')
+    .argument('<name>', 'registered name')
+    .argument('<new-name>', 'name to file it under instead')
+    .action((name: string, newName: string) => {
+      const { repo, renamed } = storeManager.renameRepo({ name, newName });
+
+      console.log(
+        renamed
+          ? `renamed repo "${name}" → "${repo.name}"`
+          : `nothing to rename: repo "${repo.name}" already has that name`,
+      );
+    });
+
+  command
     .command('list')
     .alias('ls')
     .description('List the registered repos')

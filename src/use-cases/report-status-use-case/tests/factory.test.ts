@@ -404,19 +404,6 @@ describe('report-status-use-case factory', () => {
 
       expect(reportStatus().storeStatus.notDeployed).toEqual(['review']);
     });
-
-    it('does not count a record naming an unregistered workspace, and makes no block for it', async () => {
-      const { reportStatus, store } = await newUseCase();
-
-      storeSkill(store, 'triage');
-      handEditState(store, { skills: { triage: { clones: [{ workspace: 'ghost' }] } } });
-
-      const report = reportStatus();
-
-      expect(report.storeStatus.notDeployed).toEqual(['triage']);
-      expect(report.workspaceStatuses).toEqual([]);
-      expect(report.recordedPathStatuses).toEqual([]);
-    });
   });
 
   describe('clone record problems', () => {
@@ -621,38 +608,6 @@ describe('report-status-use-case factory', () => {
       ]);
     });
 
-    it('files a record naming an unregistered workspace as a store problem, in no block', async () => {
-      const { reportStatus, store } = await newUseCase();
-
-      storeSkill(store, 'triage');
-      handEditState(store, { skills: { triage: { clones: [{ workspace: 'ghost' }] } } });
-
-      const report = reportStatus();
-
-      expect(report.storeStatus.problems).toEqual([
-        { kind: 'clone-unregistered-workspace', skill: 'triage', workspace: 'ghost' },
-      ]);
-      expect(report.workspaceStatuses).toEqual([]);
-      expect(report.recordedPathStatuses).toEqual([]);
-    });
-
-    it('collapses duplicate unregistered-workspace records and sorts by skill, then workspace', async () => {
-      const { reportStatus, store } = await newUseCase();
-
-      handEditState(store, {
-        skills: {
-          triage: { clones: [{ workspace: 'ghost' }, { workspace: 'ghost' }] },
-          deploy: { clones: [{ workspace: 'zed' }, { workspace: 'ace' }] },
-        },
-      });
-
-      expect(reportStatus().storeStatus.problems).toEqual([
-        { kind: 'clone-unregistered-workspace', skill: 'deploy', workspace: 'ace' },
-        { kind: 'clone-unregistered-workspace', skill: 'deploy', workspace: 'zed' },
-        { kind: 'clone-unregistered-workspace', skill: 'triage', workspace: 'ghost' },
-      ]);
-    });
-
     it('orders clone-not-in-store before clone-missing, each sorted by skill', async () => {
       const { reportStatus, store, root } = await newUseCase();
       const personal = newDirectory(root, 'personal');
@@ -777,19 +732,6 @@ describe('report-status-use-case factory', () => {
 
       expect(reportStatus().storeStatus.problems).toEqual([{ kind: 'stray-entry', entry: 'drafts' }]);
     });
-
-    it('lists clone-unregistered-workspace before stray-entry', async () => {
-      const { reportStatus, store } = await newUseCase();
-
-      storeSkill(store, 'triage');
-      handEditState(store, { skills: { triage: { clones: [{ workspace: 'ghost' }] } } });
-      writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
-
-      expect(reportStatus().storeStatus.problems).toEqual([
-        { kind: 'clone-unregistered-workspace', skill: 'triage', workspace: 'ghost' },
-        { kind: 'stray-entry', entry: 'notes.txt' },
-      ]);
-    });
   });
 
   describe('reading state', () => {
@@ -822,6 +764,14 @@ describe('report-status-use-case factory', () => {
 
       mkdirSync(dirname(store.paths.state), { recursive: true });
       writeFileSync(store.paths.state, JSON.stringify({ bogus: true }), 'utf8');
+
+      expect(() => reportStatus()).toThrow(InvalidShapeError);
+    });
+
+    it('refuses a clone record naming an unregistered workspace', async () => {
+      const { reportStatus, store } = await newUseCase();
+
+      handEditState(store, { skills: { triage: { clones: [{ workspace: 'ghost' }] } } });
 
       expect(() => reportStatus()).toThrow(InvalidShapeError);
     });

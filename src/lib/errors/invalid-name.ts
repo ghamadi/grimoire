@@ -1,6 +1,9 @@
 import type { RegistryEntity } from '@/lib/errors/entity-not-found';
 import { GrimoireError } from '@/lib/errors/grimoire-error';
 
+export const NAME_RULE_MESSAGE =
+  'must start with a letter or digit and contain only letters, digits, "-" and "_"';
+
 export type InvalidNameErrorProps = {
   entity: RegistryEntity;
   name: string;
@@ -18,9 +21,7 @@ export class InvalidNameError extends GrimoireError {
 
   constructor(props: InvalidNameErrorProps) {
     const { entity, name } = props;
-    super(
-      `${entity} name "${name}" must start with a letter or digit and contain only letters, digits, "-" and "_"`,
-    );
+    super(`${entity} name "${name}" ${NAME_RULE_MESSAGE}`);
 
     this.name = 'InvalidNameError';
     this.entity = entity;
