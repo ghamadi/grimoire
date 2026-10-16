@@ -1231,6 +1231,8 @@ describe('unregisterWorkspace', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(GrimoireError);
+    expect(error.message).toContain('skills.deploy.clones[0].workspace');
+    expect(error.message).toContain('workspace "personal" is not registered');
     expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
   });
 

@@ -7,6 +7,7 @@ import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-pa
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
+  GrimoireError,
   InvalidNameError,
   InvalidPathError,
   PathCollisionError,
@@ -135,13 +136,6 @@ export class GrimoireStoreManager {
       registry: storeState.workspacesRegistry,
       name,
     });
-    const clonedSkills = storeState.skillsClonedIntoWorkspace(name);
-
-    if (clonedSkills.length > 0) {
-      throw new Error(
-        `cannot unregister workspace "${name}": clone records still name it (${clonedSkills.join(', ')})`,
-      );
-    }
 
     this.saveState(storeState.withoutWorkspace(name));
 
@@ -582,21 +576,17 @@ export class GrimoireStoreManager {
    * a StoreManager does not load an invalid state, ever.
    */
   private loadState(): StoreState {
-    const state = this.readState();
-    assertNoCollidingRegistrations({ state, store: this.store });
-    return state;
-  }
-
-  /** The document as it sits on disk, shape vetted and nothing else. */
-  private readState(): StoreState {
     this.ensureLayout();
 
     const stateData = readJsonFile(this.store.paths.state);
 
-    return stateData === undefined ? StoreState.default() : StoreState.parse(stateData);
+    return stateData === undefined
+      ? StoreState.default()
+      : parseValidState({ data: stateData, store: this.store });
   }
 
   private saveState(state: StoreState): void {
+    assertWritable({ state, store: this.store });
     this.ensureLayout();
     writeAtomic(this.store.paths.state, JSON.stringify(state.toJSON(), null, 2));
   }
@@ -666,6 +656,34 @@ function assertNoCollidingRegistrations(query: { state: StoreState; store: Grimo
     if (collision) {
       throw new CollidingRegistrationError({ ...registration, collision, storeState });
     }
+  }
+}
+
+/** `data` as a state, refused unless it keeps the schema and the path rule. */
+function parseValidState(params: { data: unknown; store: GrimoireStore }): StoreState {
+  const state = StoreState.parse(params.data);
+
+  assertNoCollidingRegistrations({ state, store: params.store });
+
+  return state;
+}
+
+/**
+ * Refuses a state that `loadState` would refuse. The state was loaded through these same
+ * checks and changed only by grimoire within the same action, so a refusal is a grimoire bug,
+ * not a hand edit: rethrown as a plain Error, which `cli.ts` prints with its stack.
+ */
+function assertWritable(params: { state: StoreState; store: GrimoireStore }): void {
+  try {
+    parseValidState({ data: params.state.toJSON(), store: params.store });
+  } catch (error) {
+    if (error instanceof GrimoireError) {
+      throw new Error(`refusing to write ${params.store.paths.state}: ${error.message}`, {
+        cause: error,
+      });
+    }
+
+    throw error;
   }
 }
 
