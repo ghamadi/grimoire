@@ -153,6 +153,44 @@ export class GrimoireStoreManager {
   }
 
   /**
+   * Files a workspace under a new name, keeping its path and auto-link setting,
+   * and returns it as renamed. Clone records naming the workspace follow it.
+   * Renaming to the same name writes nothing and answers `renamed: false`.
+   *
+   * @throws EntityNotFoundError if no workspace is registered under `name`.
+   * @throws InvalidNameError if `newName` fails `Workspace.isValidName`.
+   * @throws DuplicateNameError if another workspace is registered under `newName`.
+   */
+  renameWorkspace(params: { name: string; newName: string }): {
+    workspace: RegisteredWorkspace;
+    renamed: boolean;
+  } {
+    const storeState = this.loadState();
+    const { registration, isSameName } = checkRename({
+      entity: 'workspace',
+      registry: storeState.workspacesRegistry,
+      name: params.name,
+      newName: params.newName,
+      isValidName: (name) => Workspace.isValidName(name),
+    });
+
+    if (isSameName) {
+      return { workspace: registration, renamed: false };
+    }
+
+    const workspace = { ...registration, name: params.newName };
+
+    this.saveState(
+      storeState
+        .withoutWorkspace(params.name)
+        .withWorkspace(workspace)
+        .withClonesRecordedByName({ workspace: params.name, newName: params.newName }),
+    );
+
+    return { workspace, renamed: true };
+  }
+
+  /**
    * Every registered workspace, sorted by name.
    */
   listRegisteredWorkspaces(): RegisteredWorkspace[] {
@@ -517,9 +555,8 @@ export class GrimoireStoreManager {
   }
 
   /**
-   * Files a repo under a new name, keeping its path, and
-   * returns it as renamed. Renaming to the same name writes nothing and answers
-   * `renamed: false`. The path, the directory and git are never touched.
+   * Files a repo under a new name, keeping its path, and returns it as renamed.
+   * Renaming to the same name writes nothing and answers `renamed: false`.
    *
    * @throws EntityNotFoundError if no repo is registered under `name`.
    * @throws InvalidNameError if `newName` fails `Repo.isValidName`.
@@ -539,11 +576,11 @@ export class GrimoireStoreManager {
       return { repo: registration, renamed: false };
     }
 
-    this.saveState(
-      storeState.withoutRepo(params.name).withRepo({ name: params.newName, path: registration.path }),
-    );
+    const repo = { ...registration, name: params.newName };
 
-    return { repo: { ...registration, name: params.newName }, renamed: true };
+    this.saveState(storeState.withoutRepo(params.name).withRepo(repo));
+
+    return { repo, renamed: true };
   }
 
   /**
@@ -691,13 +728,7 @@ function findRegistered<T extends object>(
   return Object.hasOwn(registry, name) ? { name, ...registry[name]! } : undefined;
 }
 
-/**
- * The entry a rename starts from, and whether `newName` is its current name.
- *
- * @throws EntityNotFoundError if nothing is filed under `name`.
- * @throws InvalidNameError if `newName` fails `isValidName`.
- * @throws DuplicateNameError if another entry is filed under `newName`.
- */
+/** The entry a rename starts from, and whether `newName` is its current name. */
 function checkRename<T extends object>(params: {
   entity: RegistryEntity;
   registry: Readonly<Record<string, T>>;

@@ -234,6 +234,14 @@ export class StoreState {
     return this.mapClones((record) => (isCloneInto(workspace)(record) ? byPath : record));
   }
 
+  /** @returns a new config with the workspace's clones recorded under its new name. */
+  withClonesRecordedByName(params: { workspace: string; newName: string }): StoreState {
+    const { workspace } = params;
+    const byName = parseOrThrow(cloneRecordSchema, { workspace: params.newName });
+
+    return this.mapClones((record) => (isCloneInto(workspace)(record) ? byName : record));
+  }
+
   /**
    * @returns a new config with the workspace's clones dropped.
    *

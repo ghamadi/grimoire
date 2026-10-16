@@ -16,6 +16,7 @@ nothing is nested.
 | ---------------------------------------------------------------------- | -------------------------- |
 | [`workspaces add`](#workspaces-add-name-path---auto-link)              | Register a workspace       |
 | [`workspaces remove`](#workspaces-remove-name---hard---force-alias-rm) | Unregister a workspace     |
+| [`workspaces rename`](#workspaces-rename-name-new-name)                | Rename a workspace         |
 | [`workspaces list`](#workspaces-list-alias-ls)                         | List registered workspaces |
 
 ## `workspaces add <name> <path> [--auto-link]`
@@ -201,6 +202,62 @@ cloned directories were left in place
 
 The last line appears only when a forgotten record names a directory still present under the workspace. grimoire no longer
 updates, reports or deletes those directories.
+
+## `workspaces rename <name> <new-name>`
+
+| Argument   | Meaning                       |
+| ---------- | ----------------------------- |
+| `name`     | Registered name               |
+| `new-name` | Name to file it under instead |
+
+```shell
+$ grimoire workspaces rename personal home
+renamed workspace "personal" → "home"
+```
+
+Only the name changes. The path and auto-link setting stay, and nothing on disk is touched. Names compare exactly, so
+`personal` → `Personal` is a rename.
+
+Renaming a workspace to the name it already has changes nothing:
+
+```shell
+$ grimoire workspaces rename personal personal
+nothing to rename: workspace "personal" already has that name
+```
+
+The run exits 0 and writes nothing.
+
+A [clone](../conventions.md#links-and-clones) record naming the workspace follows it to the new name:
+
+```diff
+  "state.json"
+- "deploy": { "clones": [ { "workspace": "personal" } ] }
++ "deploy": { "clones": [ { "workspace": "home" } ] }
+```
+
+Records naming a **different** workspace, and ones recorded by path, are left alone.
+
+An [unreachable or unreadable](../conventions.md#unreachable-and-unreadable-workspaces) workspace renames like any other.
+
+### What `rename` rejects
+
+These checks run in order. A failed check is a [refusal](../conventions.md#refusals).
+
+**1. The name is registered.** This runs before the same-name check, so `rename ghost ghost` is refused.
+
+```shell
+$ grimoire workspaces rename ghost home
+error: no workspace named "ghost"
+```
+
+**2. The new name follows [the name rule](../state.md#names).**
+
+**3. The new name is free.** Within the workspace registry, so a repo may hold it.
+
+```shell
+$ grimoire workspaces rename personal work
+error: workspace "work" is already registered
+```
 
 ## `workspaces list` _(alias: `ls`)_
 
