@@ -70,28 +70,17 @@ Problems  6
     Move it out of the store, or add it to "ignore" in /Users/me/.grimoire/state.json.
 ```
 
-- Sections are separated by one blank line.
-- A section starts with a title line: the title, two spaces, a caption. Its table follows with no blank line.
-- A section with no rows has no table.
-- Tables are boxed. Every column is left-aligned and as wide as its longest cell.
-- No problem prints inside a table. The `Problems` title line is `Problems`, two spaces, and the number of problems.
-- Each problem is an entry. One blank line follows the title, and one separates entries.
-- An entry starts with two spaces, `!`, a space, and a headline naming the kind of entity and its name. Its other lines are
-  indented four spaces.
-- A fix that is a command prints alone on its line, exactly as it would be typed, indented six spaces. A word holding any
-  character other than a letter, a digit, `_`, `.`, `/` or `-` prints in single quotes:
-  `grimoire unclone notes '/Users/me/My Projects/skills'`. A fix that is not a command is a sentence.
-- No line of an entry is wrapped by grimoire.
+A fix command prints exactly as it would be typed. A word holding any character other than a letter, a digit, `_`, `.`, `/`
+or `-` prints in single quotes: `grimoire unclone notes '/Users/me/My Projects/skills'`.
 
 ## Sections
 
 Sections print in this order:
 
-1. **Workspaces.** Every registered workspace. Always printed.
-2. **Skills.** Every skill, against every registered workspace. Always printed.
-3. **Clones outside workspaces.** The clones in directories named by `{ path }` clone records that no registered workspace's
-   path equals. Printed only when there is one.
-4. **Problems.** Always printed, last. See [Problems](#problems).
+1. **Workspaces.** Every registered workspace.
+2. **Skills.** Every skill, against every registered workspace.
+3. **Clones outside workspaces.** Clones recorded by path.
+4. **Problems.** See [Problems](#problems).
 
 ### Workspaces
 
@@ -101,32 +90,33 @@ One row per registered workspace, sorted by name. The caption is `<n> registered
 - `STATE` is `unreachable` or `unreadable` when the workspace carries that problem. Otherwise it is `ok`, or the count of the
   workspace's problems: `1 problem`, `2 problems`.
 
-A workspace whose path does not resolve to a directory is unreachable. It gets a single `workspace-unreachable` problem, and
+An [unreachable or unreadable](../conventions.md#unreachable-and-unreadable-workspaces) workspace gets a single problem, and
 no links are read. Its clone records are unverified, because the path may be an unmounted volume with everything intact.
-
-A workspace whose path is a directory that grimoire cannot list or enter, or that sits under a directory it cannot enter, is
-unreadable. It is treated like an unreachable one: a single problem, no links read, and its clone records unverified. The
-problem is `workspace-unreadable`.
 
 ### Skills
 
 One column per registered workspace, sorted by name, after `SKILL`. One row per store skill, plus one per skill that a
-workspace holds a clone record for when the skill is not in the store, plus one per store entry that is not a skill when a
-workspace links to it. Rows sort by name. A cell says what that workspace holds of that skill:
+workspace holds a clone record for when the skill is not in the store, plus one per store entry that is not a skill, ignored
+or not, when a workspace links to it. Rows sort by name. A cell says what that workspace holds of that skill:
 
-| Cell              | Meaning                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- |
-| `link`            | a symlink in the workspace that resolves, following chains, to the row's skill or store entry, under its name |
-| `link as <entry>` | such a link whose workspace entry has another name                                                            |
-| `clone`           | a recorded clone whose directory is there                                                                     |
-| `clone missing`   | a recorded clone whose directory is gone                                                                      |
-| `clone ?`         | a recorded clone in an unreachable or unreadable workspace, unverified                                        |
-| `·`               | nothing                                                                                                       |
-| `?`               | nothing recorded, in an unreachable or unreadable workspace                                                   |
+| Cell              | Meaning                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| `link`            | a [link](../conventions.md#links-and-clones) to the row's skill or store entry, under its name |
+| `link as <entry>` | such a link whose workspace entry has another name                                             |
+| `clone`           | a recorded clone whose directory is there                                                      |
+| `clone missing`   | a recorded clone whose directory is gone                                                       |
+| `clone ?`         | a recorded clone in an unreachable or unreadable workspace, unverified                         |
+| `·`               | nothing                                                                                        |
+| `?`               | nothing recorded, in an unreachable or unreadable workspace                                    |
 
 A cell holding more than one of these joins them with `, `. A skill that is not in the store has ` (not in store)` after its
 name. A store entry that is not a skill directory has ` (not a skill)` after its name when a workspace links to it, even when
 a workspace also holds a clone record for it.
+
+A clone record shows in every workspace column and every `Clones outside workspaces` row whose directory it resolves to,
+compared as in [links and clones](../conventions.md#links-and-clones). So a `{ path }` record at a registered workspace's
+path shows in that workspace's column, and two workspaces registered at one path both show what is there. A skill shows once
+per directory, however many records name it there.
 
 The caption is `<n> in <skills path>`, counting store skills, followed by ` · <n> not deployed` when any are. A skill is not
 deployed when it has no link in any reachable workspace and no clone. A clone counts when its directory is there, in a
@@ -145,22 +135,10 @@ directory, then skill. The caption is `directories recorded by path`.
 - `STATE` is `present` when `<directory>/<skill>` is a directory, and `missing` otherwise.
 - A skill that is not in the store has ` (not in store)` after its name.
 
-These directories hold clones only. They are never scanned for links, because grimoire tracks links only in registered
-workspaces.
+These directories are never scanned for links, because grimoire tracks links only in registered workspaces.
 
 A recorded path that no longer resolves or cannot be read earns no problem of its own. Each of its clones reads as `missing`
-and as a `clone-missing` problem, whose remedy is an [`unclone`](./unclone.md) naming that path.
-
-### A clone belongs to its directory
-
-A clone record's identity is the directory it resolves to, compared canonically — see
-[what counts as the clone](./clone.md#what-counts-as-the-clone). A record shows in every workspace column and every
-`Clones outside workspaces` row whose directory it resolves to:
-
-- A `{ path }` record for a registered workspace's path shows in that workspace's column.
-- Two workspaces registered at one path both show what is there.
-
-A skill shows once per directory, however many records name it there.
+and as a missing-clone problem, whose remedy is an [`unclone`](./unclone.md) naming that path.
 
 ## Width
 
@@ -203,22 +181,21 @@ Title lines and problem entries are never fitted.
 Two things still print whole and overflow the terminal: a path segment longer than its column, on that one line, and a grid
 whose skill name and one workspace column are together wider than the terminal.
 
-Width is counted as string length, not in terminal columns. A row holding a character where the two differ is out of line
-with its table's borders: a CJK character or most emoji takes two columns and pushes the rest of the row right, and an accent
-stored as a separate mark pulls it left. The same row can make a fitted table wider than the terminal. Workspace names are
-ASCII, so only a path, a skill name or an entry name can hold one.
+Width is counted as string length, not in terminal columns. So a CJK character, most emoji, or a separately stored accent in
+a path, skill name or entry name puts its row out of line with the borders, and can make a fitted table wider than the
+terminal.
 
 ## Problems
 
-| Problem                        | Reported when                                                                                        | Reported for             |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------ |
-| `workspace-unreachable`        | the registered path does not resolve to a directory                                                  | workspace                |
-| `workspace-unreadable`         | the registered path is a directory grimoire cannot list or enter, or sits under one it cannot enter  | workspace                |
-| `dangling-link`                | a symlink's target names a path under the store's `skills/` directory, and the link does not resolve | workspace (reachable)    |
-| `clone-not-in-store`           | the record's `<dir>/<skill>` is a directory, and the skill is not in the store                       | workspace, recorded path |
-| `clone-missing`                | the record's `<dir>/<skill>` is not a directory                                                      | workspace, recorded path |
-| `clone-unregistered-workspace` | a `{ workspace }` clone record names a workspace that is not registered                              | store                    |
-| `stray-entry`                  | an entry in the store's `skills/` directory is not a skill directory and matches no glob in `ignore` | store                    |
+| Problem                               | Reported when                                                                                   | Reported for             |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------ |
+| unreachable workspace                 | the workspace is [unreachable](../conventions.md#unreachable-and-unreadable-workspaces)         | workspace                |
+| unreadable workspace                  | the workspace is [unreadable](../conventions.md#unreachable-and-unreadable-workspaces)          | workspace                |
+| dangling link                         | a link into the store does not resolve; see [Dangling links](#dangling-links)                   | workspace (reachable)    |
+| clone no longer in the store          | the record's `<dir>/<skill>` is a directory, and the skill is not in the store                  | workspace, recorded path |
+| missing clone                         | the record's `<dir>/<skill>` is not a directory                                                 | workspace, recorded path |
+| clone under an unregistered workspace | a `{ workspace }` clone record names a workspace that is not registered                         | store                    |
+| stray entry                           | a store entry is not a skill and is not ignored; see [Stray entries](#stray-entries-and-ignore) | store                    |
 
 Each problem prints as an entry in the `Problems` section, in this order: each workspace's, by workspace name, then each
 recorded path's, then the store's.
@@ -234,62 +211,48 @@ recorded path's, then the store's.
 or the directory for a recorded path.
 
 ```
-workspace-unreachable
   ! workspace <name> is unreachable
     <path> does not resolve.
     Make it readable, or unregister it:
       grimoire workspaces remove <name>
 
-workspace-unreadable
   ! workspace <name> is unreadable
     <path> cannot be read.
     Make it readable, or unregister it anyway:
       grimoire workspaces remove <name> --force
 
-dangling-link
   ! link <entry> in workspace <name> resolves nowhere
     It points into the store, at a skill that is not there.
     Delete the link yourself.
 
-clone-not-in-store
   ! clone of <skill> in <location> is no longer in the store
     Forget the record:
       grimoire unclone <skill> <target>
 
-clone-missing (recloneable)
   ! clone of <skill> in workspace <name> is missing
     Copy it again:
       grimoire clone <skill> <name>
     Or forget the record:
       grimoire unclone <skill> <name>
 
-clone-missing
   ! clone of <skill> in <location> is missing
     Forget the record:
       grimoire unclone <skill> <target>
 
-clone-unregistered-workspace
   ! clone of <skill> is recorded under "<workspace>", which is not a registered workspace
     Remove the record from <state path>.
 
-stray-entry
   ! store entry <entry> is not a skill directory
     Move it out of the store, or add it to "ignore" in <state path>.
 ```
 
-The recloneable form of `clone-missing` appears only for a workspace, for a skill still in the store. A recorded path has no
-workspace name to `clone` into, and a skill gone from the store has nothing to copy.
-
-### `clone-missing` wins over `clone-not-in-store`
-
-A record whose directory is gone, for a skill also gone from the store, is one `clone-missing` whose only remedy is
-`unclone`.
+The "Copy it again" form of a missing clone appears only for a workspace and a skill still in the store. A record whose
+directory is gone, for a skill also gone from the store, is reported once, as missing.
 
 ### Dangling links
 
 A dangling link is found from the link's target text, without following it. The text, resolved against the link's directory,
-names a path under the store's `skills/` directory, and the link does not resolve. grimoire always writes the store path as
-its link target, so its own links are always recognizable.
+names a path under the store's `skills/` directory, and the link does not resolve.
 
 A link that reached the store through a now-missing intermediate symlink reads as an ordinary broken link and is not
 reported.
@@ -301,19 +264,13 @@ A stray entry is an entry in the store's `skills/` directory that is not a skill
 
 An entry that is a symlink cycle, or that cannot be read, is not a skill directory, so it is a stray entry.
 
-A stray entry that a workspace links to also has a row in the `Skills` grid, and so does a linked entry that `ignore` hides,
-which earns no problem.
-
 There is no exemption for dot-entries. A version-controlled store's `.git` prints as stray until it is added to `ignore`.
 `status` is the only command that reads `ignore`.
 
-### Remedies and `doctor`
+### Manual fixes
 
-Every entry names its fix: a command alone on its line where one exists, and otherwise a sentence giving the manual step.
-Three are manual today: dangling links, stray entries, and records naming an unregistered workspace.
+Three problems have no fix command: dangling links, stray entries, and records under an unregistered workspace.
 [`unclone`](./unclone.md) cannot reach the last one, because an unregistered name refuses.
-
-The planned `doctor` command is where these get repaired.
 
 ## Empty cases
 
@@ -325,8 +282,7 @@ The planned `doctor` command is where these get repaired.
 
 ## Colors
 
-On a color-capable stdout only. Piped output, or `NO_COLOR` set, keeps the layout and the box-drawing characters and prints
-plain.
+Colored as in [colors](../conventions.md#colors).
 
 | Text                                                                                                                             | Style   |
 | -------------------------------------------------------------------------------------------------------------------------------- | ------- |
@@ -339,12 +295,12 @@ plain.
 | every other `STATE`, `clone missing`, `clone ?`, `missing`, ` (not in store)` and ` (not a skill)` names, `!`, the problem count | yellow  |
 
 A cell has one style. A cell that joins several states is yellow when any of them is, and otherwise takes the style of its
-first. Paths, other names, and an entry's sentences are never styled.
+first. Other names and an entry's sentences are never styled.
 
 ## Exit code and refusals
 
-Everything `status` reports goes to stdout, because problems are its result, not warnings. It exits 0 whenever `state.json`
-loads, problems included.
+Problems are what `status` reports, so they go to stdout with the rest. It exits 0 whenever `state.json` loads, problems
+included.
 
 Beyond creating `~/.grimoire/`'s directories when missing, as every command does, it writes nothing: no workspace, no store
 entry, and not `state.json`.
