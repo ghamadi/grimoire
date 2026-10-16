@@ -79,20 +79,34 @@ function registrySchema<T extends z.ZodType>(params: {
  * `workspaces`, `repos` and `skills` are records rather than strict objects: their
  * keys are names the user chose, so there is no such thing as an unrecognized one.
  */
-const stateDataSchema = z.strictObject({
-  workspaces: registrySchema({
-    entry: workspaceConfigSchema,
-    isValidName: (name) => Workspace.isValidName(name),
-    invalidNameMessage: INVALID_WORKSPACE_NAME,
-  }).default({}),
-  repos: registrySchema({
-    entry: repoConfigSchema,
-    isValidName: (name) => Repo.isValidName(name),
-    invalidNameMessage: INVALID_REPO_NAME,
-  }).default({}),
-  skills: z.record(z.string(), skillSchema).default({}),
-  ignore: z.array(z.string()).default(['.DS_Store']),
-});
+const stateDataSchema = z
+  .strictObject({
+    workspaces: registrySchema({
+      entry: workspaceConfigSchema,
+      isValidName: (name) => Workspace.isValidName(name),
+      invalidNameMessage: INVALID_WORKSPACE_NAME,
+    }).default({}),
+    repos: registrySchema({
+      entry: repoConfigSchema,
+      isValidName: (name) => Repo.isValidName(name),
+      invalidNameMessage: INVALID_REPO_NAME,
+    }).default({}),
+    skills: z.record(z.string(), skillSchema).default({}),
+    ignore: z.array(z.string()).default(['.DS_Store']),
+  })
+  .superRefine((data, ctx) => {
+    for (const [skill, { clones }] of Object.entries(data.skills)) {
+      clones.forEach((record, index) => {
+        if ('workspace' in record && !Object.hasOwn(data.workspaces, record.workspace)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['skills', skill, 'clones', index, 'workspace'],
+            message: `workspace "${record.workspace}" is not registered`,
+          });
+        }
+      });
+    }
+  });
 
 export type CloneRecord = z.infer<typeof cloneRecordSchema>;
 type WorkspaceRecord = z.infer<typeof workspaceConfigSchema>;

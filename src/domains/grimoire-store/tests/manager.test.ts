@@ -803,6 +803,25 @@ describe('reading state.json', () => {
     expect(message).toContain('workspace name must start with a letter or digit');
   });
 
+  it('refuses a clone record naming a workspace that is not registered, naming it', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ skills: { deploy: { clones: [{ workspace: 'home' }] } } }));
+
+    const { message } = refusal(() => manager.getRegistry());
+
+    expect(message).toContain('skills.deploy.clones[0].workspace');
+    expect(message).toContain('workspace "home" is not registered');
+  });
+
+  it('refuses a clone record naming a workspace an object inherits from its prototype', async () => {
+    const { manager, store } = await newManager();
+
+    writeState(store, document({ skills: { deploy: { clones: [{ workspace: 'toString' }] } } }));
+
+    refusal(() => manager.getRegistry());
+  });
+
   // A file holding `null` parses fine and holds no state: absence is the
   // missing file, and nothing else.
   it('refuses a file holding null rather than reading it as a first run', async () => {
@@ -1201,6 +1220,31 @@ describe('unregisterWorkspace', () => {
     expect(() => manager.unregisterWorkspace('work')).toThrow(EntityNotFoundError);
     expect(manager.getRegistry().workspaces).toEqual({ personal: { path, autoLink: false } });
   });
+
+  it('refuses while a clone record still names it, writing nothing', async () => {
+    const { manager, store, contents } = await seededStore({
+      workspaces: { personal: { path: '/projects/app', autoLink: false } },
+      skills: { deploy: { clones: [{ workspace: 'personal' }] } },
+    });
+
+    const error = refusalOf(() => manager.unregisterWorkspace('personal'));
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(GrimoireError);
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
+  });
+
+  it('is not blocked by a clone record kept by path', async () => {
+    const { manager } = await seededStore({
+      workspaces: { personal: { path: '/projects/app', autoLink: false } },
+      skills: { deploy: { clones: [{ path: '/elsewhere' }] } },
+    });
+
+    manager.unregisterWorkspace('personal');
+
+    expect(manager.getRegistry().workspaces).toEqual({});
+    expect(manager.getRegistry().skills.deploy?.clones).toEqual([{ path: '/elsewhere' }]);
+  });
 });
 
 describe('renameWorkspace', () => {
@@ -1297,22 +1341,6 @@ describe('renameWorkspace', () => {
     expect(manager.getRegistry().workspaces).toEqual({ fresh: { path, autoLink: false } });
   });
 
-  it('keeps a record already naming the new name, which now resolves to the renamed workspace', async () => {
-    const { manager } = await seededManager({
-      skills: { deploy: { clones: [{ workspace: 'fresh' }] } },
-    });
-
-    manager.renameWorkspace({ name: 'personal', newName: 'fresh' });
-
-    expect(manager.listSkillClones('deploy')).toEqual([
-      {
-        origin: 'fresh',
-        path: join('/work/personal', 'deploy'),
-        record: { workspace: 'fresh' },
-      },
-    ]);
-  });
-
   it('writes nothing when the new name is the current one', async () => {
     const { manager, store, contents } = await seededManager({
       skills: { deploy: { clones: [{ workspace: 'personal' }] } },
@@ -1368,29 +1396,28 @@ describe('renameWorkspace', () => {
 });
 
 describe('clone records', () => {
+  const workspaces = {
+    personal: { path: '/projects/app', autoLink: false },
+    work: { path: '/projects/job', autoLink: false },
+  };
   const clonedIntoPersonal = { deploy: { clones: [{ workspace: 'personal' }] } };
 
   it('rewrites the records of a workspace to carry its path', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
-    writeState(store, document({ skills: clonedIntoPersonal }));
     manager.recordClonesByPath({ workspace: 'personal', path: '/projects/app' });
 
     expect(manager.getRegistry().skills).toEqual({ deploy: { clones: [{ path: '/projects/app' }] } });
   });
 
   it('answers with every skill it rewrote, sorted', async () => {
-    const { manager, store } = await newManager();
-
-    writeState(
-      store,
-      document({
-        skills: {
-          shipper: { clones: [{ workspace: 'personal' }] },
-          deploy: { clones: [{ workspace: 'personal' }] },
-        },
-      }),
-    );
+    const { manager } = await seededStore({
+      workspaces,
+      skills: {
+        shipper: { clones: [{ workspace: 'personal' }] },
+        deploy: { clones: [{ workspace: 'personal' }] },
+      },
+    });
 
     expect(manager.recordClonesByPath({ workspace: 'personal', path: '/projects/app' })).toEqual([
       'deploy',
@@ -1399,12 +1426,11 @@ describe('clone records', () => {
   });
 
   it('leaves the records of another workspace alone', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({
+      workspaces,
+      skills: { deploy: { clones: [{ workspace: 'work' }, { workspace: 'personal' }] } },
+    });
 
-    writeState(
-      store,
-      document({ skills: { deploy: { clones: [{ workspace: 'work' }, { workspace: 'personal' }] } } }),
-    );
     manager.recordClonesByPath({ workspace: 'personal', path: '/projects/app' });
 
     expect(manager.getRegistry().skills.deploy?.clones).toEqual([
@@ -1423,18 +1449,15 @@ describe('clone records', () => {
   });
 
   it('drops the records of a workspace under forget, answering with the skills', async () => {
-    const { manager, store } = await newManager();
-
-    writeState(store, document({ skills: clonedIntoPersonal }));
+    const { manager } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
     expect(manager.forgetSkillsClonedIntoWorkspace('personal')).toEqual(['deploy']);
   });
 
   // `clones: []` means "never cloned", which is what a forgotten record leaves.
   it('keeps the entry of a skill once its last record is forgotten', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
-    writeState(store, document({ skills: clonedIntoPersonal }));
     manager.forgetSkillsClonedIntoWorkspace('personal');
 
     expect(manager.getRegistry().skills).toEqual({ deploy: { clones: [] } });
@@ -1451,10 +1474,7 @@ describe('clone records', () => {
       (manager: GrimoireStoreManager) => manager.forgetSkillsClonedIntoWorkspace('work'),
     ],
   ])('writes nothing when no record names the workspace: %s', async (_method, run) => {
-    const { manager, store } = await newManager();
-    const contents = document({ skills: clonedIntoPersonal });
-
-    writeState(store, contents);
+    const { manager, store, contents } = await seededStore({ workspaces, skills: clonedIntoPersonal });
 
     expect(run(manager)).toEqual([]);
     expect(readFileSync(store.paths.state, 'utf8')).toBe(contents);
@@ -1561,17 +1581,6 @@ describe('listSkillClones', () => {
     ]);
   });
 
-  it('omits a record naming a workspace that is not registered', async () => {
-    const { manager, store } = await newManager();
-    const record = { path: '/projects/app' };
-
-    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'ghost' }, record] } } }));
-
-    expect(manager.listSkillClones('triage')).toEqual([
-      { origin: '/projects/app', path: '/projects/app/triage', record },
-    ]);
-  });
-
   it('answers nothing for a skill with no entry', async () => {
     const { manager } = await newManager();
 
@@ -1634,15 +1643,6 @@ describe('listFiledClones', () => {
     expect(manager.listFiledClones()).toEqual([
       { skill: 'triage', record, path: join(homedir(), 'old', 'triage') },
     ]);
-  });
-
-  it('keeps a record naming a workspace that is not registered, with no path', async () => {
-    const { manager, store } = await newManager();
-    const record = { workspace: 'ghost' };
-
-    writeState(store, document({ skills: { triage: { clones: [record] } } }));
-
-    expect(manager.listFiledClones()).toEqual([{ skill: 'triage', record, path: undefined }]);
   });
 
   it('sorts by skill name and keeps record order within a skill', async () => {
@@ -1746,19 +1746,6 @@ describe('findSkillClone', () => {
       origin: real,
       path: join(real, 'triage'),
       record,
-    });
-  });
-
-  it('never matches through an unregistered workspace, even with a matching sibling', async () => {
-    const { manager, store } = await newManager();
-    const sibling = { path: '/projects/app' };
-
-    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'ghost' }, sibling] } } }));
-
-    expect(manager.findSkillClone({ skill: 'triage', directory: '/projects/app' })).toEqual({
-      origin: '/projects/app',
-      path: '/projects/app/triage',
-      record: sibling,
     });
   });
 
@@ -2107,9 +2094,11 @@ describe('forgetSkill', () => {
 
   // Unlike forgetting a workspace's clones, which leaves `clones: []` behind.
   it('leaves no key behind, unlike forgetting the clones into a workspace', async () => {
-    const { manager, store } = await newManager();
+    const { manager } = await seededStore({
+      workspaces: { personal: { path: '/ws', autoLink: false } },
+      skills: { triage: { clones: [{ workspace: 'personal' }] } },
+    });
 
-    writeState(store, document({ skills: { triage: { clones: [{ workspace: 'personal' }] } } }));
     manager.forgetSkillsClonedIntoWorkspace('personal');
 
     expect(manager.getRegistry().skills).toEqual({ triage: { clones: [] } });

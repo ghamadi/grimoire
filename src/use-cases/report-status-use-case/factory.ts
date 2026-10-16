@@ -31,9 +31,7 @@ export type DeploymentProblem =
   | { kind: 'clone-not-in-store'; skill: string }
   | { kind: 'clone-missing'; skill: string; recloneable: boolean };
 
-export type StoreProblem =
-  | { kind: 'clone-unregistered-workspace'; skill: string; workspace: string }
-  | { kind: 'stray-entry'; entry: string };
+export type StoreProblem = { kind: 'stray-entry'; entry: string };
 
 export type WorkspaceStatus = {
   name: string;
@@ -75,11 +73,6 @@ export type ReportStatusUseCase = () => StatusReport;
 // THE USE CASE
 // ----------------------------------------------------------------------------
 
-type UnregisteredWorkspaceProblem = Extract<StoreProblem, { kind: 'clone-unregistered-workspace' }>;
-
-/** A filed clone whose record resolved to a directory. */
-type ResolvedClone = FiledClone & { path: string };
-
 /** Ranks in print order. A kind added to `DeploymentProblem` does not compile until it has one. */
 const DEPLOYMENT_PROBLEM_RANK = {
   'workspace-unreachable': 0,
@@ -110,7 +103,7 @@ export function createReportStatusUseCase(
 
     const storeSkillsSet = new Set(storeSkillNames);
 
-    const strayEntryProblems = storeManager
+    const storeProblems = storeManager
       .listStrayEntryNames()
       .map((entry): StoreProblem => ({ kind: 'stray-entry', entry }));
 
@@ -136,7 +129,7 @@ export function createReportStatusUseCase(
         statePath: storeManager.statePath(),
         skills: storeSkillNames,
         notDeployed: storeSkillNames.filter((skill) => !deployedSkills.has(skill)),
-        problems: [...getUnregisteredWorkspaceProblems(filedClones), ...strayEntryProblems],
+        problems: storeProblems,
       },
     };
   };
@@ -163,7 +156,7 @@ function getWorkspaceStatus(params: {
       path,
       autoLink,
       linked: [],
-      cloned: getSkillNamesFromClones(getResolvedClonesInDirectory({ filedClones, directory: path })),
+      cloned: getSkillNamesFromClones(getFiledClonesInDirectory({ filedClones, directory: path })),
       problems: [{ kind: access === 'unresolvable' ? 'workspace-unreachable' : 'workspace-unreadable' }],
     };
   }
@@ -218,11 +211,13 @@ function classifyClones(params: {
   isWorkspaceBlock: boolean;
 }): { cloned: string[]; problems: DeploymentProblem[] } {
   const { filedClones, directory, storeSkillsSet, isWorkspaceBlock } = params;
-  const resolvedClones = getResolvedClonesInDirectory({ filedClones, directory });
-  const cloned = getSkillNamesFromClones(resolvedClones.filter((clone) => isPlainDirectory(clone.path)));
+  const clonesInDirectory = getFiledClonesInDirectory({ filedClones, directory });
+  const cloned = getSkillNamesFromClones(
+    clonesInDirectory.filter((clone) => isPlainDirectory(clone.path)),
+  );
   const presentSkillNames = new Set(cloned);
 
-  const problems = getSkillNamesFromClones(resolvedClones).flatMap((skill): DeploymentProblem[] => {
+  const problems = getSkillNamesFromClones(clonesInDirectory).flatMap((skill): DeploymentProblem[] => {
     if (!presentSkillNames.has(skill)) {
       return [
         { kind: 'clone-missing', skill, recloneable: isWorkspaceBlock && storeSkillsSet.has(skill) },
@@ -233,25 +228,6 @@ function classifyClones(params: {
   });
 
   return { cloned, problems };
-}
-
-/** One problem per distinct (skill, workspace) record naming a workspace that is not registered. */
-function getUnregisteredWorkspaceProblems(filedClones: FiledClone[]): UnregisteredWorkspaceProblem[] {
-  const problems = filedClones.flatMap(({ skill, record, path }): UnregisteredWorkspaceProblem[] =>
-    path === undefined && 'workspace' in record
-      ? [{ kind: 'clone-unregistered-workspace', skill, workspace: record.workspace }]
-      : [],
-  );
-
-  return problems
-    .sort((a, b) => a.skill.localeCompare(b.skill) || a.workspace.localeCompare(b.workspace))
-    .filter((problem, index) => {
-      const previousProblem = problems[index - 1];
-
-      return !(
-        previousProblem?.skill === problem.skill && previousProblem.workspace === problem.workspace
-      );
-    });
 }
 
 /**
@@ -286,16 +262,14 @@ function getRecordedPathDirectories(params: {
 }
 
 /** The clones that resolve to `directory`, compared the way `findSkillClone` does. */
-function getResolvedClonesInDirectory(params: {
+function getFiledClonesInDirectory(params: {
   filedClones: FiledClone[];
   directory: string;
-}): ResolvedClone[] {
+}): FiledClone[] {
   const { filedClones, directory } = params;
 
   return filedClones.filter(
-    (clone): clone is ResolvedClone =>
-      clone.path !== undefined &&
-      relate({ candidate: clone.path, reference: join(directory, clone.skill) }) === 'equals',
+    (clone) => relate({ candidate: clone.path, reference: join(directory, clone.skill) }) === 'equals',
   );
 }
 

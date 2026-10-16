@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TextStyle, TextStyler } from '@/lib/text-styler';
 import { formatTable, type TableCell } from '@/lib/text-table';
 import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { InvalidShapeError } from '@/lib/errors/index';
 import { SKILL_MANIFEST } from '@/domains/skill/index';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
@@ -539,26 +540,17 @@ describe('status', () => {
       expect(stderr).toEqual([]);
     });
 
-    it('prints a record naming an unregistered workspace in the Problems section', async () => {
-      const { run, store } = await newCli();
+    it('refuses a clone record naming an unregistered workspace, printing nothing', async () => {
+      const { runRefused, store } = await newCli();
 
       storeSkill(store, 'triage');
       recordClone(store, 'triage', { workspace: 'ghost' });
 
-      const { stdout, stderr } = run('status');
+      const { error, stdout } = runRefused('status');
 
-      expect(stdout).toEqual([
-        'Workspaces  none registered',
-        '',
-        `Skills  1 in ${store.paths.skills} · 1 not deployed`,
-        ...table(['SKILL'], [cells('triage')]),
-        '',
-        'Problems  1',
-        '',
-        '  ! clone of triage is recorded under "ghost", which is not a registered workspace',
-        `    Remove the record from ${store.paths.state}.`,
-      ]);
-      expect(stderr).toEqual([]);
+      expect(error).toBeInstanceOf(InvalidShapeError);
+      expect(error.message).toContain('skills.triage.clones[0].workspace');
+      expect(stdout).toEqual([]);
     });
 
     it('orders problems by workspace, then recorded path, then store, and counts them in the title', async () => {
@@ -568,17 +560,15 @@ describe('status', () => {
       run('workspaces', 'add', 'personal', await newDirectory('personal'));
       recordClone(store, 'gone', { workspace: 'personal' });
       recordClone(store, 'deploy', { path: elsewhere });
-      recordClone(store, 'triage', { workspace: 'ghost' });
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
 
       const { stdout } = run('status');
 
-      expect(stdout).toContain('Problems  4');
+      expect(stdout).toContain('Problems  3');
       expect(stdout.filter((line) => line.startsWith('  ! '))).toEqual([
         '  ! clone of gone in workspace personal is missing',
         `  ! clone of deploy in ${elsewhere} is missing`,
-        '  ! clone of triage is recorded under "ghost", which is not a registered workspace',
         '  ! store entry notes.txt is not a skill directory',
       ]);
     });
@@ -588,7 +578,6 @@ describe('status', () => {
 
       run('workspaces', 'add', 'personal', await newDirectory('personal'));
       recordClone(store, 'gone', { workspace: 'personal' });
-      recordClone(store, 'gone', { workspace: 'ghost' });
 
       expect(() => run('status')).not.toThrow();
     });
@@ -910,8 +899,7 @@ describe('status', () => {
 
     it('prints a problem line wider than the width whole', async () => {
       const { runStatus } = await newWidthFixture();
-      const headline =
-        '  ! clone of triage is recorded under "ghost", which is not a registered workspace';
+      const headline = '  ! store entry readme.txt is not a skill directory';
 
       expect(runStatus(headline.length - 20)).toContain(headline);
     });
@@ -984,9 +972,11 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
     }),
   );
 
-  function run(...argv: string[]) {
+  /** What the command printed, and what it threw, if anything. */
+  function execute(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
+    let thrown: Error | undefined;
 
     const log = vi.spyOn(console, 'log').mockImplementation((line: string) => void stdout.push(line));
     const toStderr = (line: string) => void stderr.push(line);
@@ -995,16 +985,39 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
 
     try {
       program.parse(argv, { from: 'user' });
+    } catch (caught) {
+      thrown = caught as Error;
     } finally {
       log.mockRestore();
       error.mockRestore();
       warn.mockRestore();
     }
 
+    return { stdout, stderr, thrown };
+  }
+
+  function run(...argv: string[]) {
+    const { stdout, stderr, thrown } = execute(argv);
+
+    if (thrown !== undefined) {
+      throw thrown;
+    }
+
     return { stdout, stderr };
   }
 
-  return { run, store };
+  /** The refusal the command threw, with what it printed before throwing. */
+  function runRefused(...argv: string[]) {
+    const { stdout, stderr, thrown } = execute(argv);
+
+    if (thrown === undefined) {
+      throw new Error('expected a refusal');
+    }
+
+    return { error: thrown, stdout, stderr };
+  }
+
+  return { run, runRefused, store };
 }
 
 /** A store exercising every styled token. */
@@ -1064,7 +1077,7 @@ async function newWidthFixture() {
   run('clone', 'deploy', 'work');
   mkdirSync(join(outside, 'notes'));
   recordClone(store, 'notes', { path: outside });
-  recordClone(store, 'triage', { workspace: 'ghost' });
+  writeFileSync(join(store.paths.skills, 'readme.txt'), 'readme', 'utf8');
 
   function runStatus(width: number | undefined): string[] {
     terminalWidth = width;

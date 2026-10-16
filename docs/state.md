@@ -88,6 +88,9 @@ That includes `repos remove`.
 - A registered path that breaks [the path rule](#the-path-rule) is refused. This can only happen by editing `state.json` by
   hand, or by repointing a symlink after registration. The message names the kind and the entry:
   `workspace "bad" cannot be used: …`, or `repo "bad" cannot be used: …`.
+- A `{ workspace }` clone record naming a workspace that is not registered is refused, and the message names the record. This
+  can only happen by editing `state.json` by hand. Otherwise, registering a workspace under that name would quietly take the
+  record over.
 
 ```shell
 $ grimoire status

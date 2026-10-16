@@ -47,11 +47,8 @@ export type SkillClone = {
 export type FiledClone = {
   skill: string;
   record: CloneRecord;
-  /**
-   * `<workspace path or recorded path>/<skill>`, normalized — or `undefined` when `record`
-   * names a workspace that is not registered.
-   */
-  path: string | undefined;
+  /** `<workspace path or recorded path>/<skill>`, normalized. */
+  path: string;
 };
 
 /** A workspace as `state.json` holds it, carrying the name it is filed under. */
@@ -126,12 +123,10 @@ export class GrimoireStoreManager {
   /**
    * Drops a workspace from the registry and returns what it dropped.
    *
-   * The registration only: the directory, whatever it holds, and any clone
-   * record naming the workspace all outlive this call. A caller that has to
-   * settle those reads them through the name first, because the name stops
-   * resolving here.
+   * The registration only: the directory and whatever it holds outlive this call.
    *
    * @throws EntityNotFoundError if no workspace is registered under that name.
+   * @throws Error if a `{ workspace }` clone record still names it; settle those first.
    */
   unregisterWorkspace(name: string): RegisteredWorkspace {
     const storeState = this.loadState();
@@ -140,6 +135,13 @@ export class GrimoireStoreManager {
       registry: storeState.workspacesRegistry,
       name,
     });
+    const clonedSkills = storeState.skillsClonedIntoWorkspace(name);
+
+    if (clonedSkills.length > 0) {
+      throw new Error(
+        `cannot unregister workspace "${name}": clone records still name it (${clonedSkills.join(', ')})`,
+      );
+    }
 
     this.saveState(storeState.withoutWorkspace(name));
 
@@ -338,27 +340,25 @@ export class GrimoireStoreManager {
   /**
    * Every directory the skill is recorded as cloned into, in record order.
    *
-   * A record naming a workspace that is no longer registered resolves nowhere
-   * and is left out. The recorded path is joined as-is, not normalized, so
-   * `origin` prints the path the action takes.
+   * The recorded path is joined as-is, not normalized, so `origin` prints the
+   * path the action takes.
    */
   listSkillClones(name: string): SkillClone[] {
     const state = this.loadState();
 
-    return state.clonesOfSkill(name).flatMap((record): SkillClone[] => {
+    return state.clonesOfSkill(name).map((record): SkillClone => {
       if ('path' in record) {
-        return [{ origin: record.path, path: join(record.path, name), record }];
+        return { origin: record.path, path: join(record.path, name), record };
       }
 
-      const workspace = findRegisteredWorkspace(state, record.workspace);
+      const workspace = requireWorkspaceInState(state, record.workspace);
 
-      return workspace ? [{ origin: record.workspace, path: join(workspace.path, name), record }] : [];
+      return { origin: record.workspace, path: join(workspace.path, name), record };
     });
   }
 
   /**
-   * Every clone record in `state.json`, by skill name, then record order. Unlike
-   * `listSkillClones`, a record naming an unregistered workspace is kept, with no path.
+   * Every clone record in `state.json`, by skill name, then record order.
    */
   listFiledClones(): FiledClone[] {
     const state = this.loadState();
@@ -371,17 +371,16 @@ export class GrimoireStoreManager {
             return { skill, record, path: join(normalizePath(record.path), skill) };
           }
 
-          const workspace = findRegisteredWorkspace(state, record.workspace);
+          const workspace = requireWorkspaceInState(state, record.workspace);
 
-          return { skill, record, path: workspace && join(workspace.path, skill) };
+          return { skill, record, path: join(workspace.path, skill) };
         }),
       );
   }
 
   /**
    * The skill's recorded clone whose directory is `<directory>/<skill>`, by either record arm,
-   * compared canonically; the first in record order, or `undefined`. Built on `listSkillClones`,
-   * so a record naming an unregistered workspace never matches.
+   * compared canonically; the first in record order, or `undefined`.
    */
   findSkillClone(params: { skill: string; directory: string }): SkillClone | undefined {
     const target = join(params.directory, params.skill);
@@ -746,6 +745,10 @@ function requireRegistered<T extends object>(params: {
   return registration;
 }
 
+function requireWorkspaceInState(state: StoreState, name: string): RegisteredWorkspace {
+  return requireRegistered({ entity: 'workspace', registry: state.workspacesRegistry, name });
+}
+
 /** The entry a rename starts from, and whether `newName` is its current name. */
 function checkRename<T extends object>(params: {
   entity: RegistryEntity;
@@ -764,10 +767,6 @@ function checkRename<T extends object>(params: {
   assertNameIsAvailable({ entity, registry, name: newName });
 
   return { registration, isSameName: false };
-}
-
-function findRegisteredWorkspace(state: StoreState, name: string): RegisteredWorkspace | undefined {
-  return findRegistered(state.workspacesRegistry, name);
 }
 
 /**
