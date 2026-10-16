@@ -14,7 +14,11 @@ export {
   type EntityNotFoundErrorProps,
   type RegistryEntity,
 } from '@/lib/errors/entity-not-found';
-export { InvalidNameError, type InvalidNameErrorProps } from '@/lib/errors/invalid-name';
+export {
+  InvalidNameError,
+  NAME_RULE_MESSAGE,
+  type InvalidNameErrorProps,
+} from '@/lib/errors/invalid-name';
 export {
   InvalidPathError,
   type InvalidPathErrorProps,

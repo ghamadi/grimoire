@@ -4,6 +4,7 @@ import { canBeRegistered } from '@/domains/grimoire-store/helpers/registered-pat
 import { Repo } from '@/domains/repo/index';
 import { Workspace } from '@/domains/workspace/index';
 import { InvalidShapeError } from '@/lib/errors/invalid-shape';
+import { NAME_RULE_MESSAGE } from '@/lib/errors/index';
 
 // ----------------------------------------------------------------------------
 // SCHEMAS
@@ -16,11 +17,9 @@ const registeredPath = z
   .refine(canBeRegistered, { error: 'must be an absolute path or start with ~/' })
   .transform(normalizePath);
 
-const INVALID_WORKSPACE_NAME =
-  'workspace name must start with a letter or digit and contain only letters, digits, "-" and "_"';
+const INVALID_WORKSPACE_NAME = `workspace name ${NAME_RULE_MESSAGE}`;
 
-const INVALID_REPO_NAME =
-  'repo name must start with a letter or digit and contain only letters, digits, "-" and "_"';
+const INVALID_REPO_NAME = `repo name ${NAME_RULE_MESSAGE}`;
 
 const workspaceNameSchema = z
   .string()

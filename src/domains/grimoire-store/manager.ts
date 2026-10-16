@@ -83,15 +83,11 @@ export class GrimoireStoreManager {
   registerWorkspace(params: RegisterWorkspaceParams) {
     const { name, autoLink = false } = params;
 
-    if (!Workspace.isValidName(name)) {
-      throw new InvalidNameError({ entity: 'workspace', name });
-    }
+    assertNameIsValid({ entity: 'workspace', name });
 
     const storeState = this.loadState();
 
-    if (Object.hasOwn(storeState.workspacesRegistry, name)) {
-      throw new DuplicateNameError({ entity: 'workspace', name });
-    }
+    assertNameIsAvailable({ entity: 'workspace', registry: storeState.workspacesRegistry, name });
 
     const collision =
       this.store.findCollisionWith(params.path) ??
@@ -120,13 +116,11 @@ export class GrimoireStoreManager {
   }
 
   requireRegisteredWorkspace(name: string): RegisteredWorkspace {
-    const workspace = findRegisteredWorkspace(this.loadState(), name);
-
-    if (!workspace) {
-      throw new EntityNotFoundError({ entity: 'workspace', name });
-    }
-
-    return workspace;
+    return requireRegistered({
+      entity: 'workspace',
+      registry: this.loadState().workspacesRegistry,
+      name,
+    });
   }
 
   /**
@@ -141,11 +135,11 @@ export class GrimoireStoreManager {
    */
   unregisterWorkspace(name: string): RegisteredWorkspace {
     const storeState = this.loadState();
-    const workspace = findRegisteredWorkspace(storeState, name);
-
-    if (!workspace) {
-      throw new EntityNotFoundError({ entity: 'workspace', name });
-    }
+    const workspace = requireRegistered({
+      entity: 'workspace',
+      registry: storeState.workspacesRegistry,
+      name,
+    });
 
     this.saveState(storeState.withoutWorkspace(name));
 
@@ -171,7 +165,6 @@ export class GrimoireStoreManager {
       registry: storeState.workspacesRegistry,
       name: params.name,
       newName: params.newName,
-      isValidName: (name) => Workspace.isValidName(name),
     });
 
     if (isSameName) {
@@ -489,15 +482,11 @@ export class GrimoireStoreManager {
   registerRepo(params: { name: string; path: string }): RegisteredRepo {
     const { name } = params;
 
-    if (!Repo.isValidName(name)) {
-      throw new InvalidNameError({ entity: 'repo', name });
-    }
+    assertNameIsValid({ entity: 'repo', name });
 
     const storeState = this.loadState();
 
-    if (Object.hasOwn(storeState.reposRegistry, name)) {
-      throw new DuplicateNameError({ entity: 'repo', name });
-    }
+    assertNameIsAvailable({ entity: 'repo', registry: storeState.reposRegistry, name });
 
     const collision =
       this.store.findCollisionWith(params.path) ??
@@ -526,13 +515,7 @@ export class GrimoireStoreManager {
    * @throws EntityNotFoundError if no repo is registered under that name.
    */
   requireRegisteredRepo(name: string): RegisteredRepo {
-    const repo = findRegisteredRepo(this.loadState(), name);
-
-    if (!repo) {
-      throw new EntityNotFoundError({ entity: 'repo', name });
-    }
-
-    return repo;
+    return requireRegistered({ entity: 'repo', registry: this.loadState().reposRegistry, name });
   }
 
   /**
@@ -543,11 +526,7 @@ export class GrimoireStoreManager {
    */
   unregisterRepo(name: string): RegisteredRepo {
     const storeState = this.loadState();
-    const repo = findRegisteredRepo(storeState, name);
-
-    if (!repo) {
-      throw new EntityNotFoundError({ entity: 'repo', name });
-    }
+    const repo = requireRegistered({ entity: 'repo', registry: storeState.reposRegistry, name });
 
     this.saveState(storeState.withoutRepo(name));
 
@@ -569,7 +548,6 @@ export class GrimoireStoreManager {
       registry: storeState.reposRegistry,
       name: params.name,
       newName: params.newName,
-      isValidName: (name) => Repo.isValidName(name),
     });
 
     if (isSameName) {
@@ -728,42 +706,68 @@ function findRegistered<T extends object>(
   return Object.hasOwn(registry, name) ? { name, ...registry[name]! } : undefined;
 }
 
-/** The entry a rename starts from, and whether `newName` is its current name. */
-function checkRename<T extends object>(params: {
+const isValidNameByEntity: Record<RegistryEntity, (name: string) => boolean> = {
+  workspace: (name) => Workspace.isValidName(name),
+  repo: (name) => Repo.isValidName(name),
+};
+
+function assertNameIsValid(params: { entity: RegistryEntity; name: string }): void {
+  const { entity, name } = params;
+
+  if (!isValidNameByEntity[entity](name)) {
+    throw new InvalidNameError({ entity, name });
+  }
+}
+
+function assertNameIsAvailable<T>(params: {
   entity: RegistryEntity;
   registry: Readonly<Record<string, T>>;
   name: string;
-  newName: string;
-  isValidName: (name: string) => boolean;
-}): { registration: { name: string } & T; isSameName: boolean } {
-  const { entity, registry, name, newName } = params;
+}): void {
+  const { entity, registry, name } = params;
+
+  if (Object.hasOwn(registry, name)) {
+    throw new DuplicateNameError({ entity, name });
+  }
+}
+
+function requireRegistered<T extends object>(params: {
+  entity: RegistryEntity;
+  registry: Readonly<Record<string, T>>;
+  name: string;
+}): { name: string } & T {
+  const { entity, registry, name } = params;
   const registration = findRegistered(registry, name);
 
   if (!registration) {
     throw new EntityNotFoundError({ entity, name });
   }
 
+  return registration;
+}
+
+/** The entry a rename starts from, and whether `newName` is its current name. */
+function checkRename<T extends object>(params: {
+  entity: RegistryEntity;
+  registry: Readonly<Record<string, T>>;
+  name: string;
+  newName: string;
+}): { registration: { name: string } & T; isSameName: boolean } {
+  const { entity, registry, name, newName } = params;
+  const registration = requireRegistered({ entity, registry, name });
+
   if (newName === name) {
     return { registration, isSameName: true };
   }
 
-  if (!params.isValidName(newName)) {
-    throw new InvalidNameError({ entity, name: newName });
-  }
-
-  if (Object.hasOwn(registry, newName)) {
-    throw new DuplicateNameError({ entity, name: newName });
-  }
+  assertNameIsValid({ entity, name: newName });
+  assertNameIsAvailable({ entity, registry, name: newName });
 
   return { registration, isSameName: false };
 }
 
 function findRegisteredWorkspace(state: StoreState, name: string): RegisteredWorkspace | undefined {
   return findRegistered(state.workspacesRegistry, name);
-}
-
-function findRegisteredRepo(state: StoreState, name: string): RegisteredRepo | undefined {
-  return findRegistered(state.reposRegistry, name);
 }
 
 /**
