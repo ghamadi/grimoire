@@ -2,9 +2,9 @@ import { lstatSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
-import { EntityNotFoundError, UnlinkDeclinedError } from '@/lib/errors/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
+import { EntityNotFoundError, UnlinkDeclinedError } from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { GitUnavailableError, GrimoireError } from '@/lib/errors/index';
+import { GitUnavailableError, GrimoireError } from '@/lib/errors';
 import { hasUncommittedChanges, isInsideGitWorkTree } from '@/lib/git';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { tempRoot } from '@test-helpers/temp-root';

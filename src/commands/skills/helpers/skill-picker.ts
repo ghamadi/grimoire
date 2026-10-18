@@ -1,5 +1,5 @@
 import { isCancel, multiselect } from '@clack/prompts';
-import type { SkillSource } from '@/domains/skill/index';
+import type { SkillSource } from '@/domains/skill';
 
 export type SkillPicker = {
   /** Whether a person is there to answer. */

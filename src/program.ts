@@ -2,17 +2,16 @@ import { styleText } from 'node:util';
 import { Command } from 'commander';
 import { cloneCommand } from '@/commands/clone';
 import { exportCommand } from '@/commands/export';
-import { clackSkillPicker, type SkillPicker } from '@/commands/prompts/skill-picker';
 import { linkCommand } from '@/commands/link';
 import { reposCommand } from '@/commands/repos';
-import { skillsCommand } from '@/commands/skills';
+import { clackSkillPicker, skillsCommand, type SkillPicker } from '@/commands/skills';
 import { statusCommand } from '@/commands/status';
 import type { TextStyler } from '@/lib/text-styler';
 import { trashCommand } from '@/commands/trash';
 import { uncloneCommand } from '@/commands/unclone';
 import { unlinkCommand } from '@/commands/unlink';
 import { workspacesCommand } from '@/commands/workspaces';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { getVersion } from '@/lib/utils';
 
 export type ProgramDependencies = {

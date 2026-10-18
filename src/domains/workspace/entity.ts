@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { InvalidNameError } from '@/lib/errors/index';
+import { InvalidNameError } from '@/lib/errors';
 import { getDirectoryAccess, STAGING_DIRECTORY_NAME, type DirectoryAccess } from '@/lib/fs';
 
 export type WorkspaceParams = {

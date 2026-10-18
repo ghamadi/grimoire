@@ -119,7 +119,7 @@ grimoire skills remove triage           # unlink it everywhere and move the stor
 
 ## What grimoire touches
 
-Outside its store, grimoire removes only its own symlinks and directories the store already holds in full: the same files,  
+Outside its store, grimoire removes only its own symlinks and directories the store already holds in full: the same files,
 with the same contents. Two commands go further, but only where you point them:
 
 - `clone --overwrite` replaces a skill directory in a workspace with the store copy.

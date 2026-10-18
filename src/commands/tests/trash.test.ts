@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TextStyler } from '@/lib/text-styler';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 

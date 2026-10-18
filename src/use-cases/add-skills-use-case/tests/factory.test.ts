@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill/index';
-import { AddDeclinedError, InvalidPathError } from '@/lib/errors/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
+import { AddDeclinedError, InvalidPathError } from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
 import { tempRoot } from '@test-helpers/temp-root';
 import { createAddSkillsUseCase } from '@/use-cases/add-skills-use-case/factory';

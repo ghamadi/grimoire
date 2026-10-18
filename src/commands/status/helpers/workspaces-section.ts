@@ -1,5 +1,5 @@
-import { getUnavailableState } from '@/commands/status/section-helpers';
-import { formatSectionTitle } from '@/commands/status/section-title';
+import { getUnavailableState } from '@/commands/status/helpers/section-helpers';
+import { formatSectionTitle } from '@/commands/status/helpers/section-title';
 import type { TextStyler } from '@/lib/text-styler';
 import { formatTable, type TableCell } from '@/lib/text-table';
 import type { StatusReport, WorkspaceStatus } from '@/use-cases/report-status-use-case/factory';

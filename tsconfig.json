@@ -16,7 +16,8 @@
     "noEmit": true,
 
     "paths": {
-      "@/*": ["./src/*.ts"],
+      // Index first: auto-import writes the first target that matches, so @/commands/status rather than @/commands/status/index.
+      "@/*": ["./src/*/index.ts", "./src/*.ts"],
       "@test-helpers/*": ["./tests/helpers/*.ts"],
       "@package.json": ["./package.json"]
     }

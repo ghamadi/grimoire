@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import type { Workspace } from '@/domains/workspace/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
+import type { Workspace } from '@/domains/workspace';
 import { createAddWorkspaceUseCase } from '@/use-cases/add-workspace-use-case/factory';
 import { createListWorkspacesUseCase } from '@/use-cases/list-workspaces-use-case/factory';
 import {

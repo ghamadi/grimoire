@@ -2,9 +2,9 @@ import { lstatSync, mkdirSync, readlinkSync, symlinkSync, writeFileSync } from '
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
-import { LinkDeclinedError } from '@/lib/errors/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
+import { LinkDeclinedError } from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 

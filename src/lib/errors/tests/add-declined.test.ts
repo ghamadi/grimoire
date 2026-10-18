@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AddDeclinedError, GrimoireError, describeAddRefusal } from '@/lib/errors/index';
-import type { AddRefusal } from '@/lib/errors/index';
+import { AddDeclinedError, GrimoireError, describeAddRefusal } from '@/lib/errors';
+import type { AddRefusal } from '@/lib/errors';
 
 const differs: AddRefusal = {
   kind: 'differs',

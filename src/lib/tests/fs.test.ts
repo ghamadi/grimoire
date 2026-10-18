@@ -15,7 +15,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { InvalidPathError } from '@/lib/errors/index';
+import { InvalidPathError } from '@/lib/errors';
 import { getDirectoryAccess, movePath, tryStatSync, writeTreeStaged } from '@/lib/fs';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';

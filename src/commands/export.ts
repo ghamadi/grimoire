@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { ExportFailedError, describeExportRefusal } from '@/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
+import { ExportFailedError, describeExportRefusal } from '@/lib/errors';
 import {
   createExportSkillsUseCase,
   type ExportSkillsReport,

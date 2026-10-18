@@ -46,8 +46,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "format": "prettier . --write --ignore-unknown",
-    "format:check": "prettier . --check --ignore-unknown",
+    "format": "pnpm trailing-spaces && prettier . --write --ignore-unknown",
+    "format:check": "prettier . --check --ignore-unknown && pnpm trailing-spaces:check",
+    "trailing-spaces": "git ls-files -co --exclude-standard -z -- '*.md' | xargs -0 perl -pi -e 's/ +$//'",
+    "trailing-spaces:check": "git ls-files -co --exclude-standard -z -- '*.md' | xargs -0 perl -lne 'if (/ +$/) { print qq{$ARGV:$.: trailing spaces}; $found = 1 } close ARGV if eof; END { exit $found }'",
     "prepack": "pnpm build",
     "prepublishOnly": "pnpm typecheck && pnpm lint && pnpm test"
   },

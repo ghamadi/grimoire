@@ -10,15 +10,15 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   EntityNotFoundError,
   ExportDeclinedError,
   ExportFailedError,
   InvalidPathError,
   UnportableSkillError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { runsAsRoot } from '@test-helpers/locked-directory';

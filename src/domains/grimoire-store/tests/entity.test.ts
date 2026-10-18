@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { tempRoot } from '@test-helpers/temp-root';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
 
 describe('paths', () => {
   it('lays the store out under the home it was given', () => {

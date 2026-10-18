@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import type { TextStyler } from '@/lib/text-styler';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 
 export type TrashCommandParams = {
   storeManager: GrimoireStoreManager;

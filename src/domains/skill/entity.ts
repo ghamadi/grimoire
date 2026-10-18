@@ -1,7 +1,7 @@
 import { lstatSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { safeFlattenDirectory } from '@/lib/directories';
-import { InvalidPathError, UnportableSkillError } from '@/lib/errors/index';
+import { InvalidPathError, UnportableSkillError } from '@/lib/errors';
 import { isErrnoException, tryStatSync } from '@/lib/fs';
 
 export const SKILL_MANIFEST = 'SKILL.md';

@@ -2,29 +2,29 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '@/lib/utils/files';
 import type { Collision, GrimoireStore } from '@/domains/grimoire-store/entity';
 import { StoreState, type CloneRecord } from '@/domains/grimoire-store/value-objects/store-state';
-import { DuplicateNameError } from '@/lib/errors/duplicate-name';
 import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-path';
 import {
   CollidingRegistrationError,
+  DuplicateNameError,
   EntityNotFoundError,
   GrimoireError,
   InvalidNameError,
   InvalidPathError,
+  InvalidShapeError,
   PathCollisionError,
   type RegistryEntity,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { join, matchesGlob } from 'node:path';
-import { InvalidShapeError } from '@/lib/errors/invalid-shape';
 import {
   findDanglingStoreLinks,
   findStoreLinks,
   type DanglingStoreLink,
   type StoreLink,
 } from '@/domains/grimoire-store/helpers/store-links';
-import { Skill } from '@/domains/skill/entity';
+import { Skill } from '@/domains/skill';
 import { copyTree, movePath } from '@/lib/fs';
-import { Repo } from '@/domains/repo/index';
-import { Workspace } from '@/domains/workspace/index';
+import { Repo } from '@/domains/repo';
+import { Workspace } from '@/domains/workspace';
 import { isInsideGitWorkTree } from '@/lib/git';
 import { trashBinName } from '@/domains/grimoire-store/helpers/trash';
 import { normalizePath, relate } from '@/lib/paths';

@@ -12,9 +12,9 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SkillPicker } from '@/commands/prompts/skill-picker';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill/index';
+import type { SkillPicker } from '@/commands/skills';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
 import {
   AddDeclinedError,
   EntityNotFoundError,
@@ -22,7 +22,7 @@ import {
   NoTerminalError,
   PathCollisionError,
   WorkspaceUnreadableError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 

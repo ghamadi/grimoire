@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { describeLinkRefusal } from '@/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
+import { describeLinkRefusal } from '@/lib/errors';
 import { createLinkSkillUseCase, type LinkSkillUseCase } from '@/use-cases/link-skill-use-case/factory';
 
 export type LinkCommandParams = {

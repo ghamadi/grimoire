@@ -1,6 +1,6 @@
 import { join } from 'node:path';
-import { Workspace } from '@/domains/workspace/index';
-import { InvalidNameError } from '@/lib/errors/index';
+import { Workspace } from '@/domains/workspace';
+import { InvalidNameError } from '@/lib/errors';
 import { STAGING_DIRECTORY_NAME } from '@/lib/fs';
 
 export type RepoParams = {

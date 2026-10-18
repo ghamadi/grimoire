@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GrimoireError, WorkspaceUnreadableError } from '@/lib/errors/index';
+import { GrimoireError, WorkspaceUnreadableError } from '@/lib/errors';
 
 describe('WorkspaceUnreadableError', () => {
   it('reads as the three lines the docs pin for one workspace', () => {

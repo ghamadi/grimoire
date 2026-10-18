@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import { normalizePath } from '@/lib/paths';
 import { canBeRegistered } from '@/domains/grimoire-store/helpers/registered-path';
-import { Repo } from '@/domains/repo/index';
-import { Workspace } from '@/domains/workspace/index';
-import { InvalidShapeError } from '@/lib/errors/invalid-shape';
-import { NAME_RULE_MESSAGE } from '@/lib/errors/index';
+import { Repo } from '@/domains/repo';
+import { Workspace } from '@/domains/workspace';
+import { InvalidShapeError, NAME_RULE_MESSAGE } from '@/lib/errors';
 
 // ----------------------------------------------------------------------------
 // SCHEMAS

@@ -1,5 +1,5 @@
 import { lstatSync, mkdirSync, type Stats } from 'node:fs';
-import { InvalidPathError } from '@/lib/errors/index';
+import { InvalidPathError } from '@/lib/errors';
 import { isErrnoException } from '@/lib/fs';
 import { normalizePath } from '@/lib/paths';
 import { dirname, isAbsolute, sep } from 'node:path';
