@@ -11,8 +11,8 @@ import { tempRoot } from '@test-helpers/temp-root';
 const cliBundlePath = inject('cliBundlePath');
 
 describe('grimoire cli', () => {
-  it('prints the package version', async () => {
-    const { stdout, code } = await runCli(['--version']);
+  it.each(['-v', '--version'])('prints the package version for %s', async (flag) => {
+    const { stdout, code } = await runCli([flag]);
 
     expect(code).toBe(0);
     expect(stdout).toBe(getVersion());
