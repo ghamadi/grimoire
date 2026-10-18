@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import js from '@eslint/js';
 import globals from 'globals';
@@ -15,8 +15,9 @@ const INDEX_IMPORT_PATTERN = {
 };
 
 function getModuleFolders(layer) {
-  return readdirSync(join(import.meta.dirname, 'src', layer), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== 'tests')
+  const layerPath = join(import.meta.dirname, 'src', layer);
+  return readdirSync(layerPath, { withFileTypes: true })
+    .filter((entry) => existsSync(join(layerPath, entry.name, 'index.ts')))
     .map((entry) => {
       const folder = `${layer}/${entry.name}`;
       return {
@@ -38,7 +39,7 @@ function getRestrictedImportsRule(patterns) {
   };
 }
 
-const moduleFolders = ['commands', 'domains'].flatMap(getModuleFolders);
+const moduleFolders = ['commands', 'domains', 'lib'].flatMap(getModuleFolders);
 
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**'] },

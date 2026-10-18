@@ -2,19 +2,19 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '@/lib/utils/files';
 import type { Collision, GrimoireStore } from '@/domains/grimoire-store/entity';
 import { StoreState, type CloneRecord } from '@/domains/grimoire-store/value-objects/store-state';
-import { DuplicateNameError } from '@/lib/errors/duplicate-name';
 import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-path';
 import {
   CollidingRegistrationError,
+  DuplicateNameError,
   EntityNotFoundError,
   GrimoireError,
   InvalidNameError,
   InvalidPathError,
+  InvalidShapeError,
   PathCollisionError,
   type RegistryEntity,
 } from '@/lib/errors';
 import { join, matchesGlob } from 'node:path';
-import { InvalidShapeError } from '@/lib/errors/invalid-shape';
 import {
   findDanglingStoreLinks,
   findStoreLinks,
