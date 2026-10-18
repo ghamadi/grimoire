@@ -36,6 +36,8 @@ See @CLAUDE.local.md
   never a relative path; lint enforces it. Specifiers take no extension, and a barrel is imported by its explicit `/index`.
   If the editor emits a wrong specifier, fix `.vscode/settings.json`.
 - When a module exposes a public barrel file, it's the module's public surface — don't import past it.
+- A command that outgrows one file becomes `commands/<name>/index.ts` plus `commands/<name>/helpers/`. Code outside the
+  folder imports only `index.ts`, and anything it needs is re-exported there.
 - Tests: module-local in `src/<module>/tests/`, cross-cutting in `tests/`.
 - Prefer named parameters over positional ones in most cases unless there's a good reason not to.
 - Enforce preconditions in code, not prose. A function relying on a precondition of the input at runtime (e.g., normalized
@@ -72,3 +74,4 @@ Supplies what the `branch-review` skill would otherwise look up.
 - `CHECKS` are `pnpm typecheck`, `pnpm lint` and `pnpm test`, each run on its own. No coverage provider is installed, so map
   tests to code paths by reading.
 - A suite is named after the file it covers: `src/<module>/**/<file>.ts` → `src/<module>/tests/<file>.test.ts`.
+- A command folder's `index.ts` is covered by `src/commands/tests/<name>.test.ts`.
