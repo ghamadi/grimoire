@@ -1,5 +1,5 @@
-import { getMissingCloneSkills, getNotInStoreCell } from '@/commands/status/section-helpers';
-import { formatSectionTitle } from '@/commands/status/section-title';
+import { getMissingCloneSkills, getNotInStoreCell } from '@/commands/status/helpers/section-helpers';
+import { formatSectionTitle } from '@/commands/status/helpers/section-title';
 import type { TextStyler } from '@/lib/text-styler';
 import { formatTable, type TableCell } from '@/lib/text-table';
 import type {

@@ -1,8 +1,8 @@
 import { Command } from 'commander';
-import { formatOutsideClonesSection } from '@/commands/status/outside-clones-section';
-import { formatProblemsSection } from '@/commands/status/problems-section';
-import { formatSkillsSection } from '@/commands/status/skills-section';
-import { formatWorkspacesSection } from '@/commands/status/workspaces-section';
+import { formatOutsideClonesSection } from '@/commands/status/helpers/outside-clones-section';
+import { formatProblemsSection } from '@/commands/status/helpers/problems-section';
+import { formatSkillsSection } from '@/commands/status/helpers/skills-section';
+import { formatWorkspacesSection } from '@/commands/status/helpers/workspaces-section';
 import type { TextStyler } from '@/lib/text-styler';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
 import {

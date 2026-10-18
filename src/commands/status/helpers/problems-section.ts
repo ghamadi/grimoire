@@ -1,4 +1,4 @@
-import { formatSectionTitle } from '@/commands/status/section-title';
+import { formatSectionTitle } from '@/commands/status/helpers/section-title';
 import { formatShellCommand } from '@/lib/shell-command';
 import type { TextStyler } from '@/lib/text-styler';
 import { assertUnreachable } from '@/lib/utils';

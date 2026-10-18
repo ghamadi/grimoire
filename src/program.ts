@@ -6,7 +6,7 @@ import { clackSkillPicker, type SkillPicker } from '@/commands/prompts/skill-pic
 import { linkCommand } from '@/commands/link';
 import { reposCommand } from '@/commands/repos';
 import { skillsCommand } from '@/commands/skills';
-import { statusCommand } from '@/commands/status';
+import { statusCommand } from '@/commands/status/index';
 import type { TextStyler } from '@/lib/text-styler';
 import { trashCommand } from '@/commands/trash';
 import { uncloneCommand } from '@/commands/unclone';
