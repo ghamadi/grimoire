@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { EntityNotFoundError } from '@/lib/errors/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { EntityNotFoundError } from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 

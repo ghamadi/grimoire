@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ExportDeclinedError, GrimoireError, describeExportRefusal } from '@/lib/errors/index';
-import type { ExportRefusal } from '@/lib/errors/index';
+import { ExportDeclinedError, GrimoireError, describeExportRefusal } from '@/lib/errors';
+import type { ExportRefusal } from '@/lib/errors';
 
 const FORCE_LINE = '  commit first, or use --force to overwrite them';
 

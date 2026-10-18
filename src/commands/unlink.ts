@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { describeUnlinkRefusal } from '@/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
+import { describeUnlinkRefusal } from '@/lib/errors';
 import {
   createUnlinkSkillUseCase,
   type UnlinkSkillUseCase,

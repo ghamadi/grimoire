@@ -21,11 +21,11 @@ import {
   InvalidPathError,
   InvalidShapeError,
   PathCollisionError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 
 describe('registerWorkspace', () => {
   it('reports the directory it had to create', async () => {

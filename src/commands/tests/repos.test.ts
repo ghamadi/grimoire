@@ -2,14 +2,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
 import {
   CollidingRegistrationError,
   DuplicateNameError,
   EntityNotFoundError,
   InvalidPathError,
   PathCollisionError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { tempRoot } from '@test-helpers/temp-root';

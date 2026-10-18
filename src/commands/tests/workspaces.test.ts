@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { dirname, join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
 import {
   CollidingRegistrationError,
   DuplicateNameError,
@@ -12,7 +12,7 @@ import {
   PathCollisionError,
   UnreadableWorkspaceRemovalError,
   WorkspaceInUseError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';

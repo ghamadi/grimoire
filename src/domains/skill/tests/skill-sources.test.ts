@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { findSkillSources } from '@/domains/skill/helpers/skill-sources';
 import { SKILL_MANIFEST } from '@/domains/skill/entity';
-import { InvalidPathError } from '@/lib/errors/index';
+import { InvalidPathError } from '@/lib/errors';
 import { tempRoot } from '@test-helpers/temp-root';
 
 describe('findSkillSources', () => {

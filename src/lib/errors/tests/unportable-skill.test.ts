@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { UnportableSkillError } from '@/lib/errors/index';
-import type { UnportableSkillReason } from '@/lib/errors/index';
+import { UnportableSkillError } from '@/lib/errors';
+import type { UnportableSkillReason } from '@/lib/errors';
 import { describeUnportableSkill } from '@/lib/errors/unportable-skill';
 
 const reasons: [UnportableSkillReason, string][] = [

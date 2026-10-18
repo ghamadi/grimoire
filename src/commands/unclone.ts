@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import {
   createUncloneSkillUseCase,
   type UncloneSkillUseCase,

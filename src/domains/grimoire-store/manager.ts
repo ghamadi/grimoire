@@ -12,7 +12,7 @@ import {
   InvalidPathError,
   PathCollisionError,
   type RegistryEntity,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { join, matchesGlob } from 'node:path';
 import { InvalidShapeError } from '@/lib/errors/invalid-shape';
 import {
@@ -21,10 +21,10 @@ import {
   type DanglingStoreLink,
   type StoreLink,
 } from '@/domains/grimoire-store/helpers/store-links';
-import { Skill } from '@/domains/skill/index';
+import { Skill } from '@/domains/skill';
 import { copyTree, movePath } from '@/lib/fs';
-import { Repo } from '@/domains/repo/index';
-import { Workspace } from '@/domains/workspace/index';
+import { Repo } from '@/domains/repo';
+import { Workspace } from '@/domains/workspace';
 import { isInsideGitWorkTree } from '@/lib/git';
 import { trashBinName } from '@/domains/grimoire-store/helpers/trash';
 import { normalizePath, relate } from '@/lib/paths';

@@ -11,14 +11,14 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   CloneDeclinedError,
   CloneFailedError,
   EntityNotFoundError,
   UnportableSkillError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { buildProgram } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 

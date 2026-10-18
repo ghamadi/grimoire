@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { InvalidPathError } from '@/lib/errors/index';
+import { InvalidPathError } from '@/lib/errors';
 import { tempRoot } from '@test-helpers/temp-root';
 import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-path';
 

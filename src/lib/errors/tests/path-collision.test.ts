@@ -1,8 +1,8 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PathCollisionError, describeCollision } from '@/lib/errors/index';
-import type { Collision } from '@/domains/grimoire-store/index';
+import { PathCollisionError, describeCollision } from '@/lib/errors';
+import type { Collision } from '@/domains/grimoire-store';
 
 const collision: Collision = {
   kind: 'grimoire-home',

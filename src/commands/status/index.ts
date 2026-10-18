@@ -4,7 +4,7 @@ import { formatProblemsSection } from '@/commands/status/helpers/problems-sectio
 import { formatSkillsSection } from '@/commands/status/helpers/skills-section';
 import { formatWorkspacesSection } from '@/commands/status/helpers/workspaces-section';
 import type { TextStyler } from '@/lib/text-styler';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import {
   createReportStatusUseCase,
   type StatusReport,

@@ -1,15 +1,15 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { Workspace } from '@/domains/workspace/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { Workspace } from '@/domains/workspace';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
   GrimoireError,
   UnreadableWorkspaceRemovalError,
   WorkspaceInUseError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 import { createRemoveWorkspaceUseCase } from '@/use-cases/remove-workspace-use-case/factory';

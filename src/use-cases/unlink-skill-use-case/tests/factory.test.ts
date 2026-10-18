@@ -11,9 +11,9 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
-import { EntityNotFoundError, UnlinkDeclinedError } from '@/lib/errors/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
+import { EntityNotFoundError, UnlinkDeclinedError } from '@/lib/errors';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 import { createUnlinkSkillUseCase } from '@/use-cases/unlink-skill-use-case/factory';

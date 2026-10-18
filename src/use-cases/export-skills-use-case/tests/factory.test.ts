@@ -11,14 +11,14 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   EntityNotFoundError,
   ExportDeclinedError,
   InvalidPathError,
   UnportableSkillError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';

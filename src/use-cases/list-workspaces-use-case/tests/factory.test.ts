@@ -1,9 +1,9 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { Workspace } from '@/domains/workspace/index';
-import { CollidingRegistrationError, InvalidShapeError } from '@/lib/errors/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { Workspace } from '@/domains/workspace';
+import { CollidingRegistrationError, InvalidShapeError } from '@/lib/errors';
 import { tempRoot } from '@test-helpers/temp-root';
 import { createListWorkspacesUseCase } from '@/use-cases/list-workspaces-use-case/factory';
 

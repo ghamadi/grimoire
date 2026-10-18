@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { CloneFailedError, describeCloneRefusal } from '@/lib/errors/index';
+import type { GrimoireStoreManager } from '@/domains/grimoire-store';
+import { CloneFailedError, describeCloneRefusal } from '@/lib/errors';
 import { assertUnreachable } from '@/lib/utils';
 import {
   createCloneSkillUseCase,

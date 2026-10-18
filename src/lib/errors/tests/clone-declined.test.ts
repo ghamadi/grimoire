@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CloneDeclinedError, GrimoireError, describeCloneRefusal } from '@/lib/errors/index';
-import type { CloneOccupant, CloneRefusal } from '@/lib/errors/index';
+import { CloneDeclinedError, GrimoireError, describeCloneRefusal } from '@/lib/errors';
+import type { CloneOccupant, CloneRefusal } from '@/lib/errors';
 
 const skill = 'triage';
 const workspace = 'work';

@@ -1,10 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import type {
-  FiledClone,
-  GrimoireStoreManager,
-  RegisteredWorkspace,
-} from '@/domains/grimoire-store/index';
+import type { FiledClone, GrimoireStoreManager, RegisteredWorkspace } from '@/domains/grimoire-store';
 import { getDirectoryAccess, isErrnoException } from '@/lib/fs';
 import { normalizePath, relate } from '@/lib/paths';
 import { assertUnreachable } from '@/lib/utils';

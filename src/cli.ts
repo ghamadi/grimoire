@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { GrimoireStore } from '@/domains/grimoire-store/index';
-import { GrimoireError } from '@/lib/errors/index';
+import { GrimoireStore } from '@/domains/grimoire-store';
+import { GrimoireError } from '@/lib/errors';
 import { buildProgram } from '@/program';
 
 try {

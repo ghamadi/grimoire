@@ -12,15 +12,15 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   CloneDeclinedError,
   type CloneFailure,
   EntityNotFoundError,
   InvalidPathError,
   UnportableSkillError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 import {

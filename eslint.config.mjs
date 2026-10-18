@@ -9,6 +9,11 @@ const RELATIVE_IMPORT_PATTERN = {
   message: 'Import through an alias: @/…, @test-helpers/… or @package.json.',
 };
 
+const INDEX_IMPORT_PATTERN = {
+  regex: '/index$',
+  message: 'Drop the trailing /index: import the folder.',
+};
+
 function getModuleFolders(layer) {
   return readdirSync(join(import.meta.dirname, 'src', layer), { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name !== 'tests')
@@ -17,15 +22,20 @@ function getModuleFolders(layer) {
       return {
         files: [`src/${folder}/**/*.ts`],
         pattern: {
-          regex: `^@/${folder}/(?!index$)`,
-          message: `Import through the barrel: @/${folder}/index.`,
+          regex: `^@/${folder}/`,
+          message: `Import through the barrel: @/${folder}.`,
         },
       };
     });
 }
 
 function getRestrictedImportsRule(patterns) {
-  return { 'no-restricted-imports': ['error', { patterns: [RELATIVE_IMPORT_PATTERN, ...patterns] }] };
+  return {
+    'no-restricted-imports': [
+      'error',
+      { patterns: [RELATIVE_IMPORT_PATTERN, INDEX_IMPORT_PATTERN, ...patterns] },
+    ],
+  };
 }
 
 const moduleFolders = ['commands', 'domains'].flatMap(getModuleFolders);

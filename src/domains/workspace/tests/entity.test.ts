@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { InvalidNameError } from '@/lib/errors/index';
-import { Workspace } from '@/domains/workspace/index';
+import { InvalidNameError } from '@/lib/errors';
+import { Workspace } from '@/domains/workspace';
 
 describe('Workspace.isValidName', () => {
   it.each(['personal', 'Work2', '9lives', 'my-project', 'my_project', 'a'])('accepts %j', (name) => {

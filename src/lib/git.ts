@@ -1,5 +1,5 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
-import { GitUnavailableError } from '@/lib/errors/index';
+import { GitUnavailableError } from '@/lib/errors';
 import { isErrnoException } from '@/lib/fs';
 
 /**

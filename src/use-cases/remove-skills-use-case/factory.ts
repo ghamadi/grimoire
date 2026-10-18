@@ -1,6 +1,6 @@
 import { unlinkSync } from 'node:fs';
-import type { GrimoireStoreManager, RegisteredWorkspace } from '@/domains/grimoire-store/index';
-import { WorkspaceUnreadableError } from '@/lib/errors/index';
+import type { GrimoireStoreManager, RegisteredWorkspace } from '@/domains/grimoire-store';
+import { WorkspaceUnreadableError } from '@/lib/errors';
 import { getDirectoryAccess } from '@/lib/fs';
 
 // ----------------------------------------------------------------------------

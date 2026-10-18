@@ -10,14 +10,14 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store/index';
-import { SKILL_MANIFEST } from '@/domains/skill/index';
+import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   CollidingRegistrationError,
   EntityNotFoundError,
   LinkDeclinedError,
   UnportableSkillError,
-} from '@/lib/errors/index';
+} from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';

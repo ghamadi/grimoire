@@ -1,4 +1,4 @@
-import type { Collision } from '@/domains/grimoire-store/index';
+import type { Collision } from '@/domains/grimoire-store';
 import { normalizePath, type PathRelation } from '@/lib/paths';
 import { GrimoireError } from '@/lib/errors/grimoire-error';
 

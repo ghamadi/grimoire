@@ -33,8 +33,8 @@ See @CLAUDE.local.md
 ## Conventions
 
 - Import through the tsconfig `paths` aliases — `@/*` for `src/`, `@test-helpers/*` for `tests/helpers/`, `@package.json` —
-  never a relative path. Specifiers take no extension, and a barrel is imported by its explicit `/index`. If the editor emits
-  a wrong specifier, fix `.vscode/settings.json`.
+  never a relative path. Specifiers take no extension, and a barrel is imported by its folder path (`@/commands/status`),
+  never by `/index`. If the editor emits a wrong specifier, fix `.vscode/settings.json`.
 - When a module exposes a public barrel file, it's the module's public surface — don't import past it.
 - A command that outgrows one file becomes `commands/<name>/index.ts` plus `commands/<name>/helpers/`. Code outside the
   folder imports only `index.ts`, and anything it needs is re-exported there.
