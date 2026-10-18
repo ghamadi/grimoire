@@ -21,7 +21,7 @@ import {
   type DanglingStoreLink,
   type StoreLink,
 } from '@/domains/grimoire-store/helpers/store-links';
-import { Skill } from '@/domains/skill/entity';
+import { Skill } from '@/domains/skill/index';
 import { copyTree, movePath } from '@/lib/fs';
 import { Repo } from '@/domains/repo/index';
 import { Workspace } from '@/domains/workspace/index';

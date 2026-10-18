@@ -1,6 +1,34 @@
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+
+const RELATIVE_IMPORT_PATTERN = {
+  regex: '^\\.\\.?(/|$)',
+  message: 'Import through an alias: @/…, @test-helpers/… or @package.json.',
+};
+
+function getModuleFolders(layer) {
+  return readdirSync(join(import.meta.dirname, 'src', layer), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'tests')
+    .map((entry) => {
+      const folder = `${layer}/${entry.name}`;
+      return {
+        files: [`src/${folder}/**/*.ts`],
+        pattern: {
+          regex: `^@/${folder}/(?!index$)`,
+          message: `Import through the barrel: @/${folder}/index.`,
+        },
+      };
+    });
+}
+
+function getRestrictedImportsRule(patterns) {
+  return { 'no-restricted-imports': ['error', { patterns: [RELATIVE_IMPORT_PATTERN, ...patterns] }] };
+}
+
+const moduleFolders = ['commands', 'domains'].flatMap(getModuleFolders);
 
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**'] },
@@ -33,18 +61,14 @@ export default tseslint.config(
   },
   {
     files: ['src/**/*.ts', 'tests/**/*.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^\\.\\.?(/|$)',
-              message: 'Import through an alias: @/…, @test-helpers/… or @package.json.',
-            },
-          ],
-        },
-      ],
-    },
+    rules: getRestrictedImportsRule(moduleFolders.map((folder) => folder.pattern)),
   },
+  // Flat config doesn't merge rule options: a folder's own block comes later and replaces the
+  // general one, which is what opens the folder's internals to its own files.
+  ...moduleFolders.map((folder) => ({
+    files: folder.files,
+    rules: getRestrictedImportsRule(
+      moduleFolders.filter((other) => other !== folder).map((other) => other.pattern),
+    ),
+  })),
 );
