@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import type { SkillPicker } from '@/commands/prompts/skill-picker';
+import type { SkillPicker } from '@/commands/skills/helpers/skill-picker';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store/index';
 import { findSkillSources, type SkillSource } from '@/domains/skill/index';
 import {
@@ -19,6 +19,8 @@ import {
   createRemoveSkillsUseCase,
   type RemovedSkill,
 } from '@/use-cases/remove-skills-use-case/factory';
+
+export { clackSkillPicker, type SkillPicker } from '@/commands/skills/helpers/skill-picker';
 
 export type SkillsCommandParams = {
   storeManager: GrimoireStoreManager;

@@ -12,7 +12,7 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SkillPicker } from '@/commands/prompts/skill-picker';
+import type { SkillPicker } from '@/commands/skills/index';
 import { GrimoireStore } from '@/domains/grimoire-store/index';
 import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill/index';
 import {
