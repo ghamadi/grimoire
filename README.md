@@ -16,12 +16,15 @@ grimoire manages skills you write or already have on disk. It ships no skills, f
 
 ```shell
 npm install -g @ghamadi/grimoire
-pnpm add -g @ghamadi/grimoire
-yarn global add @ghamadi/grimoire
-bun add -g @ghamadi/grimoire
 ```
 
-This installs `grimoire` and `grim`, the same binary under a shorter name.
+Or install it with pnpm, yarn or bun:
+
+- `pnpm add -g @ghamadi/grimoire`
+- `yarn global add @ghamadi/grimoire`
+- `bun add -g @ghamadi/grimoire`
+
+Each installs `grimoire` and `grim`, the same binary under a shorter name.
 
 It needs Node 22.18 or later, on macOS or Linux. npm refuses the install on Windows; WSL works. git is needed only to export
 skills to a repo.
