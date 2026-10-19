@@ -1,9 +1,4 @@
-/**
- * Orders two `major.minor.patch` versions like a sort comparator: negative when
- * `left` is older, zero when equal, positive when `left` is newer.
- *
- * @throws Error when either side is not a plain `major.minor.patch` version.
- */
+/** @throws Error when either side is not a plain `major.minor.patch` version. */
 export function compareVersions(left: string, right: string): number {
   const leftParts = parseVersion(left);
   const rightParts = parseVersion(right);
