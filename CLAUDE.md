@@ -50,11 +50,21 @@ See @CLAUDE.local.md
 
 ### Comments
 
-- Code is self-explanatory until proven otherwise; the burden of proof is on the comment. Keep one only if you can name the
-  wrong conclusion a reader draws without it.
-- Never explain why the code isn't buggy. Behavioral subtleties go in a test name.
-- Rejected alternatives earn a comment **only** when they might seem more intuitive, and a reader would otherwise "fix" the
-  code back.
+Code is self-explanatory until proven otherwise. A comment stays only if you can name the wrong conclusion a reader might
+draw without it. This test applies to every comment, doc comments included, and to each sentence within one. This test also
+applies to comments a plan suggests in its instructions.
+
+These fail the test:
+
+- Restating the name, signature or body, even of code elsewhere (an interface member describing its implementation).
+- Explaining why a caller uses the code; that belongs at the call site.
+- A summary sentence in front of a "why" that passes.
+- Being public API, or matching nearby comment density.
+- A rejected alternative no reader would find more intuitive.
+
+Pre-existing comments do not exempt new ones from the test.
+
+Reread each comment you add and apply the test before finishing.
 
 ### Docs
 
@@ -75,3 +85,4 @@ Supplies what the `branch-review` skill would otherwise look up.
   tests to code paths by reading.
 - A suite is named after the file it covers: `src/<module>/**/<file>.ts` → `src/<module>/tests/<file>.test.ts`.
 - A command folder's `index.ts` is covered by `src/commands/tests/<name>.test.ts`.
+- A comment that fails the [Comments](#comments) rules is a finding.

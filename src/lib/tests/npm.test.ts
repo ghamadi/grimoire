@@ -116,11 +116,7 @@ function stubPath(path: string): void {
   });
 }
 
-/**
- * Leaves npm only the config this test writes: `HOME` points at `home`, and the
- * `npm_config_*` variables are unset. `pnpm test` exports `npm_config_registry`,
- * which outranks every `.npmrc`.
- */
+/** `pnpm test` exports `npm_config_registry`, which outranks every `.npmrc`. */
 function isolateNpmConfig(params: { home: string }): void {
   const { home } = params;
   vi.stubEnv('HOME', home);
@@ -145,9 +141,6 @@ function changeDirectory(directory: string): void {
 }
 
 /**
- * Serves any package over HTTP on localhost, with the latest version set by the
- * first path segment it is asked under. Resolves to the base URL.
- *
  * The server runs in a worker: `spawnSync` blocks this thread while npm waits
  * for an answer, so a server on this thread could never reply.
  */
