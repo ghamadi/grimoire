@@ -1,5 +1,6 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { NpmFailedError, NpmUnavailableError } from '@/lib/errors';
 import { systemNpmClient } from '@/lib/npm';
@@ -50,6 +51,27 @@ describe('systemNpmClient', () => {
     expect((error as NpmFailedError).stderr).toBe('npm error code EACCES\n');
   });
 
+  describe('with the real npm', () => {
+    it('ignores a project .npmrc in the current directory when asking for the latest version', async () => {
+      const registryUrl = await startFakeRegistry({
+        latestVersionByPrefix: { user: '0.2.0', project: '9.9.9' },
+      });
+      const home = await tempRoot();
+      const project = await tempRoot();
+      writeFileSync(join(home, '.npmrc'), `registry=${registryUrl}/user/\n`, 'utf8');
+      writeFileSync(join(project, '.npmrc'), `registry=${registryUrl}/project/\n`, 'utf8');
+      writeFileSync(
+        join(project, 'package.json'),
+        '{ "name": "project", "version": "1.0.0" }\n',
+        'utf8',
+      );
+      isolateNpmConfig({ home });
+      changeDirectory(project);
+
+      expect(systemNpmClient.getLatestVersion({ packageName: '@ghamadi/grimoire' })).toBe('0.2.0');
+    });
+  });
+
   describe('with npm missing from PATH', () => {
     it.each([
       ['getLatestVersion', () => systemNpmClient.getLatestVersion({ packageName: '@ghamadi/grimoire' })],
@@ -92,6 +114,73 @@ function stubPath(path: string): void {
   onTestFinished(() => {
     vi.unstubAllEnvs();
   });
+}
+
+/**
+ * Leaves npm only the config this test writes: `HOME` points at `home`, and the
+ * `npm_config_*` variables are unset. `pnpm test` exports `npm_config_registry`,
+ * which outranks every `.npmrc`.
+ */
+function isolateNpmConfig(params: { home: string }): void {
+  const { home } = params;
+  vi.stubEnv('HOME', home);
+
+  for (const name of Object.keys(process.env)) {
+    if (name.toLowerCase().startsWith('npm_config_')) {
+      vi.stubEnv(name, undefined);
+    }
+  }
+
+  onTestFinished(() => {
+    vi.unstubAllEnvs();
+  });
+}
+
+function changeDirectory(directory: string): void {
+  const previousDirectory = process.cwd();
+  process.chdir(directory);
+  onTestFinished(() => {
+    process.chdir(previousDirectory);
+  });
+}
+
+/**
+ * Serves any package over HTTP on localhost, with the latest version set by the
+ * first path segment it is asked under. Resolves to the base URL.
+ *
+ * The server runs in a worker: `spawnSync` blocks this thread while npm waits
+ * for an answer, so a server on this thread could never reply.
+ */
+async function startFakeRegistry(params: {
+  latestVersionByPrefix: Record<string, string>;
+}): Promise<string> {
+  const { latestVersionByPrefix } = params;
+  const source = `
+    const { createServer } = require('node:http');
+    const { parentPort, workerData } = require('node:worker_threads');
+
+    const server = createServer((request, response) => {
+      const [, prefix, encodedName] = request.url.split('/');
+      const name = decodeURIComponent(encodedName);
+      const version = workerData[prefix];
+
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ name, 'dist-tags': { latest: version }, versions: { [version]: { name, version } } }));
+    });
+
+    server.listen(0, '127.0.0.1', () => parentPort.postMessage(server.address().port));
+  `;
+  const worker = new Worker(source, { eval: true, workerData: latestVersionByPrefix });
+  onTestFinished(async () => {
+    await worker.terminate();
+  });
+
+  const port = await new Promise<number>((resolve, reject) => {
+    worker.once('message', resolve);
+    worker.once('error', reject);
+  });
+
+  return `http://127.0.0.1:${port}`;
 }
 
 function readRecordedArgs(argsPath: string): string {

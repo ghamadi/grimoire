@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import { NpmFailedError, NpmUnavailableError } from '@/lib/errors';
 import { isErrnoException } from '@/lib/fs';
 
@@ -7,15 +8,11 @@ import { isErrnoException } from '@/lib/fs';
  * cannot be spawned, and `NpmFailedError` when it exits non-zero.
  */
 export type NpmClient = {
-  /** `npm view <packageName> version`, trimmed. */
   getLatestVersion: (params: { packageName: string }) => string;
-  /** `npm root -g`, trimmed. */
   getGlobalRoot: () => string;
-  /** `npm install -g <packageName>@<version>`, output captured. */
   installGlobal: (params: { packageName: string; version: string }) => void;
 };
 
-/** Runs the npm found on `PATH`. */
 export const systemNpmClient: NpmClient = {
   getLatestVersion: ({ packageName }) => runNpm({ args: ['view', packageName, 'version'] }),
   getGlobalRoot: () => runNpm({ args: ['root', '-g'] }),
@@ -30,7 +27,12 @@ export const systemNpmClient: NpmClient = {
 
 function runNpm(params: { args: string[] }): string {
   const { args } = params;
-  const result = spawnSync('npm', args, { encoding: 'utf8', maxBuffer: Infinity });
+  const result = spawnSync('npm', args, {
+    // Without it, `npm view` reads the registry from a `.npmrc` in the user's cwd, which `install -g` ignores.
+    cwd: homedir(),
+    encoding: 'utf8',
+    maxBuffer: Infinity,
+  });
 
   if (result.error) {
     throw isErrnoException(result.error, 'ENOENT') ? new NpmUnavailableError() : result.error;

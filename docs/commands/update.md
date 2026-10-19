@@ -12,7 +12,8 @@ It takes no arguments and no flags.
 ## Finding the latest release
 
 `update` asks npm for the latest release, however grimoire was installed. npm ships with Node and follows your registry
-config, so npm must be on your `PATH` even when another package manager installed grimoire.
+config, so npm must be on your `PATH` even when another package manager installed grimoire. `update` reads the same npm
+config as `npm install -g`, so a project `.npmrc` in the current directory is ignored.
 
 Releases are staged, and the latest release changes only once a new one is approved. `update` never offers a version that has
 not been approved.
