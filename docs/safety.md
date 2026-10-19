@@ -8,6 +8,7 @@ Anything you put in a workspace or a repo stays exactly as you left it, apart fr
 - Its own symlinks.
 - A [`.grimoire-staging/`](./conventions.md#staged-writes) directory, in a workspace during a clone or in a repo during an
   export. It is removed once empty.
+- On [`update`](./commands/update.md), npm replaces grimoire's own installed package. Nothing else is touched.
 
 ## What grimoire removes outside `~/.grimoire/`
 

@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, inject, it } from 'vitest';
-import { getVersion } from '@/lib/utils';
+import { getPackageName, getVersion } from '@/lib/utils';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
@@ -57,6 +57,46 @@ describe('grimoire cli', () => {
 
     expect(code).toBe(1);
     expect(stderr).toBe('error: could not run git: repos need it installed and on your PATH');
+  });
+
+  it('reports an npm that cannot be run as a refusal', async () => {
+    const { stderr, code } = await runCli(['update'], {
+      home: await tempRoot(),
+      envPath: await tempRoot(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr).toBe(
+      [
+        'checking for the latest release…',
+        'error: could not run npm: `grimoire update` needs it installed and on your PATH',
+      ].join('\n'),
+    );
+  });
+
+  it('installs a newer release when the bundle sits inside the npm global root', async () => {
+    const newer = `${Number(getVersion().split('.')[0]) + 1}.0.0`;
+    const packageDirectory = dirname(dirname(cliBundlePath));
+    const { binDirectory, readRecordedArgs } = await createFakeNpm({
+      latestVersion: newer,
+      globalRoot: dirname(packageDirectory),
+    });
+
+    const { stdout, stderr, code } = await runCli(['update'], {
+      home: await tempRoot(),
+      envPath: binDirectory,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout).toBe(`updated grimoire ${getVersion()} → ${newer}`);
+    expect(stderr).toBe(
+      ['checking for the latest release…', `installing grimoire ${newer}…`].join('\n'),
+    );
+    expect(readRecordedArgs()).toEqual([
+      `view ${getPackageName()} version`,
+      'root -g',
+      `install -g ${getPackageName()}@${newer}`,
+    ]);
   });
 
   // A raw EACCES stack through the real process was the original report, so this
@@ -119,4 +159,28 @@ function withoutColorEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const colorVariables = ['FORCE_COLOR', 'NO_COLOR', 'NODE_DISABLE_COLORS'];
 
   return Object.fromEntries(Object.entries(env).filter(([name]) => !colorVariables.includes(name)));
+}
+
+async function createFakeNpm(params: { latestVersion: string; globalRoot: string }) {
+  const { latestVersion, globalRoot } = params;
+  const binDirectory = await tempRoot();
+  const npmPath = join(binDirectory, 'npm');
+  const argsPath = join(binDirectory, 'args');
+  const script = [
+    '#!/bin/sh',
+    `echo "$*" >> '${argsPath}'`,
+    'case "$1" in',
+    `  view) echo '${latestVersion}' ;;`,
+    `  root) echo '${globalRoot}' ;;`,
+    "  install) echo 'added 1 package in 2s'; echo 'npm warn deprecated something' >&2 ;;",
+    'esac',
+  ].join('\n');
+
+  writeFileSync(npmPath, `${script}\n`, 'utf8');
+  chmodSync(npmPath, 0o755);
+
+  return {
+    binDirectory,
+    readRecordedArgs: () => readFileSync(argsPath, 'utf8').trim().split('\n'),
+  };
 }

@@ -18,10 +18,22 @@ grimoire manages skills you write or already have on disk. It ships no skills, f
 npm install -g @ghamadi/grimoire
 ```
 
-This installs `grimoire` and `grim`, the same binary under a shorter name.
+Or install it with pnpm, yarn or bun:
+
+- `pnpm add -g @ghamadi/grimoire`
+- `yarn global add @ghamadi/grimoire`
+- `bun add -g @ghamadi/grimoire`
+
+Each installs `grimoire` and `grim`, the same binary under a shorter name.
 
 It needs Node 22.18 or later, on macOS or Linux. npm refuses the install on Windows; WSL works. git is needed only to export
 skills to a repo.
+
+> [!NOTE]
+>
+> [`grimoire update`](./docs/commands/update.md) can update grimoire itself only when it was installed with `npm install -g`.
+> If you installed it with pnpm, yarn or bun, `grimoire update` installs nothing. It prints the command for you to run with
+> your package manager instead.
 
 ## How it works
 
@@ -126,6 +138,8 @@ with the same contents. Two commands go further, but only where you point them:
 - `export` replaces a skill's entry in a repo when git reports nothing uncommitted there, or when you pass `--force`. Files
   git ignores are not protected. _**grimoire only reads from git: it never commits, stages or pushes**_.
 
+On `grimoire update`, npm replaces grimoire's own installed package, and nothing else.
+
 Skills removed from the store go to `~/.grimoire/.trash/` until `grimoire trash empty`. The full rule is in
 [`docs/safety.md`](./docs/safety.md).
 
@@ -143,6 +157,7 @@ Skills removed from the store go to `~/.grimoire/.trash/` until `grimoire trash 
 | [`export`](./docs/commands/export.md)         | Copy store skills into a repo, replacing what is there  |
 | [`trash`](./docs/commands/trash.md)           | Manage the trash that removed skills are moved to       |
 | [`status`](./docs/commands/status.md)         | Show where skills are deployed, and what has gone stale |
+| [`update`](./docs/commands/update.md)         | Update grimoire to the latest release                   |
 
 Each page lists the command's arguments, every outcome and its exact output. `grimoire <command> --help` prints the short
 form.

@@ -96,3 +96,6 @@ export {
 } from '@/lib/errors/workspace-unreadable';
 export { NoTerminalError, type NoTerminalErrorProps } from '@/lib/errors/no-terminal';
 export { GitUnavailableError } from '@/lib/errors/git-unavailable';
+export { NpmUnavailableError } from '@/lib/errors/npm-unavailable';
+export { NpmFailedError, type NpmFailedErrorProps } from '@/lib/errors/npm-failed';
+export { UpdateDeclinedError, type UpdateDeclinedErrorProps } from '@/lib/errors/update-declined';

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import { Command } from 'commander';
 import { cloneCommand } from '@/commands/clone';
@@ -10,14 +11,18 @@ import type { TextStyler } from '@/lib/text-styler';
 import { trashCommand } from '@/commands/trash';
 import { uncloneCommand } from '@/commands/unclone';
 import { unlinkCommand } from '@/commands/unlink';
+import { updateCommand } from '@/commands/update';
 import { workspacesCommand } from '@/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { systemNpmClient, type NpmClient } from '@/lib/npm';
 import { getVersion } from '@/lib/utils';
 
 export type ProgramDependencies = {
   skillPicker?: SkillPicker;
   textStyler?: TextStyler;
   getTerminalWidth?: () => number | undefined;
+  npmClient?: NpmClient;
+  packageDirectory?: string;
 };
 
 /**
@@ -32,6 +37,9 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     skillPicker = clackSkillPicker,
     textStyler = styleText,
     getTerminalWidth = getStdoutTerminalWidth,
+    npmClient = systemNpmClient,
+    // Both src/program.ts and the bundled dist/cli.js sit one level below the package root.
+    packageDirectory = fileURLToPath(new URL('..', import.meta.url)),
   } = dependencies;
   const program = new Command();
   const storeManager = new GrimoireStoreManager(store);
@@ -49,7 +57,8 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(cloneCommand({ storeManager }))
     .addCommand(uncloneCommand({ storeManager }))
     .addCommand(trashCommand({ storeManager, textStyler }))
-    .addCommand(statusCommand({ storeManager, textStyler, getTerminalWidth }));
+    .addCommand(statusCommand({ storeManager, textStyler, getTerminalWidth }))
+    .addCommand(updateCommand({ npmClient, packageDirectory }));
 
   return program;
 }
