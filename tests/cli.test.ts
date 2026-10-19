@@ -67,7 +67,10 @@ describe('grimoire cli', () => {
 
     expect(code).toBe(1);
     expect(stderr).toBe(
-      'error: could not run npm: `grimoire update` needs it installed and on your PATH',
+      [
+        'checking for the latest release…',
+        'error: could not run npm: `grimoire update` needs it installed and on your PATH',
+      ].join('\n'),
     );
   });
 
@@ -86,7 +89,9 @@ describe('grimoire cli', () => {
 
     expect(code).toBe(0);
     expect(stdout).toBe(`updated grimoire ${getVersion()} → ${newer}`);
-    expect(stderr).toBe('');
+    expect(stderr).toBe(
+      ['checking for the latest release…', `installing grimoire ${newer}…`].join('\n'),
+    );
     expect(readRecordedArgs()).toEqual([
       `view ${getPackageName()} version`,
       'root -g',

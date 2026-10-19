@@ -27,7 +27,7 @@ describe('update', () => {
       const { stdout, stderr } = run('update');
 
       expect(stdout).toEqual([`grimoire ${running} is up to date`]);
-      expect(stderr).toEqual([]);
+      expect(stderr).toEqual(['checking for the latest release…']);
       expect(npmClient.calls).toEqual([{ name: 'getLatestVersion', params: { packageName } }]);
     });
 
@@ -48,9 +48,10 @@ describe('update', () => {
       const npmClient = fakeNpmClient({ latestVersion: newer, globalRoot });
       const { run } = await newCli({ npmClient, packageDirectory });
 
-      const { stdout } = run('update');
+      const { stdout, stderr } = run('update');
 
       expect(stdout).toEqual([`updated grimoire ${running} → ${newer}`]);
+      expect(stderr).toEqual(['checking for the latest release…', `installing grimoire ${newer}…`]);
       expect(npmClient.calls).toEqual([
         { name: 'getLatestVersion', params: { packageName } },
         { name: 'getGlobalRoot', params: undefined },

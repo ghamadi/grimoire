@@ -4,10 +4,15 @@ Updates grimoire to the latest release, when grimoire was installed with `npm in
 
 ```shell
 $ grimoire update
+checking for the latest release…
+installing grimoire 0.2.0…
 updated grimoire 0.1.0 → 0.2.0
 ```
 
 It takes no arguments and no flags.
+
+Before asking npm for the latest release, and again before installing it, `update` prints a line to stderr. Either step can
+take a minute on a slow or missing network, and npm's own output is not shown.
 
 ## Finding the latest release
 
@@ -22,6 +27,7 @@ If npm cannot be run at all, `update` exits 1:
 
 ```shell
 $ grimoire update
+checking for the latest release…
 error: could not run npm: `grimoire update` needs it installed and on your PATH
 ```
 
@@ -33,6 +39,7 @@ When they are equal, nothing is installed, and the run exits 0:
 
 ```shell
 $ grimoire update
+checking for the latest release…
 grimoire 0.2.0 is up to date
 ```
 
@@ -41,6 +48,7 @@ exits 0:
 
 ```shell
 $ grimoire update
+checking for the latest release…
 grimoire 0.3.0 is newer than the latest release, 0.2.0
 ```
 
@@ -63,6 +71,7 @@ Any other copy is refused, and the run exits 1:
 
 ```shell
 $ grimoire update
+checking for the latest release…
 error: grimoire 0.2.0 is available, but this copy was not installed with `npm install -g`
   update it with the package manager that installed it:
     pnpm add -g @ghamadi/grimoire@latest
@@ -83,6 +92,8 @@ message names the npm command, then shows npm's error output, indented:
 
 ```shell
 $ grimoire update
+checking for the latest release…
+installing grimoire 0.2.0…
 error: `npm install -g '@ghamadi/grimoire@0.2.0'` failed:
   npm error code EACCES
   npm error syscall mkdir

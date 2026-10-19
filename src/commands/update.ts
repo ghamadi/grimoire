@@ -15,6 +15,7 @@ export function updateCommand(params: UpdateCommandParams): Command {
 
   return new Command('update').description('Update grimoire to the latest release').action(() => {
     const packageName = getPackageName();
+    console.error('checking for the latest release…');
     const latest = npmClient.getLatestVersion({ packageName });
     const running = getVersion();
     const order = compareVersions(running, latest);
@@ -33,6 +34,7 @@ export function updateCommand(params: UpdateCommandParams): Command {
       throw new UpdateDeclinedError({ latestVersion: latest, packageName });
     }
 
+    console.error(`installing grimoire ${latest}…`);
     npmClient.installGlobal({ packageName, version: latest });
     console.log(`updated grimoire ${running} → ${latest}`);
   });
