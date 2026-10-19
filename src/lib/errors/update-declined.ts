@@ -5,10 +5,6 @@ export type UpdateDeclinedErrorProps = {
   packageName: string;
 };
 
-/**
- * Used when a newer release exists but the running copy is not an npm global
- * install, so `update` leaves it to the package manager that installed it.
- */
 export class UpdateDeclinedError extends GrimoireError {
   readonly latestVersion: string;
   readonly packageName: string;

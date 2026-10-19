@@ -92,10 +92,6 @@ describe('systemNpmClient', () => {
 // INTERNAL HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
 
-/**
- * Puts an `npm` script alone on `PATH`. It records its args to a file, then
- * runs `script`.
- */
 async function useFakeNpm(params: { script: string }): Promise<{ argsPath: string }> {
   const { script } = params;
   const binDirectory = await tempRoot();

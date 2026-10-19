@@ -155,7 +155,6 @@ describe('update', () => {
 
 type NpmCall = { name: keyof NpmClient; params: unknown };
 
-/** An `NpmClient` that answers from its options and records every call. */
 function fakeNpmClient(options: {
   latestVersion?: string;
   latestVersionError?: Error;
@@ -191,7 +190,6 @@ function callNames(npmClient: { calls: NpmCall[] }): string[] {
   return npmClient.calls.map((call) => call.name);
 }
 
-/** A global root holding the package, as `npm install -g` leaves it. */
 async function npmGlobalLayout(): Promise<{ globalRoot: string; packageDirectory: string }> {
   const globalRoot = await tempRoot();
   const packageDirectory = join(globalRoot, packageName);
@@ -226,10 +224,6 @@ async function newCli(dependencies: ProgramDependencies) {
   return { run };
 }
 
-/**
- * Makes the whole command tree throw instead of exiting, and keeps commander's
- * own error text out of the test runner's output.
- */
 function silence(program: Command): Command {
   program.exitOverride().configureOutput({ writeOut: () => {}, writeErr: () => {} });
 
@@ -240,7 +234,6 @@ function silence(program: Command): Command {
   return program;
 }
 
-/** The error a refusal threw, so its exact message can be asserted on. */
 function captureError(operation: () => unknown): Error {
   try {
     operation();

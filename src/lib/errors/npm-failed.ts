@@ -6,11 +6,6 @@ export type NpmFailedErrorProps = {
   stderr: string;
 };
 
-/**
- * Used when npm ran and exited non-zero: offline, the registry down, or no
- * permission to write the global prefix. npm's own error output follows the
- * header, indented.
- */
 export class NpmFailedError extends GrimoireError {
   readonly args: string[];
   readonly stderr: string;

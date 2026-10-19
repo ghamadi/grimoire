@@ -3,10 +3,6 @@ import { homedir } from 'node:os';
 import { NpmFailedError, NpmUnavailableError } from '@/lib/errors';
 import { isErrnoException } from '@/lib/fs';
 
-/**
- * The npm calls `update` makes. Every call throws `NpmUnavailableError` when npm
- * cannot be spawned, and `NpmFailedError` when it exits non-zero.
- */
 export type NpmClient = {
   getLatestVersion: (params: { packageName: string }) => string;
   getGlobalRoot: () => string;
