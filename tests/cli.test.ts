@@ -59,6 +59,18 @@ describe('grimoire cli', () => {
     expect(stderr).toBe('error: could not run git: repos need it installed and on your PATH');
   });
 
+  it('reports an npm that cannot be run as a refusal', async () => {
+    const { stderr, code } = await runCli(['update'], {
+      home: await tempRoot(),
+      envPath: await tempRoot(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr).toBe(
+      'error: could not run npm: `grimoire update` needs it installed and on your PATH',
+    );
+  });
+
   // A raw EACCES stack through the real process was the original report, so this
   // stays even though the command-level tests cover the same logic.
   describe.skipIf(runsAsRoot)('an unreadable workspace', () => {
