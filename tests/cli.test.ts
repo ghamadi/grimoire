@@ -79,10 +79,14 @@ describe('grimoire cli', () => {
       globalRoot: dirname(packageDirectory),
     });
 
-    const { stdout, code } = await runCli(['update'], { home: await tempRoot(), envPath: binDirectory });
+    const { stdout, stderr, code } = await runCli(['update'], {
+      home: await tempRoot(),
+      envPath: binDirectory,
+    });
 
     expect(code).toBe(0);
     expect(stdout).toBe(`updated grimoire ${getVersion()} → ${newer}`);
+    expect(stderr).toBe('');
     expect(readRecordedArgs()).toEqual([
       `view ${getPackageName()} version`,
       'root -g',
@@ -163,6 +167,7 @@ async function createFakeNpm(params: { latestVersion: string; globalRoot: string
     'case "$1" in',
     `  view) echo '${latestVersion}' ;;`,
     `  root) echo '${globalRoot}' ;;`,
+    "  install) echo 'added 1 package in 2s'; echo 'npm warn deprecated something' >&2 ;;",
     'esac',
   ].join('\n');
 
