@@ -18,9 +18,9 @@ DDD-flavored, in layers that only call downward:
 commands → use-cases → domains → lib
 ```
 
-- **`commands/`** is argv in, stdout out: parse arguments, call a use case, format the result. No domain logic lives here.
-- **`use-cases/`** has one per user-facing action (`add-workspace`, `link-skill`, ...), orchestrating domain objects to
-  perform it. Rules that cross domain boundaries live here, not in a domain.
+- **`commands/`** is argv in, stdout out: parse arguments, run the action, format the result. No domain logic lives here.
+- **`use-cases/`** exist only for actions that orchestrate domain objects. Rules that cross domain boundaries live here, not
+  in a domain. Any other command calls a manager or `lib/` itself.
 - **`domains/`** holds the entities and services that model the problem — `grimoire-store`, `workspace`, `repo`, `skill` —
   each behind a barrel `index.ts` that is its only public surface.
 - **`lib/`** is dependency-free, reusable primitives (path comparison, atomic file writes, error types) with no knowledge of
