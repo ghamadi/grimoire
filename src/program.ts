@@ -39,7 +39,7 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
   program
     .name('grimoire')
     .description('Authoring and distribution for agent skills')
-    .version(getVersion())
+    .version(getVersion(), '-v, --version')
     .addCommand(workspacesCommand({ storeManager }))
     .addCommand(reposCommand({ storeManager }))
     .addCommand(exportCommand({ storeManager }))
