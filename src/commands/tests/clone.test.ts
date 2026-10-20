@@ -732,10 +732,7 @@ describe('clone', () => {
         'error: --overwrite cannot be combined with --drop',
       ],
     ])('refuses clone %j', async (argv, message) => {
-      const { run, store } = await newCli();
-
-      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      storeSkill(store, 'triage');
+      const { run } = await newCli();
 
       const error = await captureError(() => run('clone', ...argv));
 

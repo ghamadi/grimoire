@@ -29,7 +29,10 @@ export function linkCommand(params: LinkCommandParams): Command {
   const link = new Command('link')
     .description('Symlink store skills into workspaces, or remove their links')
     .argument('[skill]', 'store skill to link, or to unlink with --drop')
-    .option('--to <workspaces...>', 'registered workspaces to link into (default: every auto-link workspace)')
+    .option(
+      '--to <workspaces...>',
+      'registered workspaces to link into (default: every auto-link workspace)',
+    )
     .option('--all-skills', 'link every skill the store holds')
     .option('--drop [workspaces...]', 'registered workspaces to remove the link from')
     .option('--all-workspaces', 'with --drop, remove the link from every registered workspace')
@@ -177,7 +180,10 @@ async function pickWorkspaceNames(params: {
 // REPORTS
 // ----------------------------------------------------------------------------
 
-function reportLinks(result: ReturnType<LinkSkillUseCase>, options: { autoLinkExpected: boolean }): void {
+function reportLinks(
+  result: ReturnType<LinkSkillUseCase>,
+  options: { autoLinkExpected: boolean },
+): void {
   const { linked, alreadyLinked, declined } = result;
 
   const linkedCount = linked.length + alreadyLinked.length;
