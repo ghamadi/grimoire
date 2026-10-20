@@ -63,6 +63,24 @@ $ grimoire skills add ~/dev/skills
 nothing to add: no skill selected
 ```
 
+## Missing destinations
+
+Some commands let you leave out where to write. The skills are checked first, so a wrong skill name never reaches a choice.
+
+With nothing to offer, the run prints `nothing to <verb>: <reason>` and exits 0, with or without a terminal.
+
+With something to offer and no terminal, the run refuses. The error names the flag to use and lists every choice:
+
+```shell
+$ grimoire export triage | cat
+error: no repo named, and no terminal to choose from
+  name them with --to: dotfiles library
+```
+
+Otherwise a [picker](#pickers) offers the choices, and what you pick runs exactly as if you had typed it.
+
+Each page states its own choices, reason and flag.
+
 ## Outcomes
 
 `<verb>` stands for the command (`link`, `clone`), `<destination>` for the workspace or repo it writes to, and `<result>` for

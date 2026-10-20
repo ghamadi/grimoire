@@ -22,8 +22,8 @@ import {
   PathCollisionError,
   WorkspaceUnreadableError,
 } from '@/lib/errors';
-import type { Picker } from '@/lib/picker';
 import { buildProgram, type ProgramDependencies } from '@/program';
+import { fakePicker } from '@test-helpers/fake-picker';
 import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
@@ -165,7 +165,7 @@ describe('skills add', () => {
   });
 
   it('adds only what a terminal picks, without --all', async () => {
-    const picker = fakePicker(() => ['brainstorm']);
+    const picker = fakePicker({ choose: () => ['brainstorm'] });
     const { run, store } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
@@ -177,7 +177,7 @@ describe('skills add', () => {
   });
 
   it('offers the picker every source the crawl found, in crawl order', async () => {
-    const picker = fakePicker(() => []);
+    const picker = fakePicker({ choose: () => [] });
     const { run } = await newCli({ picker });
     const container = await newContainer('deploy', 'brainstorm');
 
@@ -187,7 +187,7 @@ describe('skills add', () => {
   });
 
   it('reports in source order whatever order the picker returns', async () => {
-    const picker = fakePicker((labels) => [...labels].reverse());
+    const picker = fakePicker({ choose: (labels) => [...labels].reverse() });
     const { run } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
@@ -197,7 +197,7 @@ describe('skills add', () => {
   });
 
   it('says so and touches nothing when the picker chooses nothing', async () => {
-    const picker = fakePicker(() => []);
+    const picker = fakePicker({ choose: () => [] });
     const { run, store } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
@@ -209,7 +209,7 @@ describe('skills add', () => {
   });
 
   it('runs a picked source through the collision rules', async () => {
-    const picker = fakePicker((labels) => labels);
+    const picker = fakePicker({ choose: (labels) => labels });
     const { run, store } = await newCli({ picker });
     const container = await newContainer('triage');
 
@@ -621,25 +621,6 @@ function silence(program: Command): Command {
   }
 
   return program;
-}
-
-function fakePicker(choose: (labels: string[]) => string[]): Picker & { offered: string[] } {
-  const offered: string[] = [];
-
-  return {
-    offered,
-    isInteractive: () => true,
-    pick: ({ choices }) => {
-      const labels = choices.map((choice) => choice.label);
-      offered.push(...labels);
-
-      return Promise.resolve(
-        choose(labels).flatMap((label) =>
-          choices.filter((choice) => choice.label === label).map((choice) => choice.value),
-        ),
-      );
-    },
-  };
 }
 
 /** A skill directory, whose manifest any entry in `files` may override. */

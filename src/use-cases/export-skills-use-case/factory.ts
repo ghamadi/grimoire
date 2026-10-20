@@ -21,9 +21,10 @@ type ExportSkillsUseCaseFactoryParams = {
 };
 
 export type ExportSkillsUseCaseParams = {
-  repoName: string;
   /** Store names, deduplicated keeping first position. */
   skillNames: string[];
+  /** Registered names, deduplicated keeping first position. */
+  repoNames: string[];
   /** Skip the git check: replace whatever is at the destination. */
   force?: boolean;
 };
@@ -48,15 +49,14 @@ export type ExportSkillsUseCase = (params: ExportSkillsUseCaseParams) => ExportS
 // ----------------------------------------------------------------------------
 
 /**
- * Copies store skills into one registered repo, replacing what is there, and
+ * Copies store skills into registered repos, replacing what is there, and
  * steps over every destination git reports as uncommitted.
  *
- * The repo name, every skill name, every skill's portability, and the repo
+ * Every skill name, every skill's portability, every repo name, and every repo
  * directory are checked in that order, and any of them throws before a
- * destination is touched. A run that declined every skill, and failed none,
- * throws rather than returning. A skill whose write fails is reported in
- * `failed` and the run carries on, so the skills already written are never
- * left unreported.
+ * destination is touched. A run that declined every write, and failed none,
+ * throws rather than returning. A write that fails is reported in `failed` and
+ * the run carries on, so the writes already made are never left unreported.
  */
 export function createExportSkillsUseCase(
   factoryParams: ExportSkillsUseCaseFactoryParams,
@@ -64,47 +64,46 @@ export function createExportSkillsUseCase(
   const { storeManager } = factoryParams;
 
   return (params: ExportSkillsUseCaseParams) => {
-    const { repoName, skillNames, force = false } = params;
+    const { skillNames, repoNames, force = false } = params;
 
-    const repo = new Repo(storeManager.requireRegisteredRepo(repoName));
+    const skills = requireExportableSkills({ storeManager, skillNames });
+    const repos = [...new Set(repoNames)].map(
+      (name) => new Repo(storeManager.requireRegisteredRepo(name)),
+    );
 
-    // Two passes, not one `map`: verifying each skill as its path is found
-    // would report an unportable skill ahead of an unknown one named after it.
-    const skillPaths = [...new Set(skillNames)].map((name) => ({
-      name,
-      path: storeManager.requireSkillPath(name),
-    }));
-    const skills = skillPaths.map((skillPath) => Skill.createVerified(skillPath));
-
-    requireUsableWorkTree(repo);
+    for (const repo of repos) {
+      requireUsableWorkTree(repo);
+    }
 
     const exported: ExportWritten[] = [];
     const declined: ExportRefusal[] = [];
     const failed: ExportFailure[] = [];
 
     for (const skill of skills) {
-      const outcome = exportSkillIntoRepo({ skill, repo, force });
-      const outcomeKind = outcome.kind;
+      for (const repo of repos) {
+        const outcome = exportSkillIntoRepo({ skill, repo, force });
+        const outcomeKind = outcome.kind;
 
-      switch (outcomeKind) {
-        case 'exported':
-          exported.push({
-            skill: skill.name,
-            repo: repo.name,
-            ...(outcome.strandedOldEntry && { strandedOldEntry: outcome.strandedOldEntry }),
-          });
-          break;
+        switch (outcomeKind) {
+          case 'exported':
+            exported.push({
+              skill: skill.name,
+              repo: repo.name,
+              ...(outcome.strandedOldEntry && { strandedOldEntry: outcome.strandedOldEntry }),
+            });
+            break;
 
-        case 'declined':
-          declined.push(outcome.refusal);
-          break;
+          case 'declined':
+            declined.push(outcome.refusal);
+            break;
 
-        case 'failed':
-          failed.push(outcome.failure);
-          break;
+          case 'failed':
+            failed.push(outcome.failure);
+            break;
 
-        default:
-          assertUnreachable(outcomeKind);
+          default:
+            assertUnreachable(outcomeKind);
+        }
       }
     }
 
@@ -114,6 +113,26 @@ export function createExportSkillsUseCase(
 
     return { exported, declined, failed };
   };
+}
+
+/**
+ * @throws EntityNotFoundError if a name is not in the store.
+ * @throws UnportableSkillError if a skill cannot be exported.
+ */
+export function requireExportableSkills(params: {
+  storeManager: GrimoireStoreManager;
+  skillNames: string[];
+}): Skill[] {
+  const { storeManager, skillNames } = params;
+
+  // Two `map` passes intentionally. Verifying all skill paths happens
+  // before validating the skills themselves
+  const skillPaths = [...new Set(skillNames)].map((name) => ({
+    name,
+    path: storeManager.requireSkillPath(name),
+  }));
+
+  return skillPaths.map((skillPath) => Skill.createVerified(skillPath));
 }
 
 /**

@@ -125,7 +125,7 @@ dangling link or a missing clone, each with its fix.
 ```shell
 grimoire clone brainstorm claude-work   # a real copy instead of a link
 grimoire repos add library ~/dotfiles   # register a directory in a git work tree
-grimoire export library triage          # copy triage into it, then commit it yourself
+grimoire export triage --to library     # copy triage into it, then commit it yourself
 grimoire skills remove triage           # unlink it everywhere and move the store copy to the trash
 ```
 

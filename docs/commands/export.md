@@ -1,28 +1,28 @@
 # `export`
 
-`export` copies store skills into a registered [repo](./repos.md), replacing what is there. From then on history, review, and
+`export` copies store skills into registered [repos](./repos.md), replacing what is there. From then on history, review, and
 sharing belong to git and to you: grimoire commits nothing, and records nothing about what it exported.
 
 ```shell
-grimoire export <repo> <skills...> [--force]
-grimoire export <repo> --all-skills [--force]
+grimoire export <skills...> --to <repos...> [--force]
+grimoire export --all-skills --to <repos...> [--force]
 ```
 
 ## Arguments
 
-| Argument       | Meaning                                                                                                    |
-| -------------- | ---------------------------------------------------------------------------------------------------------- |
-| `<repo>`       | The registered repo to export into — see [`repos add`](./repos.md#repos-add-name-path).                    |
-| `<skills...>`  | Store skills to copy. Each must exist, and pass the portability check, before any destination is examined. |
-| `--all-skills` | Every skill the store holds, instead of naming any.                                                        |
-| `--force`      | Replaces the destination even when git reports uncommitted changes there, potentially overwriting them.    |
+| Argument          | Meaning                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<skills...>`     | Store skills to copy. Each must exist, and pass the portability check, before any destination is examined.                                     |
+| `--all-skills`    | Every skill the store holds, instead of naming any.                                                                                            |
+| `--to <repos...>` | One or more registered repos to export into — see [`repos add`](./repos.md#repos-add-name-path). Left out, you [choose them](#choosing-repos). |
+| `--force`         | Replaces the destination even when git reports uncommitted changes there, potentially overwriting them.                                        |
 
-One of `<skills...>` or `--all-skills` is required, and the two are mutually exclusive. Repeated names follow
-[the shared rule](../conventions.md#arguments).
+One of `<skills...>` or `--all-skills` is required, and the two are mutually exclusive. Repeated names, skills or repos,
+follow [the shared rule](../conventions.md#arguments).
 
 ## What `export` checks
 
-`<dest>` below is `<repo path>/<skill>`. A repo is flat, so each skill has exactly one destination.
+`<dest>` below is `<repo path>/<skill>`. A repo is flat, so each skill has exactly one destination in each repo.
 
 `export` has one rule for a destination:
 
@@ -40,9 +40,9 @@ case-sensitive one, uncommitted changes under a sibling that differs only in cas
 Git is run read-only. `export` asks git whether the repo is inside a work tree and what is uncommitted. It never stages,
 commits or changes a config.
 
-## `export <repo> <skills...> [--force]`
+## `export <skills...> --to <repos...> [--force]`
 
-Each skill gets one outcome:
+Each skill gets one outcome in each repo:
 
 | At `<dest>`                     | `--force` | Outcome  | Output                                                                              |
 | ------------------------------- | --------- | -------- | ----------------------------------------------------------------------------------- |
@@ -51,7 +51,7 @@ Each skill gets one outcome:
 | uncommitted changes             | yes       | replaced | stdout `exported <skill> → <repo>`                                                  |
 
 ```shell
-$ grimoire export library triage review
+$ grimoire export triage review --to library
 exported triage → library
 exported review → library
 ```
@@ -59,7 +59,7 @@ exported review → library
 A skill whose destination has uncommitted changes is declined, alongside whatever else succeeds:
 
 ```shell
-$ grimoire export library triage review
+$ grimoire export triage review --to library
 exported review → library
 warning: could not export triage → library: /Users/me/library/triage has uncommitted changes
 ```
@@ -69,6 +69,18 @@ The `exported` line is the same whether or not something was replaced. What was 
 
 Results print as `exported` lines, laid out as [the conventions](../conventions.md#outcomes) describe.
 
+### Several repos
+
+`--to` takes more than one repo. Lines run skill by skill, each to every repo in `--to` order:
+
+```shell
+$ grimoire export triage review --to library dotfiles
+exported triage → library
+exported triage → dotfiles
+exported review → library
+exported review → dotfiles
+```
+
 ### A committed entry of the same name is replaced
 
 Whatever is committed at `<dest>` is replaced without `--force`: a skill directory, a directory that is not a skill, or a
@@ -77,7 +89,7 @@ file.
 ```shell
 $ ls ~/library
 triage              # a committed directory of notes, no SKILL.md
-$ grimoire export library triage
+$ grimoire export triage --to library
 exported triage → library
 ```
 
@@ -89,9 +101,9 @@ The first export of a new skill leaves `<dest>` untracked. Untracked is uncommit
 commit, or pass `--force`.
 
 ```shell
-$ grimoire export library triage
+$ grimoire export triage --to library
 exported triage → library
-$ grimoire export library triage
+$ grimoire export triage --to library
 error: could not export triage → library: /Users/me/library/triage has uncommitted changes
   commit first, or use --force to overwrite them
 ```
@@ -105,7 +117,7 @@ overwritten, and git cannot bring it back.
 [Everything `export` refuses](#what-export-refuses) is still refused.
 
 ```shell
-$ grimoire export library triage --force
+$ grimoire export triage --to library --force
 exported triage → library
 ```
 
@@ -119,7 +131,7 @@ $ cat ~/library/.gitignore
 *.log
 $ ls ~/library/triage
 SKILL.md   debug.log
-$ grimoire export library triage
+$ grimoire export triage --to library
 exported triage → library
 $ ls ~/library/triage
 SKILL.md
@@ -133,20 +145,20 @@ once Finder had opened the folder.
 Every write is [staged](../conventions.md#staged-writes) in `<repo path>/.grimoire-staging/`. One left behind shows up as
 untracked in your own `git status`. It never blocks a later export, because the check looks only at or under `<dest>`.
 
-### When every skill is declined
+### When every destination is declined
 
 The run exits 1 and prints the declines as an error,
 [as the conventions describe](../conventions.md#when-every-destination-is-declined), headed `nothing exported` when there are
 several. The error then ends with the line `commit first, or use --force to overwrite them`:
 
 ```shell
-$ grimoire export library triage
+$ grimoire export triage --to library
 error: could not export triage → library: /Users/me/library/triage has uncommitted changes
   commit first, or use --force to overwrite them
 ```
 
 ```shell
-$ grimoire export library triage review
+$ grimoire export triage review --to library
 error: nothing exported:
   could not export triage → library: /Users/me/library/triage has uncommitted changes
   could not export review → library: /Users/me/library/review has uncommitted changes
@@ -160,26 +172,40 @@ A decline warning beside an exported skill carries no `--force` line.
 Failures print last and the run exits 1, [as the conventions describe](../conventions.md#when-a-write-fails), headed
 `exports failed` when there are several.
 
-## `export <repo> --all-skills [--force]`
+## `export --all-skills --to <repos...> [--force]`
 
 Exports every skill the store holds in name order, [as if named](../conventions.md#arguments). `--force` applies to every
 destination.
 
 ```shell
-$ grimoire export library --all-skills
+$ grimoire export --all-skills --to library
 exported review → library
 exported triage → library
 ```
 
-If the store holds no skills, the exit code is 0:
+If the store holds no skills, the run ends there with exit code 0, before any repo is checked:
 
 ```shell
-$ grimoire export library --all-skills
+$ grimoire export --all-skills --to library
 nothing to export: the store holds no skills
 ```
 
-Checks 2 and 5 of [What `export` refuses](#what-export-refuses) still run first, so an unknown repo, or one whose path fails
-check 5, refuses with exit 1 even when the store is empty.
+## Choosing repos
+
+Without `--to`, `export` offers the registered repos by name,
+[as the conventions describe](../conventions.md#missing-destinations). What you pick is exported to as if named after `--to`.
+
+With no repo registered, or nothing picked, the exit code is 0:
+
+```shell
+$ grimoire export triage
+nothing to export: no repo is registered
+```
+
+```shell
+$ grimoire export triage
+nothing to export: no repo selected
+```
 
 ## What `export` refuses
 
@@ -188,36 +214,37 @@ The [refusals](../conventions.md#refusals) run in this order:
 **1. Skills are given, or `--all-skills`, and not both.**
 
 ```shell
-$ grimoire export library triage --all-skills
+$ grimoire export triage --all-skills --to library
 error: --all-skills cannot be combined with named skills
 ```
 
-**2. The repo is registered.**
+**2. Every skill exists in the store.**
 
-**3. Every skill exists in the store.**
-
-**4. Every skill passes the portability check.** Under `--force` too. Under `--all-skills`, one unportable skill refuses the
+**3. Every skill passes the portability check.** Under `--force` too. Under `--all-skills`, one unportable skill refuses the
 whole run.
 
-**5. The repo path is an existing directory inside a git work tree, and git can be run.** A repo is checked when it is
-registered and again on every `export`, because the directory can change afterwards.
+**4. Every repo is registered.**
+
+**5. Every repo path is an existing directory inside a git work tree, and git can be run.** A repo is checked when it is
+registered and again on every `export`, because the directory can change afterwards. One repo that fails refuses the whole
+run, so nothing is written into the others.
 
 ```shell
-$ grimoire export library triage
+$ grimoire export triage --to library
 error: /Users/me/library does not exist
 ```
 
 ```shell
-$ grimoire export library triage
+$ grimoire export triage --to library
 error: /Users/me/library is not a directory
 ```
 
 ```shell
-$ grimoire export library triage
+$ grimoire export triage --to library
 error: /Users/me/library is not inside a git work tree
 ```
 
 ```shell
-$ grimoire export library triage
+$ grimoire export triage --to library
 error: could not run git: repos need it installed and on your PATH
 ```

@@ -51,7 +51,7 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .version(getVersion(), '-v, --version')
     .addCommand(workspacesCommand({ storeManager }))
     .addCommand(reposCommand({ storeManager }))
-    .addCommand(exportCommand({ storeManager }))
+    .addCommand(exportCommand({ storeManager, picker }))
     .addCommand(skillsCommand({ storeManager, picker }))
     .addCommand(linkCommand({ storeManager }))
     .addCommand(unlinkCommand({ storeManager }))
