@@ -105,14 +105,14 @@ function parseArguments(params: ParseArgumentsParams): ParsedArguments {
       return refuse('error: --all-skills cannot be combined with --drop');
     }
 
-    if (Array.isArray(drop) && allWorkspaces) {
-      return refuse('error: --all-workspaces cannot be combined with named workspaces');
-    }
-
     if (!skill) {
       return refuse(
         formatMissingArgument({ name: 'skill', listFlag: Array.isArray(drop) ? '--drop' : undefined }),
       );
+    }
+
+    if (Array.isArray(drop) && allWorkspaces) {
+      return refuse('error: --all-workspaces cannot be combined with named workspaces');
     }
 
     return {

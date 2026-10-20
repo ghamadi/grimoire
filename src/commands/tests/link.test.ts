@@ -425,6 +425,14 @@ describe('link', () => {
         "error: missing required argument 'skill'\n  --drop takes every name after it, so name the skill before it",
       ],
       [
+        ['--drop', 'brainstorm', '--all-workspaces'],
+        "error: missing required argument 'skill'\n  --drop takes every name after it, so name the skill before it",
+      ],
+      [
+        ['--all-workspaces', '--drop', 'brainstorm'],
+        "error: missing required argument 'skill'\n  --drop takes every name after it, so name the skill before it",
+      ],
+      [
         ['--to', 'personal', 'brainstorm'],
         "error: missing required argument 'skill' (or use --all-skills)\n  --to takes every name after it, so name the skill before it",
       ],

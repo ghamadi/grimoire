@@ -199,11 +199,6 @@ error: --all-skills cannot be combined with --drop
 ```
 
 ```shell
-$ grimoire link triage --drop personal --all-workspaces
-error: --all-workspaces cannot be combined with named workspaces
-```
-
-```shell
 $ grimoire link triage --all-workspaces
 error: --all-workspaces works only with --drop
 ```
@@ -215,8 +210,15 @@ error: --all-skills cannot be combined with a named skill
 
 **3. A skill is given, or `--all-skills`.** `--drop` always needs a skill.
 
-**4. The skill exists in the store.**
+**4. `--drop` names workspaces or takes `--all-workspaces`, not both.**
 
-**5. The skill passes the portability check.** `--drop` skips this check.
+```shell
+$ grimoire link triage --drop personal --all-workspaces
+error: --all-workspaces cannot be combined with named workspaces
+```
 
-**6. Every named workspace is registered.**
+**5. The skill exists in the store.**
+
+**6. The skill passes the portability check.** `--drop` skips this check.
+
+**7. Every named workspace is registered.**
