@@ -1,39 +1,68 @@
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
-import { describeLinkRefusal } from '@/lib/errors';
+import { describeLinkRefusal, describeUnlinkRefusal } from '@/lib/errors';
+import { pickChoices, type Picker } from '@/lib/picker';
+import { assertUnreachable } from '@/lib/utils';
 import { createLinkSkillUseCase, type LinkSkillUseCase } from '@/use-cases/link-skill-use-case/factory';
+import {
+  createUnlinkSkillUseCase,
+  type UnlinkSkillUseCase,
+} from '@/use-cases/unlink-skill-use-case/factory';
 
 export type LinkCommandParams = {
   storeManager: GrimoireStoreManager;
+  picker: Picker;
+};
+
+type LinkOptions = {
+  to?: string[];
+  drop?: string[] | true;
+  allSkills?: boolean;
+  allWorkspaces?: boolean;
 };
 
 export function linkCommand(params: LinkCommandParams): Command {
-  const { storeManager } = params;
+  const { storeManager, picker } = params;
   const linkSkill = createLinkSkillUseCase({ storeManager });
+  const unlinkSkill = createUnlinkSkillUseCase({ storeManager });
 
   const link = new Command('link')
-    .description('Symlink store skills into workspaces')
-    .argument('[skill]', 'skill to link, unless --all-skills')
-    .argument('[workspaces...]', 'registered names (default: every auto-link workspace)')
+    .description('Symlink store skills into workspaces, or remove their links')
+    .argument('[skill]', 'store skill to link, or to unlink with --drop')
+    .option('--to <workspaces...>', 'registered workspaces to link into (default: every auto-link workspace)')
     .option('--all-skills', 'link every skill the store holds')
-    .action((skill: string | undefined, workspaces: string[], options: { allSkills?: boolean }) => {
+    .option('--drop [workspaces...]', 'registered workspaces to remove the link from')
+    .option('--all-workspaces', 'with --drop, remove the link from every registered workspace')
+    .action(async (skill: string | undefined, options: LinkOptions) => {
       const parsedArguments = parseArguments({
         skill,
-        workspaces,
-        allSkills: options.allSkills ?? false,
+        options,
         refuse: (message) => link.error(message),
       });
 
-      const skillNames = parsedArguments.allSkills
-        ? storeManager.listSkillNames()
-        : [parsedArguments.skillName];
+      if (parsedArguments.mode === 'drop') {
+        const { skillName } = parsedArguments;
+        const workspaces =
+          parsedArguments.workspaces ?? (await pickWorkspaceNames({ storeManager, picker, skillName }));
+
+        if (!workspaces) {
+          return;
+        }
+
+        reportUnlinks(unlinkSkill({ skillName, workspaces }), { workspaces });
+        return;
+      }
+
+      const skillNames = parsedArguments.skillName
+        ? [parsedArguments.skillName]
+        : storeManager.listSkillNames();
 
       if (skillNames.length === 0) {
         console.log('nothing to link: the store holds no skills');
         return;
       }
 
-      report(linkSkill({ skillNames, workspaces: parsedArguments.workspaces }), {
+      reportLinks(linkSkill({ skillNames, workspaces: parsedArguments.workspaces }), {
         autoLinkExpected: parsedArguments.workspaces === undefined,
       });
     });
@@ -42,10 +71,113 @@ export function linkCommand(params: LinkCommandParams): Command {
 }
 
 // ----------------------------------------------------------------------------
+// ARGUMENTS
+// ----------------------------------------------------------------------------
+
+type ParseArgumentsParams = {
+  skill: string | undefined;
+  options: LinkOptions;
+  refuse: (message: string) => never;
+};
+
+type ParsedArguments =
+  | { mode: 'deploy'; skillName: string | undefined; workspaces: string[] | undefined }
+  | { mode: 'drop'; skillName: string; workspaces: string[] | 'all' | undefined };
+
+/**
+ * A deploy `skillName` is `undefined` under `--all-skills`; drop `workspaces`
+ * is `undefined` when they are to be picked.
+ */
+function parseArguments(params: ParseArgumentsParams): ParsedArguments {
+  const { skill, options, refuse } = params;
+  const { to, drop, allSkills, allWorkspaces } = options;
+
+  if (to && drop) {
+    return refuse('error: --to cannot be combined with --drop');
+  }
+
+  if (drop) {
+    if (allSkills) {
+      return refuse('error: --all-skills cannot be combined with --drop');
+    }
+
+    if (Array.isArray(drop) && allWorkspaces) {
+      return refuse('error: --all-workspaces cannot be combined with named workspaces');
+    }
+
+    if (!skill) {
+      return refuse("error: missing required argument 'skill'");
+    }
+
+    return {
+      mode: 'drop',
+      skillName: skill,
+      workspaces: Array.isArray(drop) ? drop : allWorkspaces ? 'all' : undefined,
+    };
+  }
+
+  if (allWorkspaces) {
+    return refuse('error: --all-workspaces works only with --drop');
+  }
+
+  if (allSkills && skill) {
+    return refuse('error: --all-skills cannot be combined with a named skill');
+  }
+
+  if (!allSkills && !skill) {
+    return refuse("error: missing required argument 'skill' (or use --all-skills)");
+  }
+
+  return { mode: 'deploy', skillName: skill, workspaces: to };
+}
+
+// ----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
 
-function report(result: ReturnType<LinkSkillUseCase>, options: { autoLinkExpected: boolean }): void {
+/** `undefined` when there is nothing to unlink from, after saying why. */
+async function pickWorkspaceNames(params: {
+  storeManager: GrimoireStoreManager;
+  picker: Picker;
+  skillName: string;
+}): Promise<string[] | undefined> {
+  const { storeManager, picker, skillName } = params;
+
+  // So a mistyped skill is refused before it costs a pick.
+  storeManager.requireSkillPath(skillName);
+
+  const result = await pickChoices({
+    picker,
+    message: `Select the workspaces to unlink ${skillName} from`,
+    choices: storeManager
+      .listRegisteredWorkspaces()
+      .map(({ name, path }) => ({ value: name, label: name, hint: path })),
+    refusal: { noun: 'workspace', remedy: 'name them after --drop, or use --all-workspaces' },
+  });
+  const resultKind = result.kind;
+
+  switch (resultKind) {
+    case 'picked':
+      return result.values;
+
+    case 'no-choices':
+      console.log('nothing to unlink: no workspace is registered');
+      return undefined;
+
+    case 'none-picked':
+      console.log('nothing to unlink: no workspace selected');
+      return undefined;
+
+    default:
+      return assertUnreachable(resultKind);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// REPORTS
+// ----------------------------------------------------------------------------
+
+function reportLinks(result: ReturnType<LinkSkillUseCase>, options: { autoLinkExpected: boolean }): void {
   const { linked, alreadyLinked, declined } = result;
 
   const linkedCount = linked.length + alreadyLinked.length;
@@ -67,42 +199,27 @@ function report(result: ReturnType<LinkSkillUseCase>, options: { autoLinkExpecte
   }
 }
 
-type ParseArgumentsParams = {
-  skill: string | undefined;
-  workspaces: string[];
-  allSkills: boolean;
-  refuse: (message: string) => never;
-};
+function reportUnlinks(
+  result: ReturnType<UnlinkSkillUseCase>,
+  { workspaces }: { workspaces: string[] | 'all' },
+): void {
+  const { unlinked, notLinked, declined } = result;
 
-type ParsedArguments =
-  | { allSkills: true; skillName: undefined; workspaces: string[] | undefined }
-  | { allSkills: false; skillName: string; workspaces: string[] | undefined };
-
-/**
- * The raw commander arguments, in the shape the use case takes.
- */
-function parseArguments(params: ParseArgumentsParams): ParsedArguments {
-  const { skill, workspaces, allSkills, refuse } = params;
-
-  if (allSkills) {
-    // `--all-skills` leaves no skill argument, so what commander parsed as
-    // `skill` is the first workspace.
-    const workspaceNames = skill ? [skill, ...workspaces] : workspaces;
-
-    return {
-      allSkills: true,
-      skillName: undefined,
-      workspaces: workspaceNames.length ? workspaceNames : undefined,
-    };
+  const pairCount = unlinked.length + notLinked.length + declined.length;
+  if (workspaces === 'all' && pairCount === 0) {
+    console.log('nothing to unlink: no workspace is registered');
+    return;
   }
 
-  if (!skill) {
-    return refuse("error: missing required argument 'skill' (or use --all-skills)");
+  for (const { skill, workspace } of unlinked) {
+    console.log(`unlinked ${skill} → ${workspace}`);
   }
 
-  return {
-    allSkills: false,
-    skillName: skill,
-    workspaces: workspaces.length ? workspaces : undefined,
-  };
+  for (const { skill, workspace } of notLinked) {
+    console.log(`not linked ${skill} → ${workspace}`);
+  }
+
+  for (const refusal of declined) {
+    console.warn(`warning: ${describeUnlinkRefusal(refusal)}`);
+  }
 }

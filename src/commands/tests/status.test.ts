@@ -25,27 +25,27 @@ describe('status', () => {
       storeSkill(store, skill);
     }
 
-    run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
-    run('workspaces', 'add', 'work', await newDirectory('work'));
-    run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+    await run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
+    await run('workspaces', 'add', 'work', await newDirectory('work'));
+    await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
 
     const personal = registeredPath(store, 'personal');
     const work = registeredPath(store, 'work');
     const scratch = registeredPath(store, 'scratch');
 
-    run('link', 'brainstorm', 'personal');
-    run('link', 'deploy', 'personal');
+    await run('link', 'brainstorm', '--to', 'personal');
+    await run('link', 'deploy', '--to', 'personal');
     symlinkSync(join(store.paths.skills, 'triage'), join(personal, 'tri'));
-    run('link', 'triage', 'work');
-    run('clone', 'deploy', 'work');
+    await run('link', 'triage', '--to', 'work');
+    await run('clone', 'deploy', 'work');
     mkdirSync(join(work, 'old'));
     recordClone(store, 'old', { workspace: 'work' });
-    run('clone', 'deploy', 'scratch');
+    await run('clone', 'deploy', 'scratch');
     rmSync(scratch, { recursive: true });
     mkdirSync(join(old, 'notes'));
     recordClone(store, 'notes', { path: old });
 
-    const { stdout, stderr } = run('status');
+    const { stdout, stderr } = await run('status');
 
     expect(stdout).toEqual([
       'Workspaces  3 registered',
@@ -92,7 +92,7 @@ describe('status', () => {
     it('prints none registered, and no table, when no workspace is registered', async () => {
       const { run, store } = await newCli();
 
-      const { stdout, stderr } = run('status');
+      const { stdout, stderr } = await run('status');
 
       expect(stdout).toEqual([
         'Workspaces  none registered',
@@ -107,14 +107,14 @@ describe('status', () => {
     it('prints ok, 1 problem and 2 problems as the STATE of a reachable workspace', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'healthy', await newDirectory('healthy'));
-      run('workspaces', 'add', 'one', await newDirectory('one'));
-      run('workspaces', 'add', 'two', await newDirectory('two'));
+      await run('workspaces', 'add', 'healthy', await newDirectory('healthy'));
+      await run('workspaces', 'add', 'one', await newDirectory('one'));
+      await run('workspaces', 'add', 'two', await newDirectory('two'));
       recordClone(store, 'gone', { workspace: 'one' });
       recordClone(store, 'gone', { workspace: 'two' });
       recordClone(store, 'lost', { workspace: 'two' });
 
-      expect(sectionLines(run('status').stdout, 'Workspaces')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Workspaces')).toEqual([
         'Workspaces  3 registered',
         ...table(
           ['NAME', 'MODE', 'STATE', 'PATH'],
@@ -130,13 +130,13 @@ describe('status', () => {
     it('prints unreachable as the STATE of a workspace whose path does not resolve', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+      await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
 
       const scratch = registeredPath(store, 'scratch');
 
       rmSync(scratch, { recursive: true });
 
-      expect(sectionLines(run('status').stdout, 'Workspaces')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Workspaces')).toEqual([
         'Workspaces  1 registered',
         ...table(
           ['NAME', 'MODE', 'STATE', 'PATH'],
@@ -154,20 +154,20 @@ describe('status', () => {
         storeSkill(store, skill);
       }
 
-      run('workspaces', 'add', 'home', await newDirectory('home'));
-      run('workspaces', 'add', 'away', await newDirectory('away'));
+      await run('workspaces', 'add', 'home', await newDirectory('home'));
+      await run('workspaces', 'add', 'away', await newDirectory('away'));
 
       const home = registeredPath(store, 'home');
 
-      run('link', 'brainstorm', 'home');
+      await run('link', 'brainstorm', '--to', 'home');
       symlinkSync(join(store.paths.skills, 'triage'), join(home, 'tri'));
-      run('clone', 'deploy', 'home');
-      run('clone', 'lint', 'home');
+      await run('clone', 'deploy', 'home');
+      await run('clone', 'lint', 'home');
       rmSync(join(home, 'lint'), { recursive: true });
-      run('clone', 'deploy', 'away');
+      await run('clone', 'deploy', 'away');
       rmSync(registeredPath(store, 'away'), { recursive: true });
 
-      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
         `Skills  5 in ${store.paths.skills} · 2 not deployed`,
         ...table(
           ['SKILL', 'away', 'home'],
@@ -186,11 +186,11 @@ describe('status', () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('link', 'triage', '--to', 'personal');
       symlinkSync(join(store.paths.skills, 'triage'), join(registeredPath(store, 'personal'), 'tri'));
 
-      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
         `Skills  1 in ${store.paths.skills}`,
         ...table(['SKILL', 'personal'], [cells('triage', 'link as tri, link')]),
       ]);
@@ -199,12 +199,12 @@ describe('status', () => {
     it('adds a not in store row for a present clone and for a missing one', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
       mkdirSync(join(registeredPath(store, 'personal'), 'old'));
       recordClone(store, 'old', { workspace: 'personal' });
       recordClone(store, 'gone', { workspace: 'personal' });
 
-      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
         `Skills  0 in ${store.paths.skills}`,
         ...table(
           ['SKILL', 'personal'],
@@ -218,12 +218,12 @@ describe('status', () => {
 
       storeSkill(store, 'draft');
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'draft', 'personal');
-      run('link', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('link', 'draft', '--to', 'personal');
+      await run('link', 'triage', '--to', 'personal');
       rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
 
-      const { stdout, stderr } = run('status');
+      const { stdout, stderr } = await run('status');
 
       expect(stdout).toEqual([
         'Workspaces  1 registered',
@@ -248,15 +248,15 @@ describe('status', () => {
 
       storeSkill(store, 'draft');
       storeSkill(store, 'old');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('workspaces', 'add', 'work', await newDirectory('work'));
-      run('link', 'draft', 'personal');
-      run('clone', 'draft', 'work');
-      run('clone', 'old', 'work');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'work', await newDirectory('work'));
+      await run('link', 'draft', '--to', 'personal');
+      await run('clone', 'draft', 'work');
+      await run('clone', 'old', 'work');
       rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
       rmSync(join(store.paths.skills, 'old', SKILL_MANIFEST));
 
-      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
         `Skills  0 in ${store.paths.skills}`,
         ...table(
           ['SKILL', 'personal', 'work'],
@@ -268,12 +268,12 @@ describe('status', () => {
     it('adds the row for a linked entry that ignore hides, with no problem', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
       symlinkSync(join(store.paths.skills, '.DS_Store'), join(registeredPath(store, 'personal'), 'ds'));
 
-      const { stdout } = run('status');
+      const { stdout } = await run('status');
 
       expect(sectionLines(stdout, 'Skills')).toEqual([
         `Skills  0 in ${store.paths.skills}`,
@@ -286,10 +286,10 @@ describe('status', () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('link', 'triage', '--to', 'personal');
 
-      expect(run('status').stdout).toContain(`Skills  1 in ${store.paths.skills}`);
+      expect((await run('status')).stdout).toContain(`Skills  1 in ${store.paths.skills}`);
     });
 
     it('counts the skills deployed nowhere in the caption', async () => {
@@ -298,18 +298,20 @@ describe('status', () => {
       storeSkill(store, 'brainstorm');
       storeSkill(store, 'review');
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('link', 'triage', '--to', 'personal');
 
-      expect(run('status').stdout).toContain(`Skills  3 in ${store.paths.skills} · 2 not deployed`);
+      expect((await run('status')).stdout).toContain(
+        `Skills  3 in ${store.paths.skills} · 2 not deployed`,
+      );
     });
 
     it('prints the title line alone for an empty store, even with a workspace registered', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
 
-      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
         `Skills  0 in ${store.paths.skills}`,
       ]);
     });
@@ -320,7 +322,7 @@ describe('status', () => {
       storeSkill(store, 'triage');
       storeSkill(store, 'brainstorm');
 
-      expect(sectionLines(run('status').stdout, 'Skills')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
         `Skills  2 in ${store.paths.skills} · 2 not deployed`,
         ...table(['SKILL'], [cells('brainstorm'), cells('triage')]),
       ]);
@@ -332,10 +334,10 @@ describe('status', () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('clone', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('clone', 'triage', 'personal');
 
-      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
+      expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([]);
     });
 
     it('prints present for a clone whose directory is there and missing for one whose is gone', async () => {
@@ -348,7 +350,7 @@ describe('status', () => {
       recordClone(store, 'notes', { path: elsewhere });
       recordClone(store, 'deploy', { path: elsewhere });
 
-      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([
         'Clones outside workspaces  directories recorded by path',
         ...table(
           ['SKILL', 'STATE', 'DIRECTORY'],
@@ -364,7 +366,7 @@ describe('status', () => {
       mkdirSync(join(elsewhere, 'old'));
       recordClone(store, 'old', { path: elsewhere });
 
-      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([
+      expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([
         'Clones outside workspaces  directories recorded by path',
         ...table(['SKILL', 'STATE', 'DIRECTORY'], [cells('old (not in store)', 'present', elsewhere)]),
       ]);
@@ -385,7 +387,7 @@ describe('status', () => {
       recordClone(store, 'brainstorm', { path: second });
       recordClone(store, 'triage', { path: first });
 
-      expect(sectionLines(run('status').stdout, 'Clones outside workspaces').slice(1)).toEqual(
+      expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces').slice(1)).toEqual(
         table(
           ['SKILL', 'STATE', 'DIRECTORY'],
           [
@@ -406,7 +408,7 @@ describe('status', () => {
       storeSkill(store, 'triage');
       writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
 
-      const { stdout, stderr } = run('status');
+      const { stdout, stderr } = await run('status');
 
       expect(stdout).toEqual([
         'Workspaces  none registered',
@@ -428,7 +430,7 @@ describe('status', () => {
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
 
-      expect(run('status').stdout.slice(2)).toEqual([
+      expect((await run('status')).stdout.slice(2)).toEqual([
         `Skills  0 in ${store.paths.skills}`,
         '',
         'Problems  1',
@@ -444,7 +446,7 @@ describe('status', () => {
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, '.DS_Store'), '', 'utf8');
 
-      expect(run('status').stdout.slice(2)).toEqual([
+      expect((await run('status')).stdout.slice(2)).toEqual([
         `Skills  0 in ${store.paths.skills}`,
         '',
         'Problems  none ✓',
@@ -457,7 +459,7 @@ describe('status', () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
 
       const personal = registeredPath(store, 'personal');
 
@@ -466,7 +468,7 @@ describe('status', () => {
       recordClone(store, 'gone', { workspace: 'personal' });
       recordClone(store, 'triage', { workspace: 'personal' });
 
-      const { stdout, stderr } = run('status');
+      const { stdout, stderr } = await run('status');
 
       expect(stdout).toEqual([
         'Workspaces  1 registered',
@@ -513,7 +515,7 @@ describe('status', () => {
       recordClone(store, 'old', { path: elsewhere });
       recordClone(store, 'deploy', { path: elsewhere });
 
-      const { stdout, stderr } = run('status');
+      const { stdout, stderr } = await run('status');
 
       expect(stdout).toEqual([
         'Workspaces  none registered',
@@ -546,7 +548,7 @@ describe('status', () => {
       storeSkill(store, 'triage');
       recordClone(store, 'triage', { workspace: 'ghost' });
 
-      const { error, stdout } = runRefused('status');
+      const { error, stdout } = await runRefused('status');
 
       expect(error).toBeInstanceOf(InvalidShapeError);
       expect(error.message).toContain('skills.triage.clones[0].workspace');
@@ -557,13 +559,13 @@ describe('status', () => {
       const { run, store } = await newCli();
       const elsewhere = await newDirectory('elsewhere');
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
       recordClone(store, 'gone', { workspace: 'personal' });
       recordClone(store, 'deploy', { path: elsewhere });
       mkdirSync(store.paths.skills, { recursive: true });
       writeFileSync(join(store.paths.skills, 'notes.txt'), 'notes', 'utf8');
 
-      const { stdout } = run('status');
+      const { stdout } = await run('status');
 
       expect(stdout).toContain('Problems  3');
       expect(stdout.filter((line) => line.startsWith('  ! '))).toEqual([
@@ -576,27 +578,27 @@ describe('status', () => {
     it('completes without throwing while problems are present', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
       recordClone(store, 'gone', { workspace: 'personal' });
 
-      expect(() => run('status')).not.toThrow();
+      await expect(run('status')).resolves.not.toThrow();
     });
 
     it('clears clone-not-in-store with the printed unclone, and its row disappears', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
       mkdirSync(join(registeredPath(store, 'personal'), 'old'));
       recordClone(store, 'old', { workspace: 'personal' });
 
-      run(
+      await run(
         ...printedRemedy(
-          run('status').stdout,
+          (await run('status')).stdout,
           'clone of old in workspace personal is no longer in the store',
         ),
       );
 
-      const { stdout } = run('status');
+      const { stdout } = await run('status');
 
       expect(stdout.some((line) => line.includes('is no longer in the store'))).toBe(false);
       expect(stdout.some((line) => line.includes('old (not in store)'))).toBe(false);
@@ -606,13 +608,18 @@ describe('status', () => {
       const { run, store } = await newCli();
 
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('clone', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('clone', 'triage', 'personal');
       rmSync(join(registeredPath(store, 'personal'), 'triage'), { recursive: true });
 
-      run(...printedRemedy(run('status').stdout, 'clone of triage in workspace personal is missing'));
+      await run(
+        ...printedRemedy(
+          (await run('status')).stdout,
+          'clone of triage in workspace personal is missing',
+        ),
+      );
 
-      const { stdout } = run('status');
+      const { stdout } = await run('status');
 
       expect(sectionLines(stdout, 'Skills').slice(1)).toEqual(
         table(['SKILL', 'personal'], [cells('triage', 'clone')]),
@@ -627,9 +634,11 @@ describe('status', () => {
       storeSkill(store, 'deploy');
       recordClone(store, 'deploy', { path: elsewhere });
 
-      run(...printedRemedy(run('status').stdout, `clone of deploy in ${elsewhere} is missing`));
+      await run(
+        ...printedRemedy((await run('status')).stdout, `clone of deploy in ${elsewhere} is missing`),
+      );
 
-      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
+      expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([]);
     });
 
     it('clears a recorded-path clone-missing with a space in its path with the printed unclone', async () => {
@@ -639,9 +648,11 @@ describe('status', () => {
       storeSkill(store, 'deploy');
       recordClone(store, 'deploy', { path: spaced });
 
-      run(...printedRemedy(run('status').stdout, `clone of deploy in ${spaced} is missing`));
+      await run(
+        ...printedRemedy((await run('status')).stdout, `clone of deploy in ${spaced} is missing`),
+      );
 
-      expect(sectionLines(run('status').stdout, 'Clones outside workspaces')).toEqual([]);
+      expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([]);
     });
 
     it('quotes the words of a fix command that a shell would split', async () => {
@@ -650,7 +661,7 @@ describe('status', () => {
 
       recordClone(store, 'my notes', { path: spaced });
 
-      const { stdout } = run('status');
+      const { stdout } = await run('status');
 
       // Problems is the last section, and a blank line follows its title, so `sectionLines` would stop there.
       expect(stdout.slice(stdout.indexOf('Problems  1'))).toEqual([
@@ -667,25 +678,25 @@ describe('status', () => {
     it('clears workspace-unreachable with the printed workspaces remove, and its row disappears', async () => {
       const { run, store } = await newCli();
 
-      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+      await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
       rmSync(registeredPath(store, 'scratch'), { recursive: true });
 
-      run(...printedRemedy(run('status').stdout, 'workspace scratch is unreachable'));
+      await run(...printedRemedy((await run('status')).stdout, 'workspace scratch is unreachable'));
 
-      expect(run('status').stdout.some((line) => line.startsWith('│ scratch'))).toBe(false);
+      expect((await run('status')).stdout.some((line) => line.startsWith('│ scratch'))).toBe(false);
     });
 
     describe.skipIf(runsAsRoot)('an unreadable workspace', () => {
       it('prints unreadable as its STATE and the workspace-unreadable entry, and nothing on stderr', async () => {
         const { run, store } = await newCli();
 
-        run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+        await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
 
         const scratch = registeredPath(store, 'scratch');
 
         lockDirectory({ path: scratch });
 
-        const { stdout, stderr } = run('status');
+        const { stdout, stderr } = await run('status');
 
         expect(stdout).toEqual([
           'Workspaces  1 registered',
@@ -709,12 +720,12 @@ describe('status', () => {
       it('clears workspace-unreadable with the printed workspaces remove --force, and its row disappears', async () => {
         const { run, store } = await newCli();
 
-        run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+        await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
         lockDirectory({ path: registeredPath(store, 'scratch') });
 
-        run(...printedRemedy(run('status').stdout, 'workspace scratch is unreadable'));
+        await run(...printedRemedy((await run('status')).stdout, 'workspace scratch is unreadable'));
 
-        expect(run('status').stdout.some((line) => line.startsWith('│ scratch'))).toBe(false);
+        expect((await run('status')).stdout.some((line) => line.startsWith('│ scratch'))).toBe(false);
       });
     });
   });
@@ -725,12 +736,12 @@ describe('status', () => {
 
       storeSkill(store, 'brainstorm');
       storeSkill(store, 'triage');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'brainstorm', 'personal');
-      run('link', 'triage', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('link', 'brainstorm', '--to', 'personal');
+      await run('link', 'triage', '--to', 'personal');
       rmSync(join(store.paths.skills, 'triage'), { recursive: true });
 
-      const { stdout, stderr } = run('status');
+      const { stdout, stderr } = await run('status');
 
       expect(stdout).toEqual([
         'Workspaces  1 registered',
@@ -761,7 +772,7 @@ describe('status', () => {
       const nothing = styled('dim', '·');
       const unknown = styled('dim', '?');
 
-      expect(run('status').stdout).toEqual([
+      expect((await run('status')).stdout).toEqual([
         '<bold>Workspaces</bold>  <dim>3 registered</dim>',
         ...table(
           ['NAME', 'MODE', 'STATE', 'PATH'],
@@ -819,24 +830,24 @@ describe('status', () => {
       const plain = await newCli({ store, textStyler: plainTextStyler });
       const untag = (line: string) => line.replace(/<\/?(bold|dim|cyan|yellow|green|magenta)>/g, '');
 
-      expect(tagged.run('status').stdout.map(untag)).toEqual(plain.run('status').stdout);
+      expect((await tagged.run('status')).stdout.map(untag)).toEqual((await plain.run('status')).stdout);
     });
 
     it('greens none ✓ when there are no problems', async () => {
       const { run } = await newCli({ textStyler: taggingTextStyler });
 
-      expect(run('status').stdout.at(-1)).toBe('<bold>Problems</bold>  <green>none ✓</green>');
+      expect((await run('status')).stdout.at(-1)).toBe('<bold>Problems</bold>  <green>none ✓</green>');
     });
 
     it('yellows clone ? in an unreachable workspace', async () => {
       const { run, store } = await newCli({ textStyler: taggingTextStyler });
 
       storeSkill(store, 'deploy');
-      run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
-      run('clone', 'deploy', 'scratch');
+      await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+      await run('clone', 'deploy', 'scratch');
       rmSync(registeredPath(store, 'scratch'), { recursive: true });
 
-      expect(sectionLines(run('status').stdout, '<bold>Skills</bold>').slice(1)).toEqual(
+      expect(sectionLines((await run('status')).stdout, '<bold>Skills</bold>').slice(1)).toEqual(
         table(['SKILL', 'scratch'], [cells('deploy', styled('yellow', 'clone ?'))], taggingTextStyler),
       );
     });
@@ -845,11 +856,11 @@ describe('status', () => {
       const { run, store } = await newCli({ textStyler: taggingTextStyler });
 
       storeSkill(store, 'draft');
-      run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      run('link', 'draft', 'personal');
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      await run('link', 'draft', '--to', 'personal');
       rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
 
-      expect(sectionLines(run('status').stdout, '<bold>Skills</bold>').slice(1)).toEqual(
+      expect(sectionLines((await run('status')).stdout, '<bold>Skills</bold>').slice(1)).toEqual(
         table(
           ['SKILL', 'personal'],
           [cells(styled('yellow', 'draft (not a skill)'), styled('cyan', 'link'))],
@@ -862,14 +873,14 @@ describe('status', () => {
   describe('status width', () => {
     it('wraps the path cell so the Workspaces and Clones outside workspaces tables fit the width', async () => {
       const { runStatus, paths } = await newWidthFixture();
-      const unfittedStdout = runStatus(undefined);
+      const unfittedStdout = await runStatus(undefined);
       const unfittedWorkspacesTable = sectionLines(unfittedStdout, 'Workspaces').slice(1);
       const unfittedOutsideClonesTable = sectionLines(unfittedStdout, 'Clones outside workspaces').slice(
         1,
       );
       const width = (unfittedWorkspacesTable[0]?.length ?? 0) - 3;
 
-      const stdout = runStatus(width);
+      const stdout = await runStatus(width);
       const workspacesTable = sectionLines(stdout, 'Workspaces').slice(1);
       const outsideClonesTable = sectionLines(stdout, 'Clones outside workspaces').slice(1);
 
@@ -884,10 +895,10 @@ describe('status', () => {
 
     it('stacks the Skills grid into tables that each repeat the SKILL column', async () => {
       const { runStatus } = await newWidthFixture();
-      const unfittedSkillsTable = sectionLines(runStatus(undefined), 'Skills').slice(1);
+      const unfittedSkillsTable = sectionLines(await runStatus(undefined), 'Skills').slice(1);
       const width = (unfittedSkillsTable[0]?.length ?? 0) - 1;
 
-      const skillsTable = sectionLines(runStatus(width), 'Skills').slice(1);
+      const skillsTable = sectionLines(await runStatus(width), 'Skills').slice(1);
       const headerRows = skillsTable.filter((_, index) => skillsTable[index - 1]?.startsWith('┌'));
 
       expect(headerRows).toEqual([
@@ -901,13 +912,13 @@ describe('status', () => {
       const { runStatus } = await newWidthFixture();
       const headline = '  ! store entry readme.txt is not a skill directory';
 
-      expect(runStatus(headline.length - 20)).toContain(headline);
+      expect(await runStatus(headline.length - 20)).toContain(headline);
     });
 
     it('reads the terminal width once per run', async () => {
       const { runStatus, getTerminalWidth } = await newWidthFixture();
 
-      runStatus(80);
+      await runStatus(80);
 
       expect(getTerminalWidth).toHaveBeenCalledTimes(1);
     });
@@ -915,14 +926,14 @@ describe('status', () => {
     it('prints what an unbounded width prints when every table fits', async () => {
       const { runStatus } = await newWidthFixture();
 
-      expect(runStatus(10_000)).toEqual(runStatus(undefined));
+      expect(await runStatus(10_000)).toEqual(await runStatus(undefined));
     });
   });
 
   it('refuses an argument', async () => {
     const { run } = await newCli();
 
-    const error = captureError(() => run('status', 'extra'));
+    const error = await captureError(() => run('status', 'extra'));
 
     expect(error).toBeInstanceOf(CommanderError);
     expect((error as CommanderError).code).toBe('commander.excessArguments');
@@ -973,7 +984,7 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
   );
 
   /** What the command printed, and what it threw, if anything. */
-  function execute(argv: string[]) {
+  async function execute(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
     let thrown: Error | undefined;
@@ -984,7 +995,7 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
     const warn = vi.spyOn(console, 'warn').mockImplementation(toStderr);
 
     try {
-      program.parse(argv, { from: 'user' });
+      await program.parseAsync(argv, { from: 'user' });
     } catch (caught) {
       thrown = caught as Error;
     } finally {
@@ -996,8 +1007,8 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
     return { stdout, stderr, thrown };
   }
 
-  function run(...argv: string[]) {
-    const { stdout, stderr, thrown } = execute(argv);
+  async function run(...argv: string[]) {
+    const { stdout, stderr, thrown } = await execute(argv);
 
     if (thrown !== undefined) {
       throw thrown;
@@ -1007,8 +1018,8 @@ async function newCli(options: ProgramDependencies & { store?: GrimoireStore } =
   }
 
   /** The refusal the command threw, with what it printed before throwing. */
-  function runRefused(...argv: string[]) {
-    const { stdout, stderr, thrown } = execute(argv);
+  async function runRefused(...argv: string[]) {
+    const { stdout, stderr, thrown } = await execute(argv);
 
     if (thrown === undefined) {
       throw new Error('expected a refusal');
@@ -1029,10 +1040,10 @@ async function newColorFixture() {
     storeSkill(store, skill);
   }
 
-  run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
-  run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
-  run('workspaces', 'add', 'work', await newDirectory('work'));
-  run('workspaces', 'add', 'gone', gone);
+  await run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
+  await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+  await run('workspaces', 'add', 'work', await newDirectory('work'));
+  await run('workspaces', 'add', 'gone', gone);
 
   const paths = {
     personal: registeredPath(store, 'personal'),
@@ -1041,14 +1052,14 @@ async function newColorFixture() {
     gone,
   };
 
-  run('link', 'brainstorm', 'personal');
-  run('clone', 'deploy', 'personal');
+  await run('link', 'brainstorm', '--to', 'personal');
+  await run('clone', 'deploy', 'personal');
   mkdirSync(join(paths.personal, 'old'));
   recordClone(store, 'old', { workspace: 'personal' });
   symlinkSync(join(store.paths.skills, 'triage'), join(paths.personal, 'tri'));
   recordClone(store, 'triage', { workspace: 'personal' });
-  run('clone', 'notes', 'gone');
-  run('workspaces', 'remove', 'gone');
+  await run('clone', 'notes', 'gone');
+  await run('workspaces', 'remove', 'gone');
   rmSync(paths.scratch, { recursive: true });
 
   return { store, paths };
@@ -1068,21 +1079,21 @@ async function newWidthFixture() {
     storeSkill(store, skill);
   }
 
-  run('workspaces', 'add', 'personal', await newDirectory('a/b/c/d/personal'));
-  run('workspaces', 'add', 'work', await newDirectory('a/b/c/d/work'));
-  run('link', 'brainstorm', 'personal');
-  run('link', 'triage', 'personal');
-  run('link', 'triage', 'work');
-  run('clone', 'deploy', 'personal');
-  run('clone', 'deploy', 'work');
+  await run('workspaces', 'add', 'personal', await newDirectory('a/b/c/d/personal'));
+  await run('workspaces', 'add', 'work', await newDirectory('a/b/c/d/work'));
+  await run('link', 'brainstorm', '--to', 'personal');
+  await run('link', 'triage', '--to', 'personal');
+  await run('link', 'triage', '--to', 'work');
+  await run('clone', 'deploy', 'personal');
+  await run('clone', 'deploy', 'work');
   mkdirSync(join(outside, 'notes'));
   recordClone(store, 'notes', { path: outside });
   writeFileSync(join(store.paths.skills, 'readme.txt'), 'readme', 'utf8');
 
-  function runStatus(width: number | undefined): string[] {
+  async function runStatus(width: number | undefined): Promise<string[]> {
     terminalWidth = width;
 
-    return run('status').stdout;
+    return (await run('status')).stdout;
   }
 
   return {
@@ -1131,9 +1142,9 @@ function silence(program: Command): Command {
 }
 
 /** The error a refusal threw, so its code can be asserted on. */
-function captureError(operation: () => unknown): Error {
+async function captureError(operation: () => Promise<unknown>): Promise<Error> {
   try {
-    operation();
+    await operation();
   } catch (error) {
     return error as Error;
   }

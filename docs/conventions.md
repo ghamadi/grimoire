@@ -94,7 +94,7 @@ page lists its own result groups and their order. When anything succeeds and not
 exit code is 0:
 
 ```shell
-$ grimoire link triage personal work scratch
+$ grimoire link triage --to personal work scratch
 linked triage → personal
 already linked triage → work
 warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage scratch`, or delete it yourself
@@ -106,7 +106,7 @@ A run where every destination was declined, and none [failed](#when-a-write-fail
 error. One decline prints as a single line:
 
 ```shell
-$ grimoire link triage work
+$ grimoire link triage --to work
 error: could not link triage → work: /Users/me/work/.agents/skills/triage is a symlink pointing elsewhere
 ```
 
@@ -114,7 +114,7 @@ Several print `error: nothing <verb-past>:` (`nothing linked`, `nothing cloned`)
 indented two spaces:
 
 ```shell
-$ grimoire link triage personal work
+$ grimoire link triage --to personal work
 error: nothing linked:
   could not link triage → personal: /Users/me/.claude/skills/triage is a clone — unclone it first with `grimoire unclone triage personal`
   could not link triage → work: /Users/me/work/.agents/skills/triage is a symlink pointing elsewhere

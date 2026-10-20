@@ -10,7 +10,6 @@ import { statusCommand } from '@/commands/status';
 import type { TextStyler } from '@/lib/text-styler';
 import { trashCommand } from '@/commands/trash';
 import { uncloneCommand } from '@/commands/unclone';
-import { unlinkCommand } from '@/commands/unlink';
 import { updateCommand } from '@/commands/update';
 import { workspacesCommand } from '@/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
@@ -53,8 +52,7 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(reposCommand({ storeManager }))
     .addCommand(exportCommand({ storeManager, picker }))
     .addCommand(skillsCommand({ storeManager, picker }))
-    .addCommand(linkCommand({ storeManager }))
-    .addCommand(unlinkCommand({ storeManager }))
+    .addCommand(linkCommand({ storeManager, picker }))
     .addCommand(cloneCommand({ storeManager }))
     .addCommand(uncloneCommand({ storeManager }))
     .addCommand(trashCommand({ storeManager, textStyler }))

@@ -4,8 +4,14 @@ import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST } from '@/domains/skill';
-import { LinkDeclinedError } from '@/lib/errors';
-import { buildProgram } from '@/program';
+import {
+  EntityNotFoundError,
+  LinkDeclinedError,
+  MissingDestinationError,
+  UnlinkDeclinedError,
+} from '@/lib/errors';
+import { buildProgram, type ProgramDependencies } from '@/program';
+import { fakePicker } from '@test-helpers/fake-picker';
 import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
@@ -17,10 +23,10 @@ describe('link', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
 
-    const { stdout, stderr } = run('link', 'brainstorm', 'personal');
+    const { stdout, stderr } = await run('link', 'brainstorm', '--to', 'personal');
 
     expect(stdout).toEqual(['linked brainstorm → personal']);
     expect(stderr).toEqual([]);
@@ -30,10 +36,10 @@ describe('link', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     symlinkSync(storeSkill(store, 'brainstorm'), join(path, 'brainstorm'));
 
-    expect(run('link', 'brainstorm', 'personal').stdout).toEqual([
+    expect((await run('link', 'brainstorm', '--to', 'personal')).stdout).toEqual([
       'already linked brainstorm → personal',
     ]);
   });
@@ -44,11 +50,11 @@ describe('link', () => {
     const path = await newDirectory('project');
     const occupied = join(path, 'brainstorm');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
     writeSkillDirectory(occupied);
 
-    const { stdout, stderr } = run('link', 'brainstorm', 'personal');
+    const { stdout, stderr } = await run('link', 'brainstorm', '--to', 'personal');
 
     expect(stdout).toEqual(['linked brainstorm → personal']);
     expect(stderr).toEqual([]);
@@ -61,12 +67,12 @@ describe('link', () => {
     const work = await newDirectory('work');
     const occupied = join(personal, 'brainstorm');
 
-    run('workspaces', 'add', 'personal', personal);
-    run('workspaces', 'add', 'work', work);
+    await run('workspaces', 'add', 'personal', personal);
+    await run('workspaces', 'add', 'work', work);
     storeSkill(store, 'brainstorm');
     writeSkillDirectory(occupied, { [SKILL_MANIFEST]: 'edited' });
 
-    const { stdout, stderr } = run('link', 'brainstorm', 'personal', 'work');
+    const { stdout, stderr } = await run('link', 'brainstorm', '--to', 'personal', 'work');
 
     expect(stdout).toEqual(['linked brainstorm → work']);
     expect(stderr).toEqual([
@@ -80,13 +86,13 @@ describe('link', () => {
     const work = await newDirectory('work');
     const cloned = join(personal, 'brainstorm');
 
-    run('workspaces', 'add', 'personal', personal);
-    run('workspaces', 'add', 'work', work);
+    await run('workspaces', 'add', 'personal', personal);
+    await run('workspaces', 'add', 'work', work);
     storeSkill(store, 'brainstorm');
     writeSkillDirectory(cloned);
     manager.recordClone({ skill: 'brainstorm', workspace: 'personal' });
 
-    const { stdout, stderr } = run('link', 'brainstorm', 'personal', 'work');
+    const { stdout, stderr } = await run('link', 'brainstorm', '--to', 'personal', 'work');
 
     expect(stdout).toEqual(['linked brainstorm → work']);
     expect(stderr).toEqual([
@@ -98,11 +104,11 @@ describe('link', () => {
   it('links into every auto-link workspace when none is named', async () => {
     const { run, store } = await newCli();
 
-    run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
-    run('workspaces', 'add', 'work', await newDirectory('work'));
+    await run('workspaces', 'add', 'personal', await newDirectory('personal'), '--auto-link');
+    await run('workspaces', 'add', 'work', await newDirectory('work'));
     storeSkill(store, 'brainstorm');
 
-    expect(run('link', 'brainstorm').stdout).toEqual(['linked brainstorm → personal']);
+    expect((await run('link', 'brainstorm')).stdout).toEqual(['linked brainstorm → personal']);
   });
 
   // Nothing was stepped over, so there is no warning to print — and a command
@@ -110,10 +116,10 @@ describe('link', () => {
   it('says why a run with no auto-link workspace printed nothing', async () => {
     const { run, store } = await newCli();
 
-    run('workspaces', 'add', 'personal', await newDirectory('project'));
+    await run('workspaces', 'add', 'personal', await newDirectory('project'));
     storeSkill(store, 'brainstorm');
 
-    expect(run('link', 'brainstorm').stdout).toEqual([
+    expect((await run('link', 'brainstorm')).stdout).toEqual([
       'nothing to link: no auto-link workspace is registered',
     ]);
   });
@@ -121,23 +127,23 @@ describe('link', () => {
   it('refuses to run with neither a skill nor --all-skills', async () => {
     const { run } = await newCli();
 
-    run('workspaces', 'add', 'personal', await newDirectory('project'));
+    await run('workspaces', 'add', 'personal', await newDirectory('project'));
 
-    const error = captureError(() => run('link'));
+    const error = await captureError(() => run('link'));
 
     expect(error).toBeInstanceOf(CommanderError);
-    expect(error.message).toContain("missing required argument 'skill'");
+    expect(error.message).toBe("error: missing required argument 'skill' (or use --all-skills)");
   });
 
   it('keeps the workspaces in argument order under --all-skills', async () => {
     const { run, store } = await newCli();
 
-    run('workspaces', 'add', 'personal', await newDirectory('personal'));
-    run('workspaces', 'add', 'work', await newDirectory('work'));
-    run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
+    await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    await run('workspaces', 'add', 'work', await newDirectory('work'));
+    await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
     storeSkill(store, 'brainstorm');
 
-    expect(run('link', 'work', 'personal', 'scratch', '--all-skills').stdout).toEqual([
+    expect((await run('link', '--all-skills', '--to', 'work', 'personal', 'scratch')).stdout).toEqual([
       'linked brainstorm → work',
       'linked brainstorm → personal',
       'linked brainstorm → scratch',
@@ -147,11 +153,11 @@ describe('link', () => {
   it('counts a workspace named twice under --all-skills once, at its first position', async () => {
     const { run, store } = await newCli();
 
-    run('workspaces', 'add', 'personal', await newDirectory('personal'));
-    run('workspaces', 'add', 'work', await newDirectory('work'));
+    await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    await run('workspaces', 'add', 'work', await newDirectory('work'));
     storeSkill(store, 'brainstorm');
 
-    expect(run('link', 'work', 'personal', 'work', '--all-skills').stdout).toEqual([
+    expect((await run('link', '--all-skills', '--to', 'work', 'personal', 'work')).stdout).toEqual([
       'linked brainstorm → work',
       'linked brainstorm → personal',
     ]);
@@ -161,11 +167,280 @@ describe('link', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('project');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'brainstorm');
     writeFileSync(join(path, 'brainstorm'), 'not a skill', 'utf8');
 
-    expect(captureError(() => run('link', 'brainstorm', 'personal'))).toBeInstanceOf(LinkDeclinedError);
+    expect(await captureError(() => run('link', 'brainstorm', '--to', 'personal'))).toBeInstanceOf(
+      LinkDeclinedError,
+    );
+  });
+
+  describe('--drop', () => {
+    it('removes the link', async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('project');
+
+      await run('workspaces', 'add', 'personal', path);
+      symlinkSync(storeSkill(store, 'brainstorm'), join(path, 'brainstorm'));
+
+      const { stdout, stderr } = await run('link', 'brainstorm', '--drop', 'personal');
+
+      expect(stdout).toEqual(['unlinked brainstorm → personal']);
+      expect(stderr).toEqual([]);
+      expect(lstatSync(join(path, 'brainstorm'), { throwIfNoEntry: false })).toBeUndefined();
+    });
+
+    it('says nothing was there to unlink', async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('project');
+
+      await run('workspaces', 'add', 'personal', path);
+      storeSkill(store, 'brainstorm');
+
+      expect((await run('link', 'brainstorm', '--drop', 'personal')).stdout).toEqual([
+        'not linked brainstorm → personal',
+      ]);
+    });
+
+    it('groups unlinked and not-linked lines by outcome, not argument order', async () => {
+      const { run, store } = await newCli();
+      const work = await newDirectory('work');
+      const club = await newDirectory('club');
+      const personal = await newDirectory('personal');
+
+      await run('workspaces', 'add', 'work', work);
+      await run('workspaces', 'add', 'club', club);
+      await run('workspaces', 'add', 'personal', personal);
+      storeSkill(store, 'brainstorm');
+      mkdirSync(join(club, 'brainstorm'));
+      symlinkSync(storeSkill(store, 'brainstorm'), join(personal, 'brainstorm'));
+
+      const { stdout, stderr } = await run('link', 'brainstorm', '--drop', 'work', 'club', 'personal');
+
+      expect(stdout).toEqual(['unlinked brainstorm → personal', 'not linked brainstorm → work']);
+      expect(stderr).toEqual([
+        `warning: could not unlink brainstorm → club: ${join(club, 'brainstorm')} is a directory, not a link`,
+      ]);
+    });
+
+    it('lets a run that unlinked nothing at all escape as a refusal', async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('project');
+
+      await run('workspaces', 'add', 'personal', path);
+      storeSkill(store, 'brainstorm');
+      mkdirSync(join(path, 'brainstorm'));
+
+      expect(await captureError(() => run('link', 'brainstorm', '--drop', 'personal'))).toBeInstanceOf(
+        UnlinkDeclinedError,
+      );
+    });
+
+    it('lets an unknown skill escape as a refusal', async () => {
+      const { run } = await newCli();
+
+      await run('workspaces', 'add', 'personal', await newDirectory('project'));
+
+      expect(await captureError(() => run('link', 'brainstorm', '--drop', 'personal'))).toBeInstanceOf(
+        EntityNotFoundError,
+      );
+    });
+
+    describe('--all-workspaces', () => {
+      it('reports every registered workspace, each group sorted by name', async () => {
+        const { run, store } = await newCli();
+        const work = await newDirectory('work');
+        const personal = await newDirectory('personal');
+        const club = await newDirectory('club');
+
+        await run('workspaces', 'add', 'work', work);
+        await run('workspaces', 'add', 'personal', personal);
+        await run('workspaces', 'add', 'club', club);
+        const skillPath = storeSkill(store, 'brainstorm');
+        symlinkSync(skillPath, join(work, 'brainstorm'));
+        symlinkSync(skillPath, join(personal, 'brainstorm'));
+        mkdirSync(join(club, 'brainstorm'));
+
+        const { stdout, stderr } = await run('link', 'brainstorm', '--drop', '--all-workspaces');
+
+        expect(stdout).toEqual(['unlinked brainstorm → personal', 'unlinked brainstorm → work']);
+        expect(stderr).toEqual([
+          `warning: could not unlink brainstorm → club: ${join(club, 'brainstorm')} is a directory, not a link`,
+        ]);
+      });
+
+      it('says a workspace without the link was not linked', async () => {
+        const { run, store } = await newCli();
+        const work = await newDirectory('work');
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+        await run('workspaces', 'add', 'work', work);
+        symlinkSync(storeSkill(store, 'brainstorm'), join(work, 'brainstorm'));
+
+        expect((await run('link', 'brainstorm', '--drop', '--all-workspaces')).stdout).toEqual([
+          'unlinked brainstorm → work',
+          'not linked brainstorm → personal',
+        ]);
+      });
+
+      it('says why a run with no registered workspace printed nothing', async () => {
+        const { run, store } = await newCli();
+
+        storeSkill(store, 'brainstorm');
+
+        const { stdout, stderr } = await run('link', 'brainstorm', '--drop', '--all-workspaces');
+
+        expect(stdout).toEqual(['nothing to unlink: no workspace is registered']);
+        expect(stderr).toEqual([]);
+      });
+
+      it('refuses to combine named workspaces with --all-workspaces, leaving the link in place', async () => {
+        const { run, store } = await newCli();
+        const path = await newDirectory('project');
+
+        await run('workspaces', 'add', 'personal', path);
+        const linkPath = join(path, 'brainstorm');
+        symlinkSync(storeSkill(store, 'brainstorm'), linkPath);
+
+        const error = await captureError(() =>
+          run('link', 'brainstorm', '--drop', 'personal', '--all-workspaces'),
+        );
+
+        expect(error).toBeInstanceOf(CommanderError);
+        expect(error.message).toBe('error: --all-workspaces cannot be combined with named workspaces');
+        expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      });
+    });
+
+    describe('choosing workspaces', () => {
+      it('offers every registered workspace in name order and unlinks the one picked', async () => {
+        const picker = fakePicker({ choose: () => ['work'] });
+        const { run, store } = await newCli({ picker });
+        const work = await newDirectory('work');
+        const personal = await newDirectory('personal');
+
+        await run('workspaces', 'add', 'work', work);
+        await run('workspaces', 'add', 'personal', personal);
+        await run('workspaces', 'add', 'club', await newDirectory('club'));
+        const skillPath = storeSkill(store, 'brainstorm');
+        symlinkSync(skillPath, join(work, 'brainstorm'));
+        symlinkSync(skillPath, join(personal, 'brainstorm'));
+
+        const { stdout, stderr } = await run('link', 'brainstorm', '--drop');
+
+        expect(picker.offered).toEqual(['club', 'personal', 'work']);
+        expect(stdout).toEqual(['unlinked brainstorm → work']);
+        expect(stderr).toEqual([]);
+        expect(lstatSync(join(work, 'brainstorm'), { throwIfNoEntry: false })).toBeUndefined();
+        expect(lstatSync(join(personal, 'brainstorm')).isSymbolicLink()).toBe(true);
+      });
+
+      it('unlinks the picked workspaces in name order whatever order they were picked in', async () => {
+        const picker = fakePicker({ choose: (labels) => [...labels].reverse() });
+        const { run, store } = await newCli({ picker });
+        const work = await newDirectory('work');
+        const personal = await newDirectory('personal');
+
+        await run('workspaces', 'add', 'work', work);
+        await run('workspaces', 'add', 'personal', personal);
+        const skillPath = storeSkill(store, 'brainstorm');
+        symlinkSync(skillPath, join(work, 'brainstorm'));
+        symlinkSync(skillPath, join(personal, 'brainstorm'));
+
+        expect((await run('link', 'brainstorm', '--drop')).stdout).toEqual([
+          'unlinked brainstorm → personal',
+          'unlinked brainstorm → work',
+        ]);
+      });
+
+      it('says no workspace was selected when nothing is picked', async () => {
+        const picker = fakePicker({ choose: () => [] });
+        const { run, store } = await newCli({ picker });
+        const path = await newDirectory('personal');
+
+        await run('workspaces', 'add', 'personal', path);
+        symlinkSync(storeSkill(store, 'brainstorm'), join(path, 'brainstorm'));
+
+        const { stdout, stderr } = await run('link', 'brainstorm', '--drop');
+
+        expect(stdout).toEqual(['nothing to unlink: no workspace selected']);
+        expect(stderr).toEqual([]);
+        expect(lstatSync(join(path, 'brainstorm')).isSymbolicLink()).toBe(true);
+      });
+
+      it('says no workspace is registered without offering a pick', async () => {
+        const picker = fakePicker({ choose: (labels) => labels });
+        const { run, store } = await newCli({ picker });
+
+        storeSkill(store, 'brainstorm');
+
+        const { stdout, stderr } = await run('link', 'brainstorm', '--drop');
+
+        expect(stdout).toEqual(['nothing to unlink: no workspace is registered']);
+        expect(stderr).toEqual([]);
+        expect(picker.offered).toEqual([]);
+      });
+
+      it('refuses an unknown skill before offering a pick', async () => {
+        const picker = fakePicker({ choose: (labels) => labels });
+        const { run } = await newCli({ picker });
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+
+        const error = await captureError(() => run('link', 'brainstorm', '--drop'));
+
+        expect(error).toBeInstanceOf(EntityNotFoundError);
+        expect(picker.offered).toEqual([]);
+      });
+
+      it('refuses without a terminal, naming --drop, --all-workspaces and every registered workspace', async () => {
+        const { run, store } = await newCli();
+        const personal = await newDirectory('personal');
+
+        await run('workspaces', 'add', 'personal', personal);
+        await run('workspaces', 'add', 'work', await newDirectory('work'));
+        symlinkSync(storeSkill(store, 'brainstorm'), join(personal, 'brainstorm'));
+
+        const error = await captureError(() => run('link', 'brainstorm', '--drop'));
+
+        expect(error).toBeInstanceOf(MissingDestinationError);
+        expect(error.message.split('\n')).toEqual([
+          'no workspace named, and no terminal to choose from',
+          '  name them after --drop, or use --all-workspaces: personal work',
+        ]);
+        expect(lstatSync(join(personal, 'brainstorm')).isSymbolicLink()).toBe(true);
+      });
+    });
+  });
+
+  describe('refusals', () => {
+    it.each([
+      [['--all-skills', '--to', 'personal', '--drop'], 'error: --to cannot be combined with --drop'],
+      [['--all-skills', '--drop', 'personal'], 'error: --all-skills cannot be combined with --drop'],
+      [['brainstorm', '--all-workspaces'], 'error: --all-workspaces works only with --drop'],
+      [['brainstorm', '--all-skills'], 'error: --all-skills cannot be combined with a named skill'],
+      [['--drop', 'personal'], "error: missing required argument 'skill'"],
+    ])('refuses link %j', async (argv, message) => {
+      const { run, store } = await newCli();
+
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      storeSkill(store, 'brainstorm');
+
+      const error = await captureError(() => run('link', ...argv));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe(message);
+    });
+  });
+
+  it('no longer knows unlink as a command', async () => {
+    const { run } = await newCli();
+
+    const error = await captureError(() => run('unlink', 'brainstorm', 'personal'));
+
+    expect(error).toBeInstanceOf(CommanderError);
+    expect((error as CommanderError).code).toBe('commander.unknownCommand');
   });
 });
 
@@ -176,12 +451,12 @@ describe('link', () => {
  * `CommanderError`, and console is spied rather than `configureOutput`-ed
  * because the actions print through console directly.
  */
-async function newCli() {
+async function newCli(dependencies: ProgramDependencies = {}) {
   const store = new GrimoireStore(await tempRoot());
   const manager = new GrimoireStoreManager(store);
-  const program = silence(buildProgram(store));
+  const program = silence(buildProgram(store, dependencies));
 
-  function run(...argv: string[]) {
+  async function run(...argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
 
@@ -191,7 +466,7 @@ async function newCli() {
     const warn = vi.spyOn(console, 'warn').mockImplementation(toStderr);
 
     try {
-      program.parse(argv, { from: 'user' });
+      await program.parseAsync(argv, { from: 'user' });
     } finally {
       log.mockRestore();
       error.mockRestore();
@@ -224,9 +499,9 @@ function silence(program: Command): Command {
 }
 
 /** The error a refusal threw, so the whole multi-line message can be asserted on. */
-function captureError(operation: () => unknown): Error {
+async function captureError(operation: () => Promise<unknown>): Promise<Error> {
   try {
-    operation();
+    await operation();
   } catch (error) {
     return error as Error;
   }

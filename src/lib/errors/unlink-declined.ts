@@ -2,7 +2,7 @@ import { assertUnreachable } from '@/lib/utils';
 import { GrimoireError } from '@/lib/errors/grimoire-error';
 
 /**
- * Why `unlink` left `<workspace path>/<skill>` alone — what sits there instead
+ * Why `link --drop` left `<workspace path>/<skill>` alone — what sits there instead
  * of the link, or that the workspace holding it does not resolve or cannot be
  * read.
  *
@@ -13,7 +13,7 @@ export type UnlinkRefusalReason =
   'directory' | 'not-a-link' | 'foreign-symlink' | 'workspace-unreachable' | 'workspace-unreadable';
 
 /**
- * One pair `unlink` stepped over: a fact about the filesystem, not a mistake
+ * One pair `link --drop` stepped over: a fact about the filesystem, not a mistake
  * in argv. The batch carries on past every one of them.
  */
 export type UnlinkRefusal = {
@@ -54,7 +54,7 @@ export type UnlinkDeclinedErrorProps = {
 };
 
 /**
- * An `unlink` run that declined every pair it was asked to remove.
+ * A `link --drop` run that declined every pair it was asked to remove.
  *
  * Every other command reports a refusal by throwing, and a run with nothing to
  * show for itself is a refusal. A run that did unlink something keeps its exit
