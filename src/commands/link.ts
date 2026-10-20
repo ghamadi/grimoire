@@ -164,7 +164,7 @@ async function pickWorkspaceNames(params: {
     choices: storeManager
       .listRegisteredWorkspaces()
       .map(({ name, path }) => ({ value: name, label: name, hint: path })),
-    refusal: { noun: 'workspace', remedy: 'name them after --drop, or use --all-workspaces' },
+    refusal: { noun: 'workspace', remedy: 'use --all-workspaces, or name them after --drop' },
   });
   const resultKind = result.kind;
 

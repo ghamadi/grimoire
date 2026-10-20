@@ -407,7 +407,7 @@ describe('link', () => {
         expect(error).toBeInstanceOf(MissingDestinationError);
         expect(error.message.split('\n')).toEqual([
           'no workspace named, and no terminal to choose from',
-          '  name them after --drop, or use --all-workspaces: personal work',
+          '  use --all-workspaces, or name them after --drop: personal work',
         ]);
         expect(lstatSync(join(personal, 'brainstorm')).isSymbolicLink()).toBe(true);
       });
