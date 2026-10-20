@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '@/lib/utils/files';
-import type { Collision, GrimoireStore } from '@/domains/grimoire-store/entity';
+import type { GrimoireStore } from '@/domains/grimoire-store/entity';
 import { StoreState, type CloneRecord } from '@/domains/grimoire-store/value-objects/store-state';
 import { toRegisteredPath } from '@/domains/grimoire-store/helpers/registered-path';
 import {
@@ -12,6 +12,7 @@ import {
   InvalidPathError,
   InvalidShapeError,
   PathCollisionError,
+  type Collision,
   type RegistryEntity,
 } from '@/lib/errors';
 import { join, matchesGlob } from 'node:path';

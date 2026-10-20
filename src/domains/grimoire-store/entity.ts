@@ -1,14 +1,9 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { normalizePath, relate, type PathRelation } from '@/lib/paths';
+import type { Collision } from '@/lib/errors';
+import { normalizePath, relate } from '@/lib/paths';
 
 export const DEFAULT_HOME_DIRECTORY = '.grimoire';
-
-/** How a path sits against the store or against a registered entry. */
-export type Collision =
-  | { kind: 'grimoire-home'; path: string; relation: PathRelation }
-  | { kind: 'workspace'; name: string; path: string; relation: PathRelation }
-  | { kind: 'repo'; name: string; path: string; relation: PathRelation };
 
 type StorePaths = {
   root: string;

@@ -23,8 +23,8 @@ commands → use-cases → domains → lib
   in a domain. Any other command calls a manager or `lib/` itself.
 - **`domains/`** holds the entities and services that model the problem — `grimoire-store`, `workspace`, `repo`, `skill` —
   each behind a barrel `index.ts` that is its only public surface.
-- **`lib/`** is dependency-free, reusable primitives (path comparison, atomic file writes, error types) with no knowledge of
-  grimoire's domain.
+- **`lib/`** holds reusable primitives (path comparison, atomic file writes, error types) and thin wrappers over third-party
+  packages. It imports nothing from the layers above.
 
 ## Project Management
 

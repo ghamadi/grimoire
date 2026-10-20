@@ -1,4 +1,4 @@
-export { GrimoireStore, type Collision } from '@/domains/grimoire-store/entity';
+export { GrimoireStore } from '@/domains/grimoire-store/entity';
 export {
   GrimoireStoreManager,
   type FiledClone,

@@ -76,6 +76,7 @@ export {
 export {
   PathCollisionError,
   describeCollision,
+  type Collision,
   type PathCollisionErrorProps,
 } from '@/lib/errors/path-collision';
 export { InvalidShapeError, type InvalidShapeErrorProps } from '@/lib/errors/invalid-shape';
