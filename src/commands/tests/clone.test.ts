@@ -723,6 +723,15 @@ describe('clone', () => {
 
   describe('refusals', () => {
     it.each([
+      [[], "error: missing required argument 'skill'"],
+      [
+        ['--to', 'personal', 'triage'],
+        "error: missing required argument 'skill'\n  --to takes every name after it, so name the skill before it",
+      ],
+      [
+        ['--drop', 'personal', 'triage'],
+        "error: missing required argument 'skill'\n  --drop takes every name after it, so name the skill before it",
+      ],
       [
         ['triage', '--to', 'personal', '--drop', '--overwrite'],
         'error: --to cannot be combined with --drop',

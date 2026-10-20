@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { CloneFailedError, describeCloneRefusal } from '@/lib/errors';
+import { formatMissingArgument } from '@/lib/missing-argument';
 import { normalizePath } from '@/lib/paths';
 import { pickChoices, type Picker } from '@/lib/picker';
 import { assertUnreachable } from '@/lib/utils';
@@ -33,7 +34,8 @@ export function cloneCommand(params: CloneCommandParams): Command {
 
   const clone = new Command('clone')
     .description('Copy a store skill into workspaces, or forget its clone records')
-    .argument('<skill>', 'store skill to clone, or whose clone records to forget with --drop')
+    .usage('[options] <skill>')
+    .argument('[skill]', 'store skill to clone, or whose clone records to forget with --drop')
     .option('--to <workspaces...>', 'registered workspaces to clone into')
     .option(
       '--overwrite',
@@ -43,34 +45,35 @@ export function cloneCommand(params: CloneCommandParams): Command {
       '--drop [targets...]',
       'registered workspace names, or recorded paths, whose clone records to forget',
     )
-    .action(async (skill: string, options: CloneOptions) => {
+    .action(async (skill: string | undefined, options: CloneOptions) => {
       const parsedArguments = parseArguments({
+        skill,
         options,
         refuse: (message) => clone.error(message),
       });
 
+      const { skillName } = parsedArguments;
+
       if (parsedArguments.mode === 'drop') {
         const targets =
-          parsedArguments.targets ??
-          (await pickCloneTargets({ storeManager, picker, skillName: skill }));
+          parsedArguments.targets ?? (await pickCloneTargets({ storeManager, picker, skillName }));
 
         if (!targets) {
           return;
         }
 
-        reportUnclones(uncloneSkill({ skillName: skill, targets }));
+        reportUnclones(uncloneSkill({ skillName, targets }));
         return;
       }
 
       const workspaces =
-        parsedArguments.workspaces ??
-        (await pickWorkspaceNames({ storeManager, picker, skillName: skill }));
+        parsedArguments.workspaces ?? (await pickWorkspaceNames({ storeManager, picker, skillName }));
 
       if (!workspaces) {
         return;
       }
 
-      const result = cloneSkill({ skillName: skill, workspaces, overwrite: parsedArguments.overwrite });
+      const result = cloneSkill({ skillName, workspaces, overwrite: parsedArguments.overwrite });
 
       reportClones(result);
 
@@ -87,18 +90,28 @@ export function cloneCommand(params: CloneCommandParams): Command {
 // ----------------------------------------------------------------------------
 
 type ParseArgumentsParams = {
+  skill: string | undefined;
   options: CloneOptions;
   refuse: (message: string) => never;
 };
 
 type ParsedArguments =
-  | { mode: 'deploy'; workspaces: string[] | undefined; overwrite: boolean }
-  | { mode: 'drop'; targets: string[] | undefined };
+  | { mode: 'deploy'; skillName: string; workspaces: string[] | undefined; overwrite: boolean }
+  | { mode: 'drop'; skillName: string; targets: string[] | undefined };
 
 /** `workspaces` and `targets` are `undefined` when they are to be picked. */
 function parseArguments(params: ParseArgumentsParams): ParsedArguments {
-  const { options, refuse } = params;
+  const { skill, options, refuse } = params;
   const { to, drop, overwrite = false } = options;
+
+  if (!skill) {
+    return refuse(
+      formatMissingArgument({
+        name: 'skill',
+        listFlag: to ? '--to' : Array.isArray(drop) ? '--drop' : undefined,
+      }),
+    );
+  }
 
   if (to && drop) {
     return refuse('error: --to cannot be combined with --drop');
@@ -109,10 +122,10 @@ function parseArguments(params: ParseArgumentsParams): ParsedArguments {
       return refuse('error: --overwrite cannot be combined with --drop');
     }
 
-    return { mode: 'drop', targets: Array.isArray(drop) ? drop : undefined };
+    return { mode: 'drop', skillName: skill, targets: Array.isArray(drop) ? drop : undefined };
   }
 
-  return { mode: 'deploy', workspaces: to, overwrite };
+  return { mode: 'deploy', skillName: skill, workspaces: to, overwrite };
 }
 
 // ----------------------------------------------------------------------------

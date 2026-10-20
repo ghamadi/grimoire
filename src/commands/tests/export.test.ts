@@ -435,10 +435,25 @@ describe('export', () => {
     it('refuses a run with neither skills nor --all-skills', async () => {
       const { run, repo } = await newCli();
 
-      const error = await captureError(() => run('export', '--to', 'library'));
+      const error = await captureError(() => run('export'));
 
       expect(error).toBeInstanceOf(CommanderError);
       expect(error.message).toBe("error: missing required argument 'skills' (or use --all-skills)");
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('says --to took the skills when they follow it', async () => {
+      const { run, store, repo } = await newCli();
+
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('export', '--to', 'library', 'triage'));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message.split('\n')).toEqual([
+        "error: missing required argument 'skills' (or use --all-skills)",
+        '  --to takes every name after it, so name the skills before it',
+      ]);
       expect(readdirSync(repo.path)).toEqual(['.git']);
     });
 

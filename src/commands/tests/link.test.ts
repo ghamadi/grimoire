@@ -420,7 +420,14 @@ describe('link', () => {
       [['--all-skills', '--drop', 'personal'], 'error: --all-skills cannot be combined with --drop'],
       [['brainstorm', '--all-workspaces'], 'error: --all-workspaces works only with --drop'],
       [['brainstorm', '--all-skills'], 'error: --all-skills cannot be combined with a named skill'],
-      [['--drop', 'personal'], "error: missing required argument 'skill'"],
+      [
+        ['--drop', 'personal', 'brainstorm'],
+        "error: missing required argument 'skill'\n  --drop takes every name after it, so name the skill before it",
+      ],
+      [
+        ['--to', 'personal', 'brainstorm'],
+        "error: missing required argument 'skill' (or use --all-skills)\n  --to takes every name after it, so name the skill before it",
+      ],
     ])('refuses link %j', async (argv, message) => {
       const { run, store } = await newCli();
 

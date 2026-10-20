@@ -179,7 +179,15 @@ A refusal exits 1 and touches nothing. The checks run in the order each page lis
 reported. These messages are shared:
 
 - A missing argument prints `error: missing required argument '<name>'`. When the page has an `--all-*` flag for it, the
-  message ends with ` (or use --all-<x>)`, as in `error: missing required argument 'skill' (or use --all-skills)`.
+  message ends with ` (or use --all-<x>)`, as in `error: missing required argument 'skill' (or use --all-skills)`. A flag
+  that takes a list, such as `--to`, takes every name after it. So when one was given, a second line names it:
+
+  ```shell
+  $ grimoire link --to personal triage
+  error: missing required argument 'skill' (or use --all-skills)
+    --to takes every name after it, so name the skill before it
+  ```
+
 - An unknown skill prints `error: no skill named "<skill>"`.
 - A skill that fails the portability check prints its reason, as in
   `error: skill "/Users/me/.grimoire/skills/triage" is not portable. Contains a nested skill.` Every skill is checked before

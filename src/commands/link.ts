@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { describeLinkRefusal, describeUnlinkRefusal } from '@/lib/errors';
+import { formatMissingArgument } from '@/lib/missing-argument';
 import { pickChoices, type Picker } from '@/lib/picker';
 import { assertUnreachable } from '@/lib/utils';
 import { createLinkSkillUseCase, type LinkSkillUseCase } from '@/use-cases/link-skill-use-case/factory';
@@ -109,7 +110,9 @@ function parseArguments(params: ParseArgumentsParams): ParsedArguments {
     }
 
     if (!skill) {
-      return refuse("error: missing required argument 'skill'");
+      return refuse(
+        formatMissingArgument({ name: 'skill', listFlag: Array.isArray(drop) ? '--drop' : undefined }),
+      );
     }
 
     return {
@@ -128,7 +131,13 @@ function parseArguments(params: ParseArgumentsParams): ParsedArguments {
   }
 
   if (!allSkills && !skill) {
-    return refuse("error: missing required argument 'skill' (or use --all-skills)");
+    return refuse(
+      formatMissingArgument({
+        name: 'skill',
+        allFlag: '--all-skills',
+        listFlag: to ? '--to' : undefined,
+      }),
+    );
   }
 
   return { mode: 'deploy', skillName: skill, workspaces: to };

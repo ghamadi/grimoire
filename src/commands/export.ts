@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { ExportFailedError, describeExportRefusal } from '@/lib/errors';
+import { formatMissingArgument } from '@/lib/missing-argument';
 import { pickChoices, type Picker } from '@/lib/picker';
 import { assertUnreachable } from '@/lib/utils';
 import {
@@ -36,7 +37,13 @@ export function exportCommand(params: ExportCommandParams): Command {
         }
 
         if (skills.length === 0 && !allSkills) {
-          command.error("error: missing required argument 'skills' (or use --all-skills)");
+          command.error(
+            formatMissingArgument({
+              name: 'skills',
+              allFlag: '--all-skills',
+              listFlag: to ? '--to' : undefined,
+            }),
+          );
         }
 
         const skillNames = allSkills ? storeManager.listSkillNames() : skills;
