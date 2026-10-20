@@ -3,26 +3,30 @@
 `clone` copies a store skill into one or more workspaces and records each copy. Use it for a workspace that cannot use a
 link. A clone does not follow the store. It changes only when `--overwrite` replaces it with the store copy.
 
+`clone --drop` forgets clone records. It never touches the cloned directory.
+
 ```shell
-grimoire clone <skill> <workspaces...> [--overwrite]
+grimoire clone <skill> --to <workspaces...> [--overwrite]
+grimoire clone <skill> --drop <targets...>
 ```
 
 ## Arguments
 
-| Argument          | Meaning                                                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `<skill>`         | The store skill to copy. Must exist, and pass the portability check, before any destination is examined. |
-| `<workspaces...>` | Registered workspace names to clone into.                                                                |
-| `--overwrite`     | Replaces a skill directory already at the destination with the store copy, deleting the old directory.   |
+| Argument               | Meaning                                                                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<skill>`              | The store skill to copy. Must exist, and pass the portability check, before any destination is examined. With `--drop`, the skill the records belong to, which need not be in the store. |
+| `--to <workspaces...>` | Registered workspace names to clone into. Left out, you [choose them](#choosing-workspaces).                                                                                             |
+| `--overwrite`          | Replaces a skill directory already at the destination with the store copy, deleting the old directory. Not allowed with `--drop`.                                                        |
+| `--drop <targets...>`  | Workspace names or recorded paths whose records to forget. Left out, you [choose them](#choosing-clones-to-drop).                                                                        |
 
-At least one workspace is required. Repeated names follow [the shared rule](../conventions.md#arguments).
+Repeated names follow [the shared rule](../conventions.md#arguments).
 
 ## What counts as the clone
 
 `<dest>` below is `<workspace path>/<skill>`. A clone is a record naming a directory, as
 [defined in the conventions](../conventions.md#links-and-clones). `clone` writes only `{ workspace }` records.
 
-## `clone <skill> <workspaces...> [--overwrite]`
+## `clone <skill> --to <workspaces...> [--overwrite]`
 
 Each pair gets one outcome, decided by what sits at `<dest>`. The first two rows are an unreachable and an unreadable
 workspace, as [defined in the conventions](../conventions.md#unreachable-and-unreadable-workspaces).
@@ -42,7 +46,7 @@ workspace, as [defined in the conventions](../conventions.md#unreachable-and-unr
 | anything else                                         | declined                         | stderr `warning: could not clone <skill> → <workspace>: <dest> is not a directory`                     |
 
 ```shell
-$ grimoire clone triage personal work scratch old
+$ grimoire clone triage --to personal work scratch old
 cloned triage → personal
 cloned triage → work (replaced the link)
 adopted triage → scratch
@@ -52,7 +56,7 @@ already cloned triage → old
 A directory with no `SKILL.md` is declined instead, alongside whatever else succeeds:
 
 ```shell
-$ grimoire clone triage personal lab
+$ grimoire clone triage --to personal lab
 cloned triage → personal
 warning: could not clone triage → lab: /Users/me/lab/skills/triage is a directory with no SKILL.md
 ```
@@ -70,7 +74,8 @@ a `{ workspace }` record for a directory a `{ path }` record already names.
 
 ### Adoption is the default
 
-Adopting writes one record and touches nothing on disk. [`unclone`](./unclone.md) drops the record and leaves the directory.
+Adopting writes one record and touches nothing on disk. [`clone --drop`](#clone-skill---drop-targets) drops the record and
+leaves the directory.
 
 Its only check is that `SKILL.md` is there. The content is never compared against the store, so a directory that differs from
 the store copy is adopted as it is.
@@ -103,7 +108,7 @@ Nothing is compared, so an identical directory is rewritten like any other. The 
 workspace's own version control can bring it back.
 
 ```shell
-$ grimoire clone triage personal work scratch old lab --overwrite
+$ grimoire clone triage --to personal work scratch old lab --overwrite
 cloned triage → personal
 cloned triage → work (replaced the link)
 cloned triage → scratch (replaced the directory)
@@ -124,20 +129,109 @@ Failures print last and the run exits 1, [as the conventions describe](../conven
 `--overwrite` their old directories are already deleted, so their lines matter most:
 
 ```shell
-$ grimoire clone triage a b c --overwrite
+$ grimoire clone triage --to a b c --overwrite
 cloned triage → a (replaced the directory)
 cloned triage → b (replaced the directory)
 error: failed to clone triage → c: /Users/me/c/.agents/skills/.grimoire-staging is not a directory
+```
+
+## Choosing workspaces
+
+Without `--to`, `clone` offers every registered workspace in name order,
+[as the conventions describe](../conventions.md#missing-destinations). What you pick is cloned into as if named after `--to`.
+
+With no workspace registered, or nothing picked, the exit code is 0:
+
+```shell
+$ grimoire clone triage
+nothing to clone: no workspace is registered
+```
+
+```shell
+$ grimoire clone triage
+nothing to clone: no workspace selected
+```
+
+## `clone <skill> --drop <targets...>`
+
+Each target gets one outcome, decided by whether a record resolves to it:
+
+| Record for this directory | Outcome | Output                                 |
+| ------------------------- | ------- | -------------------------------------- |
+| exists                    | dropped | stdout `uncloned <skill> → <target>`   |
+| none                      | —       | stdout `not cloned <skill> → <target>` |
+
+`<target>` prints as the workspace name as given, or the path normalized.
+
+```shell
+$ grimoire clone triage --drop personal /Users/me/old/skills
+uncloned triage → personal
+not cloned triage → /Users/me/old/skills
+```
+
+Results print in the groups `uncloned`, `not cloned`, laid out as [the conventions](../conventions.md#outcomes) describe.
+Apart from a refusal, the run exits 0.
+
+### What a target may be
+
+A target that is a valid [workspace name](../state.md#names) is one, and it must be registered. Anything else is a path:
+normalized, then matched against the directory each record resolves to. A relative path with no separator reads as a name, so
+write `./skills` rather than `skills`.
+
+A target matches any record for its directory, whichever form the record takes. See
+[links and clones](../conventions.md#links-and-clones).
+
+### Nothing is ever declined
+
+`clone --drop` reads only `state.json`, so an
+[unreachable or unreadable](../conventions.md#unreachable-and-unreadable-workspaces) workspace is never declined.
+
+## Choosing clones to drop
+
+With `--drop` and no target named, `clone` offers the skill's clone records in record order,
+[as the conventions describe](../conventions.md#missing-destinations). Each is labeled by its workspace name, or by its path
+normalized. What you pick is forgotten as if named after `--drop`.
+
+```shell
+$ grimoire clone triage --drop | cat
+error: no clone named, and no terminal to choose from
+  name them after --drop: personal '/Users/me/My Projects/skills'
+```
+
+With no record for the skill, or nothing picked, the exit code is 0:
+
+```shell
+$ grimoire clone triage --drop
+nothing to unclone: triage has no clone records
+```
+
+```shell
+$ grimoire clone triage --drop
+nothing to unclone: no clone selected
 ```
 
 ## What `clone` refuses
 
 The [refusals](../conventions.md#refusals) run in this order:
 
-**1. Workspaces are given.**
+**1. A skill is given.**
 
-**2. The skill exists in the store.**
+**2. Not `--to` and `--drop` at once.**
 
-**3. The skill passes the portability check.** Checked once for the whole run.
+```shell
+$ grimoire clone triage --to personal --drop work
+error: --to cannot be combined with --drop
+```
 
-**4. Every named workspace is registered.**
+**3. `--overwrite` stays out of `--drop`.**
+
+```shell
+$ grimoire clone triage --drop personal --overwrite
+error: --overwrite cannot be combined with --drop
+```
+
+**4. The skill exists in the store.** `--drop` skips this check.
+
+**5. The skill passes the portability check.** Checked once for the whole run. `--drop` skips this check.
+
+**6. Every named workspace is registered.** With `--drop`, every target that is a workspace name.

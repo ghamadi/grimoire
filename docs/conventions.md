@@ -97,7 +97,7 @@ exit code is 0:
 $ grimoire link triage --to personal work scratch
 linked triage → personal
 already linked triage → work
-warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage scratch`, or delete it yourself
+warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage --to scratch`, or delete it yourself
 ```
 
 ## When every destination is declined
@@ -116,7 +116,7 @@ indented two spaces:
 ```shell
 $ grimoire link triage --to personal work
 error: nothing linked:
-  could not link triage → personal: /Users/me/.claude/skills/triage is a clone — unclone it first with `grimoire unclone triage personal`
+  could not link triage → personal: /Users/me/.claude/skills/triage is a clone — unclone it first with `grimoire clone triage --drop personal`
   could not link triage → work: /Users/me/work/.agents/skills/triage is a symlink pointing elsewhere
 ```
 
@@ -132,7 +132,7 @@ One failure prints as a single line. Several print `error: <noun-plural> failed:
 followed by each sentence on its own line, indented two spaces:
 
 ```shell
-$ grimoire clone triage personal work
+$ grimoire clone triage --to personal work
 error: clones failed:
   failed to clone triage → personal: EACCES: permission denied, rename '/Users/me/.claude/skills/triage' -> '/Users/me/.claude/skills/.grimoire-staging/triage.4f9a1c.outgoing'
   failed to clone triage → work: /Users/me/work/.agents/skills/.grimoire-staging is not a directory
@@ -166,7 +166,7 @@ When the new copy is in place but the old one cannot be fully deleted, the desti
 names the stranded `.outgoing` entry, printed after the decline warnings:
 
 ```shell
-$ grimoire clone triage work --overwrite
+$ grimoire clone triage --to work --overwrite
 cloned triage → work (replaced the directory)
 warning: cloned triage → work, but the old copy at /Users/me/work/.agents/skills/.grimoire-staging/triage.4f9a1c.outgoing could not be fully deleted: EACCES: permission denied, rmdir '/Users/me/work/.agents/skills/.grimoire-staging/triage.4f9a1c.outgoing/refs'
 ```

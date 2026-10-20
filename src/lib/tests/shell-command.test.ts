@@ -38,15 +38,13 @@ const charactersNeedingQuotes = [
 
 describe('formatShellCommand', () => {
   it('joins words that need no quoting with single spaces', () => {
-    expect(formatShellCommand(['grimoire', 'unclone', 'notes', '/Users/me/.claude/skills'])).toBe(
-      'grimoire unclone notes /Users/me/.claude/skills',
-    );
+    expect(
+      formatShellCommand(['grimoire', 'clone', 'notes', '--drop', '/Users/me/.claude/skills']),
+    ).toBe('grimoire clone notes --drop /Users/me/.claude/skills');
   });
 
   it('single-quotes a word with a space', () => {
-    expect(formatShellCommand(['unclone', '/Users/me/My Projects'])).toBe(
-      "unclone '/Users/me/My Projects'",
-    );
+    expect(formatShellCommand(['clone', '/Users/me/My Projects'])).toBe("clone '/Users/me/My Projects'");
   });
 
   it('writes a single quote inside a word as a closed, escaped and reopened quote', () => {
@@ -54,7 +52,7 @@ describe('formatShellCommand', () => {
   });
 
   it('prints an empty word as a pair of single quotes', () => {
-    expect(formatShellCommand(['unclone', ''])).toBe("unclone ''");
+    expect(formatShellCommand(['clone', ''])).toBe("clone ''");
   });
 
   it.each(charactersNeedingQuotes)('quotes a word containing %j', (character) => {

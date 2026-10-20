@@ -37,10 +37,10 @@ describe('status', () => {
     await run('link', 'deploy', '--to', 'personal');
     symlinkSync(join(store.paths.skills, 'triage'), join(personal, 'tri'));
     await run('link', 'triage', '--to', 'work');
-    await run('clone', 'deploy', 'work');
+    await run('clone', 'deploy', '--to', 'work');
     mkdirSync(join(work, 'old'));
     recordClone(store, 'old', { workspace: 'work' });
-    await run('clone', 'deploy', 'scratch');
+    await run('clone', 'deploy', '--to', 'scratch');
     rmSync(scratch, { recursive: true });
     mkdirSync(join(old, 'notes'));
     recordClone(store, 'notes', { path: old });
@@ -83,7 +83,7 @@ describe('status', () => {
       '',
       '  ! clone of old in workspace work is no longer in the store',
       '    Forget the record:',
-      '      grimoire unclone old work',
+      '      grimoire clone old --drop work',
     ]);
     expect(stderr).toEqual([]);
   });
@@ -161,10 +161,10 @@ describe('status', () => {
 
       await run('link', 'brainstorm', '--to', 'home');
       symlinkSync(join(store.paths.skills, 'triage'), join(home, 'tri'));
-      await run('clone', 'deploy', 'home');
-      await run('clone', 'lint', 'home');
+      await run('clone', 'deploy', '--to', 'home');
+      await run('clone', 'lint', '--to', 'home');
       rmSync(join(home, 'lint'), { recursive: true });
-      await run('clone', 'deploy', 'away');
+      await run('clone', 'deploy', '--to', 'away');
       rmSync(registeredPath(store, 'away'), { recursive: true });
 
       expect(sectionLines((await run('status')).stdout, 'Skills')).toEqual([
@@ -251,8 +251,8 @@ describe('status', () => {
       await run('workspaces', 'add', 'personal', await newDirectory('personal'));
       await run('workspaces', 'add', 'work', await newDirectory('work'));
       await run('link', 'draft', '--to', 'personal');
-      await run('clone', 'draft', 'work');
-      await run('clone', 'old', 'work');
+      await run('clone', 'draft', '--to', 'work');
+      await run('clone', 'old', '--to', 'work');
       rmSync(join(store.paths.skills, 'draft', SKILL_MANIFEST));
       rmSync(join(store.paths.skills, 'old', SKILL_MANIFEST));
 
@@ -335,7 +335,7 @@ describe('status', () => {
 
       storeSkill(store, 'triage');
       await run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      await run('clone', 'triage', 'personal');
+      await run('clone', 'triage', '--to', 'personal');
 
       expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([]);
     });
@@ -491,17 +491,17 @@ describe('status', () => {
         '',
         '  ! clone of old in workspace personal is no longer in the store',
         '    Forget the record:',
-        '      grimoire unclone old personal',
+        '      grimoire clone old --drop personal',
         '',
         '  ! clone of gone in workspace personal is missing',
         '    Forget the record:',
-        '      grimoire unclone gone personal',
+        '      grimoire clone gone --drop personal',
         '',
         '  ! clone of triage in workspace personal is missing',
         '    Copy it again:',
-        '      grimoire clone triage personal',
+        '      grimoire clone triage --to personal',
         '    Or forget the record:',
-        '      grimoire unclone triage personal',
+        '      grimoire clone triage --drop personal',
       ]);
       expect(stderr).toEqual([]);
     });
@@ -533,11 +533,11 @@ describe('status', () => {
         '',
         `  ! clone of old in ${elsewhere} is no longer in the store`,
         '    Forget the record:',
-        `      grimoire unclone old ${elsewhere}`,
+        `      grimoire clone old --drop ${elsewhere}`,
         '',
         `  ! clone of deploy in ${elsewhere} is missing`,
         '    Forget the record:',
-        `      grimoire unclone deploy ${elsewhere}`,
+        `      grimoire clone deploy --drop ${elsewhere}`,
       ]);
       expect(stderr).toEqual([]);
     });
@@ -584,7 +584,7 @@ describe('status', () => {
       await expect(run('status')).resolves.not.toThrow();
     });
 
-    it('clears clone-not-in-store with the printed unclone, and its row disappears', async () => {
+    it('clears clone-not-in-store with the printed clone --drop, and its row disappears', async () => {
       const { run, store } = await newCli();
 
       await run('workspaces', 'add', 'personal', await newDirectory('personal'));
@@ -609,7 +609,7 @@ describe('status', () => {
 
       storeSkill(store, 'triage');
       await run('workspaces', 'add', 'personal', await newDirectory('personal'));
-      await run('clone', 'triage', 'personal');
+      await run('clone', 'triage', '--to', 'personal');
       rmSync(join(registeredPath(store, 'personal'), 'triage'), { recursive: true });
 
       await run(
@@ -627,7 +627,7 @@ describe('status', () => {
       expect(stdout.some((line) => line.includes('is missing'))).toBe(false);
     });
 
-    it('clears a recorded-path clone-missing with the printed unclone, and the section disappears', async () => {
+    it('clears a recorded-path clone-missing with the printed clone --drop, and the section disappears', async () => {
       const { run, store } = await newCli();
       const elsewhere = await newDirectory('elsewhere');
 
@@ -641,7 +641,7 @@ describe('status', () => {
       expect(sectionLines((await run('status')).stdout, 'Clones outside workspaces')).toEqual([]);
     });
 
-    it('clears a recorded-path clone-missing with a space in its path with the printed unclone', async () => {
+    it('clears a recorded-path clone-missing with a space in its path with the printed clone --drop', async () => {
       const { run, store } = await newCli();
       const spaced = await newDirectory('My Projects');
 
@@ -669,7 +669,7 @@ describe('status', () => {
         '',
         `  ! clone of my notes in ${spaced} is missing`,
         '    Forget the record:',
-        `      grimoire unclone 'my notes' '${spaced}'`,
+        `      grimoire clone 'my notes' --drop '${spaced}'`,
       ]);
     });
   });
@@ -809,13 +809,13 @@ describe('status', () => {
         '',
         '  <yellow>!</yellow> <bold>clone of old in workspace personal is no longer in the store</bold>',
         '    Forget the record:',
-        '      <cyan>grimoire unclone old personal</cyan>',
+        '      <cyan>grimoire clone old --drop personal</cyan>',
         '',
         '  <yellow>!</yellow> <bold>clone of triage in workspace personal is missing</bold>',
         '    Copy it again:',
-        '      <cyan>grimoire clone triage personal</cyan>',
+        '      <cyan>grimoire clone triage --to personal</cyan>',
         '    Or forget the record:',
-        '      <cyan>grimoire unclone triage personal</cyan>',
+        '      <cyan>grimoire clone triage --drop personal</cyan>',
         '',
         '  <yellow>!</yellow> <bold>workspace scratch is unreachable</bold>',
         `    ${paths.scratch} does not resolve.`,
@@ -844,7 +844,7 @@ describe('status', () => {
 
       storeSkill(store, 'deploy');
       await run('workspaces', 'add', 'scratch', await newDirectory('scratch'));
-      await run('clone', 'deploy', 'scratch');
+      await run('clone', 'deploy', '--to', 'scratch');
       rmSync(registeredPath(store, 'scratch'), { recursive: true });
 
       expect(sectionLines((await run('status')).stdout, '<bold>Skills</bold>').slice(1)).toEqual(
@@ -1053,12 +1053,12 @@ async function newColorFixture() {
   };
 
   await run('link', 'brainstorm', '--to', 'personal');
-  await run('clone', 'deploy', 'personal');
+  await run('clone', 'deploy', '--to', 'personal');
   mkdirSync(join(paths.personal, 'old'));
   recordClone(store, 'old', { workspace: 'personal' });
   symlinkSync(join(store.paths.skills, 'triage'), join(paths.personal, 'tri'));
   recordClone(store, 'triage', { workspace: 'personal' });
-  await run('clone', 'notes', 'gone');
+  await run('clone', 'notes', '--to', 'gone');
   await run('workspaces', 'remove', 'gone');
   rmSync(paths.scratch, { recursive: true });
 
@@ -1084,8 +1084,8 @@ async function newWidthFixture() {
   await run('link', 'brainstorm', '--to', 'personal');
   await run('link', 'triage', '--to', 'personal');
   await run('link', 'triage', '--to', 'work');
-  await run('clone', 'deploy', 'personal');
-  await run('clone', 'deploy', 'work');
+  await run('clone', 'deploy', '--to', 'personal');
+  await run('clone', 'deploy', '--to', 'work');
   mkdirSync(join(outside, 'notes'));
   recordClone(store, 'notes', { path: outside });
   writeFileSync(join(store.paths.skills, 'readme.txt'), 'readme', 'utf8');

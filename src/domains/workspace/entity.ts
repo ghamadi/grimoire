@@ -25,8 +25,8 @@ export class Workspace {
 
   /**
    * Whether `name` can be registered: ASCII letters, digits, `-` and `_`,
-   * starting with a letter or digit. `unclone` reads any target failing this
-   * as a path, so no registered name can be mistaken for one.
+   * starting with a letter or digit. `clone --drop` reads any target failing
+   * this as a path, so no registered name can be mistaken for one.
    */
   static isValidName(name: string): boolean {
     return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(name);

@@ -76,7 +76,7 @@ describe('link', () => {
 
     expect(stdout).toEqual(['linked brainstorm → work']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${occupied} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm personal\`, or delete it yourself`,
+      `warning: could not link brainstorm → personal: ${occupied} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm --to personal\`, or delete it yourself`,
     ]);
   });
 
@@ -96,7 +96,7 @@ describe('link', () => {
 
     expect(stdout).toEqual(['linked brainstorm → work']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${cloned} is a clone — unclone it first with \`grimoire unclone brainstorm personal\``,
+      `warning: could not link brainstorm → personal: ${cloned} is a clone — unclone it first with \`grimoire clone brainstorm --drop personal\``,
     ]);
     expect(lstatSync(cloned).isDirectory()).toBe(true);
   });

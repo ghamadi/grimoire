@@ -55,20 +55,20 @@ Problems  5
 
   ! clone of old in workspace work is no longer in the store
     Forget the record:
-      grimoire unclone old work
+      grimoire clone old --drop work
 
   ! clone of lint in workspace work is missing
     Copy it again:
-      grimoire clone lint work
+      grimoire clone lint --to work
     Or forget the record:
-      grimoire unclone lint work
+      grimoire clone lint --drop work
 
   ! store entry notes.txt is not a skill directory
     Move it out of the store, or add it to "ignore" in /Users/me/.grimoire/state.json.
 ```
 
 A fix command prints exactly as it would be typed. A word holding any character other than a letter, a digit, `_`, `.`, `/`
-or `-` prints in single quotes: `grimoire unclone notes '/Users/me/My Projects/skills'`.
+or `-` prints in single quotes: `grimoire clone notes --drop '/Users/me/My Projects/skills'`.
 
 ## Sections
 
@@ -135,7 +135,7 @@ directory, then skill. The caption is `directories recorded by path`.
 These directories are never scanned for links, because grimoire tracks links only in registered workspaces.
 
 A recorded path that no longer resolves or cannot be read earns no problem of its own. Each of its clones reads as `missing`
-and as a missing-clone problem, whose remedy is an [`unclone`](./unclone.md) naming that path.
+and as a missing-clone problem, whose remedy is a [`clone --drop`](./clone.md#clone-skill---drop-targets) naming that path.
 
 ## Width
 
@@ -223,17 +223,17 @@ or the directory for a recorded path.
 
   ! clone of <skill> in <location> is no longer in the store
     Forget the record:
-      grimoire unclone <skill> <target>
+      grimoire clone <skill> --drop <target>
 
   ! clone of <skill> in workspace <name> is missing
     Copy it again:
-      grimoire clone <skill> <name>
+      grimoire clone <skill> --to <name>
     Or forget the record:
-      grimoire unclone <skill> <name>
+      grimoire clone <skill> --drop <name>
 
   ! clone of <skill> in <location> is missing
     Forget the record:
-      grimoire unclone <skill> <target>
+      grimoire clone <skill> --drop <target>
 
   ! store entry <entry> is not a skill directory
     Move it out of the store, or add it to "ignore" in <state path>.

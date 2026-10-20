@@ -43,24 +43,24 @@ unseen, and a second link is written beside it.
 
 Each pair gets one outcome, decided by what sits at `<dest>`:
 
-| At `<dest>`                                        | Outcome        | Output                                                                                                                                                                                                      |
-| -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| the workspace path does not resolve                | skipped        | stderr `warning: workspace "<workspace>" was skipped: <workspace path> is not an existing directory`                                                                                                        |
-| the workspace cannot be read                       | skipped        | stderr `warning: workspace "<workspace>" was skipped: <workspace path> cannot be read`                                                                                                                      |
-| nothing                                            | linked         | stdout `linked <skill> → <workspace>`                                                                                                                                                                       |
-| a symlink resolving to this store skill            | already linked | stdout `already linked <skill> → <workspace>`                                                                                                                                                               |
-| any other symlink, dangling ones included          | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> is a symlink pointing elsewhere`                                                                                                              |
-| a directory with a clone record                    | declined       | stderr ``warning: could not link <skill> → <workspace>: <dest> is a clone — unclone it first with `grimoire unclone <skill> <workspace>` ``                                                                 |
-| a directory the store copy holds in full           | replaced       | stdout `linked <skill> → <workspace>`                                                                                                                                                                       |
-| a directory holding something the store copy lacks | declined       | stderr ``warning: could not link <skill> → <workspace>: <dest> holds a directory that differs from the store copy at "<entry>" — keep it with `grimoire clone <skill> <workspace>`, or delete it yourself`` |
-| a directory that cannot be compared (a symlink)    | declined       | stderr `warning: could not link <skill> → <workspace>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                                                                            |
-| anything else                                      | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> is not a directory`                                                                                                                           |
+| At `<dest>`                                        | Outcome        | Output                                                                                                                                                                                                           |
+| -------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the workspace path does not resolve                | skipped        | stderr `warning: workspace "<workspace>" was skipped: <workspace path> is not an existing directory`                                                                                                             |
+| the workspace cannot be read                       | skipped        | stderr `warning: workspace "<workspace>" was skipped: <workspace path> cannot be read`                                                                                                                           |
+| nothing                                            | linked         | stdout `linked <skill> → <workspace>`                                                                                                                                                                            |
+| a symlink resolving to this store skill            | already linked | stdout `already linked <skill> → <workspace>`                                                                                                                                                                    |
+| any other symlink, dangling ones included          | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> is a symlink pointing elsewhere`                                                                                                                   |
+| a directory with a clone record                    | declined       | stderr ``warning: could not link <skill> → <workspace>: <dest> is a clone — unclone it first with `grimoire clone <skill> --drop <workspace>` ``                                                                 |
+| a directory the store copy holds in full           | replaced       | stdout `linked <skill> → <workspace>`                                                                                                                                                                            |
+| a directory holding something the store copy lacks | declined       | stderr ``warning: could not link <skill> → <workspace>: <dest> holds a directory that differs from the store copy at "<entry>" — keep it with `grimoire clone <skill> --to <workspace>`, or delete it yourself`` |
+| a directory that cannot be compared (a symlink)    | declined       | stderr `warning: could not link <skill> → <workspace>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                                                                                 |
+| anything else                                      | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> is not a directory`                                                                                                                                |
 
 ```shell
 $ grimoire link triage --to personal work scratch
 linked triage → personal
 already linked triage → work
-warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage scratch`, or delete it yourself
+warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage --to scratch`, or delete it yourself
 ```
 
 Lines print grouped as `linked`, then `already linked`, then warnings. Among the warnings, a skipped workspace comes before
@@ -82,8 +82,8 @@ directory holds any symlink, or the store skill path when the store copy holds o
 ### A recorded clone is never replaced
 
 A directory at `<dest>` named by a [clone record](../conventions.md#links-and-clones), in either form, is declined before any
-comparison, even when it matches the store copy. [`unclone`](./unclone.md) drops the record, after which the directory is
-compared like any other.
+comparison, even when it matches the store copy. [`clone --drop`](./clone.md#clone-skill---drop-targets) drops the record,
+after which the directory is compared like any other.
 
 ### A workspace is skipped once
 

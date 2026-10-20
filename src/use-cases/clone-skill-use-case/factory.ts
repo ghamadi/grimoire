@@ -78,10 +78,7 @@ export function createCloneSkillUseCase(
   return (params: CloneSkillUseCaseParams) => {
     const { skillName, workspaces, overwrite = false } = params;
 
-    const skill = Skill.createVerified({
-      name: skillName,
-      path: storeManager.requireSkillPath(skillName),
-    });
+    const skill = requireCloneableSkill({ storeManager, skillName });
     const registeredWorkspaces = [...new Set(workspaces)].map((name) =>
       storeManager.requireRegisteredWorkspace(name),
     );
@@ -153,6 +150,22 @@ export function createCloneSkillUseCase(
 
     return { cloned, adopted, alreadyCloned, declined, failed };
   };
+}
+
+/**
+ * @throws EntityNotFoundError if the skill is not in the store.
+ * @throws UnportableSkillError if the skill cannot be cloned.
+ */
+export function requireCloneableSkill(params: {
+  storeManager: GrimoireStoreManager;
+  skillName: string;
+}): Skill {
+  const { storeManager, skillName } = params;
+
+  return Skill.createVerified({
+    name: skillName,
+    path: storeManager.requireSkillPath(skillName),
+  });
 }
 
 // ----------------------------------------------------------------------------

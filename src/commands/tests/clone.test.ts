@@ -17,9 +17,11 @@ import {
   CloneDeclinedError,
   CloneFailedError,
   EntityNotFoundError,
+  MissingDestinationError,
   UnportableSkillError,
 } from '@/lib/errors';
-import { buildProgram } from '@/program';
+import { buildProgram, type ProgramDependencies } from '@/program';
+import { fakePicker } from '@test-helpers/fake-picker';
 import { tempRoot } from '@test-helpers/temp-root';
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -38,10 +40,10 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const dest = join(path, 'triage');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal');
 
     expect(stdout).toEqual(['cloned triage → personal']);
     expect(stderr).toEqual([]);
@@ -56,10 +58,10 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const dest = join(path, 'triage');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     symlinkSync(storeSkill(store, 'triage'), dest);
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal');
 
     expect(stdout).toEqual(['cloned triage → personal (replaced the link)']);
     expect(stderr).toEqual([]);
@@ -71,12 +73,12 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const dest = join(path, 'triage');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
-    run('clone', 'triage', 'personal');
+    await run('clone', 'triage', '--to', 'personal');
     writeFileSync(join(dest, 'notes.md'), 'mine', 'utf8');
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal');
 
     expect(stdout).toEqual(['already cloned triage → personal']);
     expect(stderr).toEqual([]);
@@ -88,17 +90,26 @@ describe('clone', () => {
     const lab = await newDirectory('lab');
     const scratch = await newDirectory('scratch');
 
-    run('workspaces', 'add', 'lab', lab);
-    run('workspaces', 'add', 'scratch', scratch);
-    run('workspaces', 'add', 'second', await newDirectory('second'));
-    run('workspaces', 'add', 'third', await newDirectory('third'));
-    run('workspaces', 'add', 'first', await newDirectory('first'));
+    await run('workspaces', 'add', 'lab', lab);
+    await run('workspaces', 'add', 'scratch', scratch);
+    await run('workspaces', 'add', 'second', await newDirectory('second'));
+    await run('workspaces', 'add', 'third', await newDirectory('third'));
+    await run('workspaces', 'add', 'first', await newDirectory('first'));
     storeSkill(store, 'triage');
     mkdirSync(join(lab, 'triage'), { recursive: true });
     writeSkillDirectory(join(scratch, 'triage'));
-    run('clone', 'triage', 'second');
+    await run('clone', 'triage', '--to', 'second');
 
-    const { stdout, stderr } = run('clone', 'triage', 'lab', 'scratch', 'second', 'third', 'first');
+    const { stdout, stderr } = await run(
+      'clone',
+      'triage',
+      '--to',
+      'lab',
+      'scratch',
+      'second',
+      'third',
+      'first',
+    );
 
     expect(stdout).toEqual([
       'cloned triage → third',
@@ -115,11 +126,11 @@ describe('clone', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('personal');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
     writeSkillDirectory(join(path, 'triage'));
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal');
 
     expect(stdout).toEqual(['adopted triage → personal']);
     expect(stderr).toEqual([]);
@@ -129,12 +140,12 @@ describe('clone', () => {
     const { run, store } = await newCli();
     const scratch = await newDirectory('scratch');
 
-    run('workspaces', 'add', 'personal', await newDirectory('personal'));
-    run('workspaces', 'add', 'scratch', scratch);
+    await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    await run('workspaces', 'add', 'scratch', scratch);
     storeSkill(store, 'triage');
     writeSkillDirectory(join(scratch, 'triage'));
 
-    const { stdout } = run('clone', 'triage', 'scratch', 'personal');
+    const { stdout } = await run('clone', 'triage', '--to', 'scratch', 'personal');
 
     expect(stdout).toEqual(['cloned triage → personal', 'adopted triage → scratch']);
   });
@@ -144,11 +155,11 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const dest = join(path, 'triage');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
     mkdirSync(dest, { recursive: true });
 
-    const error = captureError(() => run('clone', 'triage', 'personal'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'personal'));
 
     expect(error).toBeInstanceOf(CloneDeclinedError);
     expect(error.message).toBe(
@@ -160,16 +171,18 @@ describe('clone', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('personal');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
     writeSkillDirectory(join(path, 'triage'));
 
-    const error = captureError(() => run('clone', 'triage', 'personal', '--adopt'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'personal', '--adopt'));
 
     expect(error).toBeInstanceOf(CommanderError);
     expect((error as CommanderError).code).toBe('commander.unknownOption');
     expect(error.message).toMatch(/^error: unknown option '--adopt'/);
-    expect(run('clone', 'triage', 'personal').stdout).toEqual(['adopted triage → personal']);
+    expect((await run('clone', 'triage', '--to', 'personal')).stdout).toEqual([
+      'adopted triage → personal',
+    ]);
   });
 
   it('replaces a recorded clone under --overwrite and says so', async () => {
@@ -177,12 +190,12 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const dest = join(path, 'triage');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
-    run('clone', 'triage', 'personal');
+    await run('clone', 'triage', '--to', 'personal');
     writeFileSync(join(dest, 'notes.md'), 'mine', 'utf8');
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal', '--overwrite');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal', '--overwrite');
 
     expect(stdout).toEqual(['cloned triage → personal (replaced the directory)']);
     expect(stderr).toEqual([]);
@@ -196,11 +209,11 @@ describe('clone', () => {
     const { run, store } = await newCli();
     const path = await newDirectory('personal');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
-    run('clone', 'triage', 'personal');
+    await run('clone', 'triage', '--to', 'personal');
 
-    const { stdout } = run('clone', 'triage', 'personal', '--overwrite');
+    const { stdout } = await run('clone', 'triage', '--to', 'personal', '--overwrite');
 
     expect(stdout).toEqual(['cloned triage → personal (replaced the directory)']);
     expect(existsSync(join(path, '.grimoire-staging'))).toBe(false);
@@ -211,11 +224,11 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const staging = join(path, '.grimoire-staging');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
     writeFileSync(staging, 'mine', 'utf8');
 
-    const { error } = runFailing('clone', 'triage', 'personal');
+    const { error } = await runFailing('clone', 'triage', '--to', 'personal');
 
     expect(error).toBeInstanceOf(CloneFailedError);
     expect(error.message).toBe(`failed to clone triage → personal: ${staging} is not a directory`);
@@ -228,15 +241,23 @@ describe('clone', () => {
     const third = await newDirectory('c');
     const staging = join(third, '.grimoire-staging');
 
-    run('workspaces', 'add', 'a', first);
-    run('workspaces', 'add', 'b', second);
-    run('workspaces', 'add', 'c', third);
+    await run('workspaces', 'add', 'a', first);
+    await run('workspaces', 'add', 'b', second);
+    await run('workspaces', 'add', 'c', third);
     storeSkill(store, 'triage');
     writeSkillDirectory(join(first, 'triage'), { 'old.md': 'old' });
     writeSkillDirectory(join(second, 'triage'), { 'old.md': 'old' });
     writeFileSync(staging, 'mine', 'utf8');
 
-    const { stdout, stderr, error } = runFailing('clone', 'triage', 'a', 'b', 'c', '--overwrite');
+    const { stdout, stderr, error } = await runFailing(
+      'clone',
+      'triage',
+      '--to',
+      'a',
+      'b',
+      'c',
+      '--overwrite',
+    );
 
     expect(stdout).toEqual([
       'cloned triage → a (replaced the directory)',
@@ -253,13 +274,13 @@ describe('clone', () => {
     const first = await newDirectory('a');
     const second = await newDirectory('b');
 
-    run('workspaces', 'add', 'a', first);
-    run('workspaces', 'add', 'b', second);
+    await run('workspaces', 'add', 'a', first);
+    await run('workspaces', 'add', 'b', second);
     storeSkill(store, 'triage');
     writeFileSync(join(first, '.grimoire-staging'), 'mine', 'utf8');
     writeFileSync(join(second, '.grimoire-staging'), 'mine', 'utf8');
 
-    const { error } = runFailing('clone', 'triage', 'a', 'b');
+    const { error } = await runFailing('clone', 'triage', '--to', 'a', 'b');
 
     expect(error).toBeInstanceOf(CloneFailedError);
     expect(error.message.split('\n')).toEqual([
@@ -274,14 +295,14 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const staging = join(path, '.grimoire-staging');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     storeSkill(store, 'triage');
     writeSkillDirectory(join(path, 'triage'), { 'old.md': 'old' });
     vi.mocked(rmSync).mockImplementationOnce(() => {
       throw Object.assign(new Error('delete failed'), { code: 'EACCES' });
     });
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal', '--overwrite');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal', '--overwrite');
     const [entry] = readdirSync(staging);
 
     expect(stdout).toEqual(['cloned triage → personal (replaced the directory)']);
@@ -295,14 +316,22 @@ describe('clone', () => {
     const lab = await newDirectory('lab');
     const linked = await newDirectory('linked');
 
-    run('workspaces', 'add', 'lab', lab);
-    run('workspaces', 'add', 'fresh', await newDirectory('fresh'));
-    run('workspaces', 'add', 'linked', linked);
+    await run('workspaces', 'add', 'lab', lab);
+    await run('workspaces', 'add', 'fresh', await newDirectory('fresh'));
+    await run('workspaces', 'add', 'linked', linked);
     const skillPath = storeSkill(store, 'triage');
     writeSkillDirectory(join(lab, 'triage'));
     symlinkSync(skillPath, join(linked, 'triage'));
 
-    const { stdout, stderr } = run('clone', 'triage', 'lab', 'fresh', 'linked', '--overwrite');
+    const { stdout, stderr } = await run(
+      'clone',
+      'triage',
+      '--to',
+      'lab',
+      'fresh',
+      'linked',
+      '--overwrite',
+    );
 
     expect(stdout).toEqual([
       'cloned triage → lab (replaced the directory)',
@@ -317,13 +346,13 @@ describe('clone', () => {
     const lab = await newDirectory('lab');
     const marker = join(lab, 'triage', 'marker.md');
 
-    run('workspaces', 'add', 'personal', await newDirectory('personal'));
-    run('workspaces', 'add', 'lab', lab);
+    await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+    await run('workspaces', 'add', 'lab', lab);
     storeSkill(store, 'triage');
     mkdirSync(join(lab, 'triage'), { recursive: true });
     writeFileSync(marker, 'mine', 'utf8');
 
-    const { stdout, stderr } = run('clone', 'triage', 'personal', 'lab', '--overwrite');
+    const { stdout, stderr } = await run('clone', 'triage', '--to', 'personal', 'lab', '--overwrite');
 
     expect(stdout).toEqual(['cloned triage → personal']);
     expect(stderr).toEqual([
@@ -337,11 +366,11 @@ describe('clone', () => {
     const lab = await newDirectory('lab');
     const dest = join(lab, 'triage');
 
-    run('workspaces', 'add', 'lab', lab);
+    await run('workspaces', 'add', 'lab', lab);
     storeSkill(store, 'triage');
     writeFileSync(dest, 'not a skill', 'utf8');
 
-    const error = captureError(() => run('clone', 'triage', 'lab'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'lab'));
 
     expect(error).toBeInstanceOf(CloneDeclinedError);
     expect(error.message).toBe(`could not clone triage → lab: ${dest} is not a directory`);
@@ -352,13 +381,13 @@ describe('clone', () => {
     const lab = await newDirectory('lab');
     const other = await newDirectory('other');
 
-    run('workspaces', 'add', 'lab', lab);
-    run('workspaces', 'add', 'other', other);
+    await run('workspaces', 'add', 'lab', lab);
+    await run('workspaces', 'add', 'other', other);
     storeSkill(store, 'triage');
     mkdirSync(join(lab, 'triage'), { recursive: true });
     writeFileSync(join(other, 'triage'), 'not a skill', 'utf8');
 
-    const error = captureError(() => run('clone', 'triage', 'lab', 'other'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'lab', 'other'));
 
     expect(error).toBeInstanceOf(CloneDeclinedError);
     expect(error.message.split('\n')).toEqual([
@@ -372,37 +401,23 @@ describe('clone', () => {
     const { run, store } = await newCli();
     const gone = await newDirectory('gone');
 
-    run('workspaces', 'add', 'gone', gone);
+    await run('workspaces', 'add', 'gone', gone);
     storeSkill(store, 'triage');
     rmSync(gone, { recursive: true });
 
-    const error = captureError(() => run('clone', 'triage', 'gone'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'gone'));
 
     expect(error).toBeInstanceOf(CloneDeclinedError);
     expect(error.message).toBe(`could not clone triage → gone: ${gone} is not an existing directory`);
-  });
-
-  it('refuses to run without a workspace', async () => {
-    const { run, store } = await newCli();
-    const path = await newDirectory('personal');
-
-    run('workspaces', 'add', 'personal', path);
-    storeSkill(store, 'triage');
-
-    const error = captureError(() => run('clone', 'triage'));
-
-    expect(error).toBeInstanceOf(CommanderError);
-    expect(error.message).toBe("error: missing required argument 'workspaces'");
-    expect(existsSync(join(path, 'triage'))).toBe(false);
   });
 
   it('refuses a skill the store does not hold', async () => {
     const { run } = await newCli();
     const path = await newDirectory('personal');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
 
-    const error = captureError(() => run('clone', 'ghost', 'personal'));
+    const error = await captureError(() => run('clone', 'ghost', '--to', 'personal'));
 
     expect(error).toBeInstanceOf(EntityNotFoundError);
     expect(error.message).toBe('no skill named "ghost"');
@@ -414,10 +429,10 @@ describe('clone', () => {
     const path = await newDirectory('personal');
     const skillPath = storeSkill(store, 'triage');
 
-    run('workspaces', 'add', 'personal', path);
+    await run('workspaces', 'add', 'personal', path);
     writeSkillDirectory(join(skillPath, 'nested'));
 
-    const error = captureError(() => run('clone', 'triage', 'personal'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'personal'));
 
     expect(error).toBeInstanceOf(UnportableSkillError);
     expect(error.message).toBe(`skill "${skillPath}" is not portable. Contains a nested skill.`);
@@ -429,7 +444,7 @@ describe('clone', () => {
 
     storeSkill(store, 'triage');
 
-    const error = captureError(() => run('clone', 'triage', 'ghost'));
+    const error = await captureError(() => run('clone', 'triage', '--to', 'ghost'));
 
     expect(error).toBeInstanceOf(EntityNotFoundError);
     expect(error.message).toBe('no workspace named "ghost"');
@@ -439,15 +454,303 @@ describe('clone', () => {
     const { run, store } = await newCli();
     const skillPath = storeSkill(store, 'triage');
 
-    const unknownSkill = captureError(() => run('clone', 'ghost', 'ghostspace'));
+    const unknownSkill = await captureError(() => run('clone', 'ghost', '--to', 'ghostspace'));
 
     expect(unknownSkill.message).toBe('no skill named "ghost"');
 
     writeSkillDirectory(join(skillPath, 'nested'));
 
-    const unportableSkill = captureError(() => run('clone', 'triage', 'ghostspace'));
+    const unportableSkill = await captureError(() => run('clone', 'triage', '--to', 'ghostspace'));
 
     expect(unportableSkill).toBeInstanceOf(UnportableSkillError);
+  });
+
+  describe('choosing workspaces', () => {
+    it('offers every registered workspace in name order and clones into the one picked', async () => {
+      const picker = fakePicker({ choose: () => ['work'] });
+      const { run, store } = await newCli({ picker });
+      const personal = await newDirectory('personal');
+
+      await run('workspaces', 'add', 'work', await newDirectory('work'));
+      await run('workspaces', 'add', 'personal', personal);
+      await run('workspaces', 'add', 'club', await newDirectory('club'));
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('clone', 'triage');
+
+      expect(picker.offered).toEqual(['club', 'personal', 'work']);
+      expect(stdout).toEqual(['cloned triage → work']);
+      expect(stderr).toEqual([]);
+      expect(existsSync(join(personal, 'triage'))).toBe(false);
+    });
+
+    it('clones into the picked workspaces in name order whatever order they were picked in', async () => {
+      const picker = fakePicker({ choose: (labels) => [...labels].reverse() });
+      const { run, store } = await newCli({ picker });
+
+      await run('workspaces', 'add', 'work', await newDirectory('work'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      storeSkill(store, 'triage');
+
+      expect((await run('clone', 'triage')).stdout).toEqual([
+        'cloned triage → personal',
+        'cloned triage → work',
+      ]);
+    });
+
+    it('says no workspace was selected when nothing is picked', async () => {
+      const picker = fakePicker({ choose: () => [] });
+      const { run, store } = await newCli({ picker });
+      const path = await newDirectory('personal');
+
+      await run('workspaces', 'add', 'personal', path);
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('clone', 'triage');
+
+      expect(stdout).toEqual(['nothing to clone: no workspace selected']);
+      expect(stderr).toEqual([]);
+      expect(existsSync(join(path, 'triage'))).toBe(false);
+    });
+
+    it('says no workspace is registered without offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run, store } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('clone', 'triage');
+
+      expect(stdout).toEqual(['nothing to clone: no workspace is registered']);
+      expect(stderr).toEqual([]);
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses an unknown skill before offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run } = await newCli({ picker });
+
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+
+      const error = await captureError(() => run('clone', 'ghost'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses a skill that cannot travel before offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run, store } = await newCli({ picker });
+
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      writeSkillDirectory(join(storeSkill(store, 'triage'), 'nested'));
+
+      const error = await captureError(() => run('clone', 'triage'));
+
+      expect(error).toBeInstanceOf(UnportableSkillError);
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses without a terminal, naming --to and every registered workspace', async () => {
+      const { run, store } = await newCli();
+      const personal = await newDirectory('personal');
+
+      await run('workspaces', 'add', 'personal', personal);
+      await run('workspaces', 'add', 'work', await newDirectory('work'));
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('clone', 'triage'));
+
+      expect(error).toBeInstanceOf(MissingDestinationError);
+      expect(error.message.split('\n')).toEqual([
+        'no workspace named, and no terminal to choose from',
+        '  name them with --to: personal work',
+      ]);
+      expect(existsSync(join(personal, 'triage'))).toBe(false);
+    });
+  });
+
+  describe('--drop', () => {
+    it('forgets the record without any skill in the store', async () => {
+      const { run, store } = await newCli();
+
+      await run('workspaces', 'add', 'personal', await newDirectory('project'));
+      recordClone(store, 'triage', { workspace: 'personal' });
+
+      const { stdout, stderr } = await run('clone', 'triage', '--drop', 'personal');
+
+      expect(stdout).toEqual(['uncloned triage → personal']);
+      expect(stderr).toEqual([]);
+      expect(clonesOf(store, 'triage')).toEqual([]);
+    });
+
+    it('says nothing was recorded to forget', async () => {
+      const { run } = await newCli();
+
+      await run('workspaces', 'add', 'personal', await newDirectory('project'));
+
+      expect((await run('clone', 'triage', '--drop', 'personal')).stdout).toEqual([
+        'not cloned triage → personal',
+      ]);
+    });
+
+    it('groups uncloned and not-cloned lines by outcome, keeping argument order within each', async () => {
+      const { run, store } = await newCli();
+
+      await run('workspaces', 'add', 'work', await newDirectory('work'));
+      await run('workspaces', 'add', 'club', await newDirectory('club'));
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      recordClone(store, 'triage', { workspace: 'work' });
+      recordClone(store, 'triage', { workspace: 'club' });
+
+      const { stdout } = await run('clone', 'triage', '--drop', 'personal', 'work', 'club');
+
+      expect(stdout).toEqual([
+        'uncloned triage → work',
+        'uncloned triage → club',
+        'not cloned triage → personal',
+      ]);
+    });
+
+    it('forgets a path record and leaves the directory and its files on disk', async () => {
+      const { run, store } = await newCli();
+      const dir = await newDirectory('old');
+      const skillFile = join(dir, 'triage', SKILL_MANIFEST);
+
+      await run('workspaces', 'add', 'personal', await newDirectory('project'));
+      writeSkillDirectory(join(dir, 'triage'));
+      recordClone(store, 'triage', { path: dir });
+
+      const { stdout } = await run('clone', 'triage', '--drop', `${dir}/`);
+
+      expect(stdout).toEqual([`uncloned triage → ${dir}`]);
+      expect(existsSync(skillFile)).toBe(true);
+    });
+
+    it('refuses an unregistered workspace before forgetting anything', async () => {
+      const { run, store } = await newCli();
+
+      await run('workspaces', 'add', 'personal', await newDirectory('project'));
+      recordClone(store, 'triage', { workspace: 'personal' });
+
+      const error = await captureError(() => run('clone', 'triage', '--drop', 'personal', 'ghost'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no workspace named "ghost"');
+      expect(clonesOf(store, 'triage')).toEqual([{ workspace: 'personal' }]);
+    });
+
+    describe('choosing clones to drop', () => {
+      it('offers the records in record order, labeling a path record by its normalized path, and forgets the one picked', async () => {
+        const picker = fakePicker({ choose: () => ['personal'] });
+        const { run, store } = await newCli({ picker });
+        const personal = await newDirectory('personal');
+        const old = await newDirectory('old');
+
+        await run('workspaces', 'add', 'work', await newDirectory('work'));
+        await run('workspaces', 'add', 'personal', personal);
+        storeSkill(store, 'triage');
+        recordClone(store, 'triage', { workspace: 'work' });
+        recordClone(store, 'triage', { path: `${old}/` });
+        recordClone(store, 'triage', { workspace: 'personal' });
+
+        const { stdout, stderr } = await run('clone', 'triage', '--drop');
+
+        expect(picker.offered).toEqual(['work', old, 'personal']);
+        expect(stdout).toEqual(['uncloned triage → personal']);
+        expect(stderr).toEqual([]);
+        expect(clonesOf(store, 'triage')).toEqual([{ workspace: 'work' }, { path: `${old}/` }]);
+      });
+
+      it('forgets a picked record of a skill the store does not hold', async () => {
+        const picker = fakePicker({ choose: (labels) => labels });
+        const { run, store } = await newCli({ picker });
+        const old = await newDirectory('old');
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+        recordClone(store, 'triage', { path: old });
+
+        expect((await run('clone', 'triage', '--drop')).stdout).toEqual([`uncloned triage → ${old}`]);
+        expect(clonesOf(store, 'triage')).toEqual([]);
+      });
+
+      it('says no clone was selected when nothing is picked, keeping the records', async () => {
+        const picker = fakePicker({ choose: () => [] });
+        const { run, store } = await newCli({ picker });
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+        recordClone(store, 'triage', { workspace: 'personal' });
+
+        const { stdout, stderr } = await run('clone', 'triage', '--drop');
+
+        expect(stdout).toEqual(['nothing to unclone: no clone selected']);
+        expect(stderr).toEqual([]);
+        expect(clonesOf(store, 'triage')).toEqual([{ workspace: 'personal' }]);
+      });
+
+      it('says the skill has no clone records without offering a pick', async () => {
+        const picker = fakePicker({ choose: (labels) => labels });
+        const { run } = await newCli({ picker });
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+
+        const { stdout, stderr } = await run('clone', 'triage', '--drop');
+
+        expect(stdout).toEqual(['nothing to unclone: triage has no clone records']);
+        expect(stderr).toEqual([]);
+        expect(picker.offered).toEqual([]);
+      });
+
+      it('refuses without a terminal, naming --drop and every recorded target', async () => {
+        const { run, store } = await newCli();
+        const spaced = await newDirectory('old skills');
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+        recordClone(store, 'triage', { workspace: 'personal' });
+        recordClone(store, 'triage', { path: spaced });
+
+        const error = await captureError(() => run('clone', 'triage', '--drop'));
+
+        expect(error).toBeInstanceOf(MissingDestinationError);
+        expect(error.message.split('\n')).toEqual([
+          'no clone named, and no terminal to choose from',
+          `  name them after --drop: personal '${spaced}'`,
+        ]);
+        expect(clonesOf(store, 'triage')).toHaveLength(2);
+      });
+    });
+  });
+
+  describe('refusals', () => {
+    it.each([
+      [
+        ['triage', '--to', 'personal', '--drop', '--overwrite'],
+        'error: --to cannot be combined with --drop',
+      ],
+      [
+        ['triage', '--drop', 'personal', '--overwrite'],
+        'error: --overwrite cannot be combined with --drop',
+      ],
+    ])('refuses clone %j', async (argv, message) => {
+      const { run, store } = await newCli();
+
+      await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('clone', ...argv));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe(message);
+    });
+  });
+
+  it('no longer knows unclone as a command', async () => {
+    const { run } = await newCli();
+
+    const error = await captureError(() => run('unclone', 'triage', 'personal'));
+
+    expect(error).toBeInstanceOf(CommanderError);
+    expect((error as CommanderError).code).toBe('commander.unknownCommand');
   });
 });
 
@@ -458,12 +761,12 @@ describe('clone', () => {
  * `CommanderError`, and console is spied rather than `configureOutput`-ed
  * because the actions print through console directly.
  */
-async function newCli() {
+async function newCli(dependencies: ProgramDependencies = {}) {
   const store = new GrimoireStore(await tempRoot());
-  const program = silence(buildProgram(store));
+  const program = silence(buildProgram(store, dependencies));
 
   /** Everything the command printed, and the error it threw, if any. */
-  function capture(argv: string[]) {
+  async function capture(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
     let thrown: unknown;
@@ -474,7 +777,7 @@ async function newCli() {
     const warn = vi.spyOn(console, 'warn').mockImplementation(toStderr);
 
     try {
-      program.parse(argv, { from: 'user' });
+      await program.parseAsync(argv, { from: 'user' });
     } catch (caught) {
       thrown = caught;
     } finally {
@@ -486,8 +789,8 @@ async function newCli() {
     return { stdout, stderr, thrown };
   }
 
-  function run(...argv: string[]) {
-    const { stdout, stderr, thrown } = capture(argv);
+  async function run(...argv: string[]) {
+    const { stdout, stderr, thrown } = await capture(argv);
 
     if (thrown !== undefined) {
       throw thrown as Error;
@@ -497,8 +800,8 @@ async function newCli() {
   }
 
   /** For a run that throws after it has printed: the lines come back with the error. */
-  function runFailing(...argv: string[]) {
-    const { stdout, stderr, thrown } = capture(argv);
+  async function runFailing(...argv: string[]) {
+    const { stdout, stderr, thrown } = await capture(argv);
 
     if (thrown === undefined) {
       throw new Error('expected a refusal');
@@ -530,9 +833,9 @@ function silence(program: Command): Command {
 }
 
 /** The error a refusal threw, so the whole multi-line message can be asserted on. */
-function captureError(operation: () => unknown): Error {
+async function captureError(operation: () => Promise<unknown>): Promise<Error> {
   try {
-    operation();
+    await operation();
   } catch (error) {
     return error as Error;
   }
@@ -562,4 +865,33 @@ function writeSkillDirectory(path: string, files: Record<string, string> = {}): 
 
 function storeSkill(store: GrimoireStore, name: string): string {
   return writeSkillDirectory(join(store.paths.skills, name));
+}
+
+/** Appends a clone record to the skill's, keeping whatever `state.json` already holds. */
+function recordClone(
+  store: GrimoireStore,
+  skill: string,
+  record: { workspace: string } | { path: string },
+): void {
+  const state = readState(store);
+  const skills = state.skills ?? {};
+  const clones = skills[skill]?.clones ?? [];
+
+  writeFileSync(
+    store.paths.state,
+    JSON.stringify(
+      { ...state, skills: { ...skills, [skill]: { clones: [...clones, record] } } },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+}
+
+function clonesOf(store: GrimoireStore, skill: string): unknown[] {
+  return readState(store).skills?.[skill]?.clones ?? [];
+}
+
+function readState(store: GrimoireStore): { skills?: Record<string, { clones?: unknown[] }> } {
+  return JSON.parse(readFileSync(store.paths.state, 'utf8')) as ReturnType<typeof readState>;
 }

@@ -101,8 +101,8 @@ Output is grouped as in [Outcomes](../conventions.md#outcomes), with the line sh
 [When the name is taken](#when-the-name-is-taken): `added`, `already in the store`, then warnings, then the auto-link lines
 in [`link`](./link.md)'s order.
 
-A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill---to-workspaces), prints a
-warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
+A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill---to-workspaces), prints
+a warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
 
 ### When the name is taken
 
@@ -225,7 +225,8 @@ clones left in place: triage → work
 forgot clone triage → work
 ```
 
-Forgetting one record at a time, for a skill still in the store, is [`unclone`](./unclone.md)'s job.
+Forgetting one record at a time, for a skill still in the store, is [`clone --drop`](./clone.md#clone-skill---drop-targets)'s
+job.
 
 ### What `remove` refuses
 

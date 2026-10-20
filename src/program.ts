@@ -9,7 +9,6 @@ import { skillsCommand } from '@/commands/skills';
 import { statusCommand } from '@/commands/status';
 import type { TextStyler } from '@/lib/text-styler';
 import { trashCommand } from '@/commands/trash';
-import { uncloneCommand } from '@/commands/unclone';
 import { updateCommand } from '@/commands/update';
 import { workspacesCommand } from '@/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
@@ -53,8 +52,7 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(exportCommand({ storeManager, picker }))
     .addCommand(skillsCommand({ storeManager, picker }))
     .addCommand(linkCommand({ storeManager, picker }))
-    .addCommand(cloneCommand({ storeManager }))
-    .addCommand(uncloneCommand({ storeManager }))
+    .addCommand(cloneCommand({ storeManager, picker }))
     .addCommand(trashCommand({ storeManager, textStyler }))
     .addCommand(statusCommand({ storeManager, textStyler, getTerminalWidth }))
     .addCommand(updateCommand({ npmClient, packageDirectory }));
