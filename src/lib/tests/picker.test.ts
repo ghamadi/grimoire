@@ -1,7 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { isCancel, multiselect } from '@clack/prompts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MissingDestinationError } from '@/lib/errors';
 import { clackPicker, pickChoices } from '@/lib/picker';
 import { fakePicker } from '@test-helpers/fake-picker';
+
+vi.mock('@clack/prompts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@clack/prompts')>();
+
+  return { ...actual, multiselect: vi.fn(), isCancel: vi.fn(actual.isCancel) };
+});
 
 type TtyStream = NodeJS.ReadStream | NodeJS.WriteStream;
 
@@ -27,6 +34,48 @@ describe('clackPicker.isInteractive', () => {
       expect(clackPicker.isInteractive()).toBe(expected);
     },
   );
+});
+
+describe('clackPicker.pick', () => {
+  const message = 'Select the skills';
+  const choices = [
+    { value: { name: 'brainstorm' }, label: 'brainstorm', hint: '/skills/brainstorm' },
+    { value: { name: 'review' }, label: 'review' },
+    { value: { name: 'triage' }, label: 'triage', hint: '/skills/triage' },
+  ];
+
+  it('offers clack each choice by its index, with its label and hint', async () => {
+    vi.mocked(multiselect).mockResolvedValueOnce([]);
+
+    await clackPicker.pick({ message, choices });
+
+    expect(multiselect).toHaveBeenCalledWith({
+      message,
+      options: [
+        { value: 0, label: 'brainstorm', hint: '/skills/brainstorm' },
+        { value: 1, label: 'review', hint: undefined },
+        { value: 2, label: 'triage', hint: '/skills/triage' },
+      ],
+      required: false,
+    });
+  });
+
+  it('returns the values of the choices at the indices clack returns', async () => {
+    vi.mocked(multiselect).mockResolvedValueOnce([2, 0]);
+
+    await expect(clackPicker.pick({ message, choices })).resolves.toEqual([
+      choices[0]?.value,
+      choices[2]?.value,
+    ]);
+  });
+
+  it('returns nothing when the prompt is cancelled', async () => {
+    // clack does not export its cancel symbol, so a selection stands in for it.
+    vi.mocked(multiselect).mockResolvedValueOnce([0]);
+    vi.mocked(isCancel).mockReturnValueOnce(true);
+
+    await expect(clackPicker.pick({ message, choices })).resolves.toEqual([]);
+  });
 });
 
 describe('pickChoices', () => {

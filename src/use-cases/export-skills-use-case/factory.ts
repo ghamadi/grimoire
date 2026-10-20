@@ -125,8 +125,8 @@ export function requireExportableSkills(params: {
 }): Skill[] {
   const { storeManager, skillNames } = params;
 
-  // Two `map` passes intentionally. Verifying all skill paths happens
-  // before validating the skills themselves
+  // Two passes, not one `map`: verifying each skill as its path is found
+  // would report an unportable skill ahead of an unknown one named after it.
   const skillPaths = [...new Set(skillNames)].map((name) => ({
     name,
     path: storeManager.requireSkillPath(name),
