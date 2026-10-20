@@ -12,9 +12,8 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SkillPicker } from '@/commands/skills';
 import { GrimoireStore } from '@/domains/grimoire-store';
-import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   AddDeclinedError,
   EntityNotFoundError,
@@ -23,6 +22,7 @@ import {
   PathCollisionError,
   WorkspaceUnreadableError,
 } from '@/lib/errors';
+import type { Picker } from '@/lib/picker';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { tempRoot } from '@test-helpers/temp-root';
 
@@ -165,8 +165,8 @@ describe('skills add', () => {
   });
 
   it('adds only what a terminal picks, without --all', async () => {
-    const picker = fakePicker((sources) => sources.filter((source) => source.name === 'brainstorm'));
-    const { run, store } = await newCli({ skillPicker: picker });
+    const picker = fakePicker(() => ['brainstorm']);
+    const { run, store } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
     const { stdout, stderr } = await run('skills', 'add', container);
@@ -178,17 +178,17 @@ describe('skills add', () => {
 
   it('offers the picker every source the crawl found, in crawl order', async () => {
     const picker = fakePicker(() => []);
-    const { run } = await newCli({ skillPicker: picker });
+    const { run } = await newCli({ picker });
     const container = await newContainer('deploy', 'brainstorm');
 
     await run('skills', 'add', container);
 
-    expect(picker.offered.map((source) => source.name)).toEqual(['brainstorm', 'deploy']);
+    expect(picker.offered).toEqual(['brainstorm', 'deploy']);
   });
 
   it('reports in source order whatever order the picker returns', async () => {
-    const picker = fakePicker((sources) => [...sources].reverse());
-    const { run } = await newCli({ skillPicker: picker });
+    const picker = fakePicker((labels) => [...labels].reverse());
+    const { run } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
     const { stdout } = await run('skills', 'add', container);
@@ -198,19 +198,19 @@ describe('skills add', () => {
 
   it('says so and touches nothing when the picker chooses nothing', async () => {
     const picker = fakePicker(() => []);
-    const { run, store } = await newCli({ skillPicker: picker });
+    const { run, store } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
     const { stdout, stderr } = await run('skills', 'add', container);
 
-    expect(stdout).toEqual(['nothing added: no skill selected']);
+    expect(stdout).toEqual(['nothing to add: no skill selected']);
     expect(stderr).toEqual([]);
     expect(existsSync(store.paths.skills)).toBe(false);
   });
 
   it('runs a picked source through the collision rules', async () => {
-    const picker = fakePicker((sources) => sources);
-    const { run, store } = await newCli({ skillPicker: picker });
+    const picker = fakePicker((labels) => labels);
+    const { run, store } = await newCli({ picker });
     const container = await newContainer('triage');
 
     storeSkill(store, 'triage');
@@ -623,18 +623,21 @@ function silence(program: Command): Command {
   return program;
 }
 
-/** An interactive picker that records what it was offered and returns whatever `choose` selects. */
-function fakePicker(
-  choose: (sources: SkillSource[]) => SkillSource[],
-): SkillPicker & { offered: SkillSource[] } {
-  const offered: SkillSource[] = [];
+function fakePicker(choose: (labels: string[]) => string[]): Picker & { offered: string[] } {
+  const offered: string[] = [];
 
   return {
     offered,
     isInteractive: () => true,
-    pick: ({ sources }) => {
-      offered.push(...sources);
-      return Promise.resolve(choose(sources));
+    pick: ({ choices }) => {
+      const labels = choices.map((choice) => choice.label);
+      offered.push(...labels);
+
+      return Promise.resolve(
+        choose(labels).flatMap((label) =>
+          choices.filter((choice) => choice.label === label).map((choice) => choice.value),
+        ),
+      );
     },
   };
 }

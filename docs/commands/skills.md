@@ -51,6 +51,8 @@ a terminal, no --all     →  multi-select prompt         (the normal path)
 no terminal, no --all    →  refuse, exit 1
 ```
 
+[Pickers](../conventions.md#pickers) covers what counts as a terminal and how a pick runs.
+
 A container with nothing under it, or a run where nothing ends up selected, isn't a refusal — both exit 0:
 
 ```shell
@@ -58,7 +60,7 @@ $ grimoire skills add ~/dev
 nothing to add: no skill found under /Users/me/dev
 
 $ grimoire skills add ~/dev/skills
-nothing added: no skill selected
+nothing to add: no skill selected
 ```
 
 ### The name in the store

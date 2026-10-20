@@ -5,7 +5,7 @@ import { cloneCommand } from '@/commands/clone';
 import { exportCommand } from '@/commands/export';
 import { linkCommand } from '@/commands/link';
 import { reposCommand } from '@/commands/repos';
-import { clackSkillPicker, skillsCommand, type SkillPicker } from '@/commands/skills';
+import { skillsCommand } from '@/commands/skills';
 import { statusCommand } from '@/commands/status';
 import type { TextStyler } from '@/lib/text-styler';
 import { trashCommand } from '@/commands/trash';
@@ -15,10 +15,11 @@ import { updateCommand } from '@/commands/update';
 import { workspacesCommand } from '@/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { systemNpmClient, type NpmClient } from '@/lib/npm';
+import { clackPicker, type Picker } from '@/lib/picker';
 import { getVersion } from '@/lib/utils';
 
 export type ProgramDependencies = {
-  skillPicker?: SkillPicker;
+  picker?: Picker;
   textStyler?: TextStyler;
   getTerminalWidth?: () => number | undefined;
   npmClient?: NpmClient;
@@ -34,7 +35,7 @@ export type ProgramDependencies = {
  */
 export function buildProgram(store: GrimoireStore, dependencies: ProgramDependencies = {}): Command {
   const {
-    skillPicker = clackSkillPicker,
+    picker = clackPicker,
     textStyler = styleText,
     getTerminalWidth = getStdoutTerminalWidth,
     npmClient = systemNpmClient,
@@ -51,7 +52,7 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(workspacesCommand({ storeManager }))
     .addCommand(reposCommand({ storeManager }))
     .addCommand(exportCommand({ storeManager }))
-    .addCommand(skillsCommand({ storeManager, skillPicker }))
+    .addCommand(skillsCommand({ storeManager, picker }))
     .addCommand(linkCommand({ storeManager }))
     .addCommand(unlinkCommand({ storeManager }))
     .addCommand(cloneCommand({ storeManager }))

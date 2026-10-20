@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import type { SkillPicker } from '@/commands/skills/helpers/skill-picker';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { findSkillSources, type SkillSource } from '@/domains/skill';
 import {
@@ -9,6 +8,7 @@ import {
   NoTerminalError,
 } from '@/lib/errors';
 import { normalizePath } from '@/lib/paths';
+import type { Picker } from '@/lib/picker';
 import { createAddSkillsUseCase, type AddSkillsReport } from '@/use-cases/add-skills-use-case/factory';
 import {
   createLinkSkillUseCase,
@@ -20,11 +20,9 @@ import {
   type RemovedSkill,
 } from '@/use-cases/remove-skills-use-case/factory';
 
-export { clackSkillPicker, type SkillPicker } from '@/commands/skills/helpers/skill-picker';
-
 export type SkillsCommandParams = {
   storeManager: GrimoireStoreManager;
-  skillPicker: SkillPicker;
+  picker: Picker;
 };
 
 // ----------------------------------------------------------------------------
@@ -35,7 +33,7 @@ export type SkillsCommandParams = {
  * The `skills` command group: argv in, stdout out.
  */
 export function skillsCommand(params: SkillsCommandParams): Command {
-  const { storeManager, skillPicker } = params;
+  const { storeManager, picker } = params;
   const addSkills = createAddSkillsUseCase({ storeManager });
   const linkSkill = createLinkSkillUseCase({ storeManager });
   const removeSkills = createRemoveSkillsUseCase({ storeManager });
@@ -60,15 +58,19 @@ export function skillsCommand(params: SkillsCommandParams): Command {
       let selected = sources;
 
       if (!options.all) {
-        if (!skillPicker.isInteractive()) {
+        if (!picker.isInteractive()) {
           throw new NoTerminalError({ path, skillCount: sources.length });
         }
 
-        selected = inSourceOrder({ sources, picked: await skillPicker.pick({ sources }) });
+        const picked = await picker.pick({
+          message: 'Select the skills to add',
+          choices: sources.map((source) => ({ value: source, label: source.name, hint: source.path })),
+        });
+        selected = inSourceOrder({ sources, picked });
       }
 
       if (selected.length === 0) {
-        console.log('nothing added: no skill selected');
+        console.log('nothing to add: no skill selected');
         return;
       }
 

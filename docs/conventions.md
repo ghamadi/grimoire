@@ -50,6 +50,19 @@ $ grimoire link --all-skills
 nothing to link: the store holds no skills
 ```
 
+## Pickers
+
+A picker shows only when stdin and stdout are both terminals, since it draws on stdout.
+
+What you pick runs in the order the picker lists it, whatever order you picked it in.
+
+Choosing nothing, or cancelling, prints `nothing to <verb>: no <noun> selected` and exits 0:
+
+```shell
+$ grimoire skills add ~/dev/skills
+nothing to add: no skill selected
+```
+
 ## Outcomes
 
 `<verb>` stands for the command (`link`, `clone`), `<destination>` for the workspace or repo it writes to, and `<result>` for
