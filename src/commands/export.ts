@@ -20,7 +20,7 @@ export function exportCommand(params: ExportCommandParams): Command {
   const exportSkills = createExportSkillsUseCase({ storeManager });
 
   const command = new Command('export')
-    .description('Copy store skills into a repo, replacing what is there')
+    .description('Copy store skills into repos, replacing what is there')
     .argument('[skills...]', 'store skills to export, unless --all-skills')
     .option('--to <repos...>', 'registered repos to export into')
     .option('--all-skills', 'export every skill the store holds')

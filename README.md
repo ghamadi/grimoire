@@ -152,7 +152,7 @@ Skills removed from the store go to `~/.grimoire/.trash/` until `grimoire trash 
 | [`link`](./docs/commands/link.md)             | Symlink store skills into workspaces, or remove their links     |
 | [`clone`](./docs/commands/clone.md)           | Copy a store skill into workspaces, or forget its clone records |
 | [`repos`](./docs/commands/repos.md)           | Manage the git repos grimoire exports skills to                 |
-| [`export`](./docs/commands/export.md)         | Copy store skills into a repo, replacing what is there          |
+| [`export`](./docs/commands/export.md)         | Copy store skills into repos, replacing what is there           |
 | [`trash`](./docs/commands/trash.md)           | Manage the trash that removed skills are moved to               |
 | [`status`](./docs/commands/status.md)         | Show where skills are deployed, and what has gone stale         |
 | [`update`](./docs/commands/update.md)         | Update grimoire to the latest release                           |
