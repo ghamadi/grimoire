@@ -50,6 +50,37 @@ $ grimoire link --all-skills
 nothing to link: the store holds no skills
 ```
 
+## Pickers
+
+A picker shows only when stdin and stdout are both terminals, since it draws on stdout.
+
+What you pick runs in the order the picker lists it, whatever order you picked it in.
+
+Choosing nothing, or cancelling, prints `nothing to <verb>: no <noun> selected` and exits 0:
+
+```shell
+$ grimoire skills add ~/dev/skills
+nothing to add: no skill selected
+```
+
+## Missing destinations
+
+Some commands let you leave out where to write. The skills are checked first, so a wrong skill name never reaches a choice.
+
+With nothing to offer, the run prints `nothing to <verb>: <reason>` and exits 0, with or without a terminal.
+
+With something to offer and no terminal, the run refuses. The error names the flag to use and lists every choice:
+
+```shell
+$ grimoire export triage | cat
+error: no repo named, and no terminal to choose from
+  name them with --to: dotfiles library
+```
+
+Otherwise a [picker](#pickers) offers the choices, and what you pick runs exactly as if you had typed it.
+
+Each page states its own choices, reason and flag.
+
 ## Outcomes
 
 `<verb>` stands for the command (`link`, `clone`), `<destination>` for the workspace or repo it writes to, and `<result>` for
@@ -63,10 +94,10 @@ page lists its own result groups and their order. When anything succeeds and not
 exit code is 0:
 
 ```shell
-$ grimoire link triage personal work scratch
+$ grimoire link triage --to personal work scratch
 linked triage → personal
 already linked triage → work
-warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage scratch`, or delete it yourself
+warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage --to scratch`, or delete it yourself
 ```
 
 ## When every destination is declined
@@ -75,7 +106,7 @@ A run where every destination was declined, and none [failed](#when-a-write-fail
 error. One decline prints as a single line:
 
 ```shell
-$ grimoire link triage work
+$ grimoire link triage --to work
 error: could not link triage → work: /Users/me/work/.agents/skills/triage is a symlink pointing elsewhere
 ```
 
@@ -83,9 +114,9 @@ Several print `error: nothing <verb-past>:` (`nothing linked`, `nothing cloned`)
 indented two spaces:
 
 ```shell
-$ grimoire link triage personal work
+$ grimoire link triage --to personal work
 error: nothing linked:
-  could not link triage → personal: /Users/me/.claude/skills/triage is a clone — unclone it first with `grimoire unclone triage personal`
+  could not link triage → personal: /Users/me/.claude/skills/triage is a clone — unclone it first with `grimoire clone triage --drop personal`
   could not link triage → work: /Users/me/work/.agents/skills/triage is a symlink pointing elsewhere
 ```
 
@@ -101,7 +132,7 @@ One failure prints as a single line. Several print `error: <noun-plural> failed:
 followed by each sentence on its own line, indented two spaces:
 
 ```shell
-$ grimoire clone triage personal work
+$ grimoire clone triage --to personal work
 error: clones failed:
   failed to clone triage → personal: EACCES: permission denied, rename '/Users/me/.claude/skills/triage' -> '/Users/me/.claude/skills/.grimoire-staging/triage.4f9a1c.outgoing'
   failed to clone triage → work: /Users/me/work/.agents/skills/.grimoire-staging is not a directory
@@ -135,7 +166,7 @@ When the new copy is in place but the old one cannot be fully deleted, the desti
 names the stranded `.outgoing` entry, printed after the decline warnings:
 
 ```shell
-$ grimoire clone triage work --overwrite
+$ grimoire clone triage --to work --overwrite
 cloned triage → work (replaced the directory)
 warning: cloned triage → work, but the old copy at /Users/me/work/.agents/skills/.grimoire-staging/triage.4f9a1c.outgoing could not be fully deleted: EACCES: permission denied, rmdir '/Users/me/work/.agents/skills/.grimoire-staging/triage.4f9a1c.outgoing/refs'
 ```
@@ -148,7 +179,15 @@ A refusal exits 1 and touches nothing. The checks run in the order each page lis
 reported. These messages are shared:
 
 - A missing argument prints `error: missing required argument '<name>'`. When the page has an `--all-*` flag for it, the
-  message ends with ` (or use --all-<x>)`, as in `error: missing required argument 'skill' (or use --all-skills)`.
+  message ends with ` (or use --all-<x>)`, as in `error: missing required argument 'skill' (or use --all-skills)`. A flag
+  that takes a list, such as `--to`, takes every name after it. So when one was given, a second line names it:
+
+  ```shell
+  $ grimoire link --to personal triage
+  error: missing required argument 'skill' (or use --all-skills)
+    --to takes every name after it, so name the skill before it
+  ```
+
 - An unknown skill prints `error: no skill named "<skill>"`.
 - A skill that fails the portability check prints its reason, as in
   `error: skill "/Users/me/.grimoire/skills/triage" is not portable. Contains a nested skill.` Every skill is checked before

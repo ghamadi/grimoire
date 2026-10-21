@@ -17,9 +17,11 @@ import {
   ExportDeclinedError,
   ExportFailedError,
   InvalidPathError,
+  MissingDestinationError,
   UnportableSkillError,
 } from '@/lib/errors';
-import { buildProgram } from '@/program';
+import { buildProgram, type ProgramDependencies } from '@/program';
+import { fakePicker } from '@test-helpers/fake-picker';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
@@ -43,7 +45,7 @@ describe('export', () => {
 
     storeSkill(store, 'triage');
 
-    const { stdout, stderr } = run('export', 'library', 'triage');
+    const { stdout, stderr } = await run('export', 'triage', '--to', 'library');
 
     expect(stdout).toEqual(['exported triage → library']);
     expect(stderr).toEqual([]);
@@ -58,7 +60,7 @@ describe('export', () => {
     writeSkillDirectory(dest, { 'old.md': 'old' });
     repo.commitAll();
 
-    const { stdout, stderr } = run('export', 'library', 'triage');
+    const { stdout, stderr } = await run('export', 'triage', '--to', 'library');
 
     expect(stdout).toEqual(['exported triage → library']);
     expect(stderr).toEqual([]);
@@ -73,7 +75,7 @@ describe('export', () => {
     storeSkill(store, 'review');
     writeSkillDirectory(dest, { 'notes.md': 'mine' });
 
-    const { stdout, stderr } = run('export', 'library', 'triage', 'review');
+    const { stdout, stderr } = await run('export', 'triage', 'review', '--to', 'library');
 
     expect(stdout).toEqual(['exported review → library']);
     expect(stderr).toEqual([
@@ -99,7 +101,15 @@ describe('export', () => {
       throw Object.assign(new Error('delete failed'), { code: 'EACCES' });
     });
 
-    const { stdout, stderr } = run('export', 'library', 'dirty', 'replaced', 'untracked', 'fresh');
+    const { stdout, stderr } = await run(
+      'export',
+      'dirty',
+      'replaced',
+      'untracked',
+      'fresh',
+      '--to',
+      'library',
+    );
     const [entry] = readdirSync(staging);
 
     expect(stdout).toEqual(['exported replaced → library', 'exported fresh → library']);
@@ -115,9 +125,9 @@ describe('export', () => {
     const dest = join(repo.path, 'triage');
 
     storeSkill(store, 'triage');
-    run('export', 'library', 'triage');
+    await run('export', 'triage', '--to', 'library');
 
-    const { stdout, stderr, error } = runFailing('export', 'library', 'triage');
+    const { stdout, stderr, error } = await runFailing('export', 'triage', '--to', 'library');
 
     expect(stdout).toEqual([]);
     expect(stderr).toEqual([]);
@@ -133,9 +143,9 @@ describe('export', () => {
 
     storeSkill(store, 'triage');
     storeSkill(store, 'review');
-    run('export', 'library', 'triage', 'review');
+    await run('export', 'triage', 'review', '--to', 'library');
 
-    const error = captureError(() => run('export', 'library', 'triage', 'review'));
+    const error = await captureError(() => run('export', 'triage', 'review', '--to', 'library'));
 
     expect(error).toBeInstanceOf(ExportDeclinedError);
     expect(error.message.split('\n')).toEqual([
@@ -153,7 +163,7 @@ describe('export', () => {
     storeSkill(store, 'triage');
     writeSkillDirectory(dest, { 'notes.md': 'mine' });
 
-    const { stdout, stderr } = run('export', 'library', 'triage', '--force');
+    const { stdout, stderr } = await run('export', 'triage', '--to', 'library', '--force');
 
     expect(stdout).toEqual(['exported triage → library']);
     expect(stderr).toEqual([]);
@@ -171,7 +181,13 @@ describe('export', () => {
       chmodSync(unreadable, 0o000);
       onTestFinished(() => chmodSync(unreadable, 0o644));
 
-      const { stdout, stderr, error } = runFailing('export', 'library', 'triage', 'review');
+      const { stdout, stderr, error } = await runFailing(
+        'export',
+        'triage',
+        'review',
+        '--to',
+        'library',
+      );
 
       expect(stdout).toEqual(['exported review → library']);
       expect(stderr).toEqual([]);
@@ -188,7 +204,7 @@ describe('export', () => {
     storeSkill(store, 'triage');
     writeFileSync(staging, 'mine', 'utf8');
 
-    const { stdout, error } = runFailing('export', 'library', 'triage');
+    const { stdout, error } = await runFailing('export', 'triage', '--to', 'library');
 
     expect(stdout).toEqual([]);
     expect(error).toBeInstanceOf(ExportFailedError);
@@ -203,7 +219,7 @@ describe('export', () => {
     storeSkill(store, 'review');
     writeFileSync(staging, 'mine', 'utf8');
 
-    const { error } = runFailing('export', 'library', 'triage', 'review');
+    const { error } = await runFailing('export', 'triage', 'review', '--to', 'library');
 
     expect(error).toBeInstanceOf(ExportFailedError);
     expect(error.message.split('\n')).toEqual([
@@ -223,7 +239,7 @@ describe('export', () => {
     writeSkillDirectory(dest, { 'notes.md': 'mine' });
     writeFileSync(staging, 'mine', 'utf8');
 
-    const { stdout, stderr, error } = runFailing('export', 'library', 'triage', 'review');
+    const { stdout, stderr, error } = await runFailing('export', 'triage', 'review', '--to', 'library');
 
     expect(stdout).toEqual([]);
     expect(stderr).toEqual([
@@ -240,7 +256,7 @@ describe('export', () => {
     storeSkill(store, 'triage');
     storeSkill(store, 'review');
 
-    const { stdout, stderr } = run('export', 'library', '--all-skills');
+    const { stdout, stderr } = await run('export', '--all-skills', '--to', 'library');
 
     expect(stdout).toEqual(['exported review → library', 'exported triage → library']);
     expect(stderr).toEqual([]);
@@ -254,7 +270,7 @@ describe('export', () => {
     storeSkill(store, 'review');
     writeSkillDirectory(dest, { 'notes.md': 'mine' });
 
-    const { stdout, stderr } = run('export', 'library', '--all-skills');
+    const { stdout, stderr } = await run('export', '--all-skills', '--to', 'library');
 
     expect(stdout).toEqual(['exported review → library']);
     expect(stderr).toEqual([
@@ -271,31 +287,173 @@ describe('export', () => {
     storeSkill(store, 'review');
     writeSkillDirectory(dest, { 'notes.md': 'mine' });
 
-    const { stdout, stderr } = run('export', 'library', '--all-skills', '--force');
+    const { stdout, stderr } = await run('export', '--all-skills', '--to', 'library', '--force');
 
     expect(stdout).toEqual(['exported review → library', 'exported triage → library']);
     expect(stderr).toEqual([]);
     expect(existsSync(join(dest, 'notes.md'))).toBe(false);
   });
 
-  it('says the store holds no skills under --all-skills', async () => {
-    const { run, repo } = await newCli();
+  it('says the store holds no skills under --all-skills, before any repo check', async () => {
+    const { run } = await newCli();
 
-    const { stdout, stderr } = run('export', 'library', '--all-skills');
+    const { stdout, stderr } = await run('export', '--all-skills', '--to', 'ghost');
 
     expect(stdout).toEqual(['nothing to export: the store holds no skills']);
     expect(stderr).toEqual([]);
-    expect(readdirSync(repo.path)).toEqual(['.git']);
+  });
+
+  it('exports skill by skill, each into every repo after --to', async () => {
+    const { run, addRepo, store } = await newCli();
+
+    await addRepo('dotfiles');
+    storeSkill(store, 'triage');
+    storeSkill(store, 'review');
+
+    const { stdout, stderr } = await run('export', 'triage', 'review', '--to', 'library', 'dotfiles');
+
+    expect(stdout).toEqual([
+      'exported triage → library',
+      'exported triage → dotfiles',
+      'exported review → library',
+      'exported review → dotfiles',
+    ]);
+    expect(stderr).toEqual([]);
+  });
+
+  describe('choosing repos', () => {
+    it('offers the registered repos in name order and exports into the one picked', async () => {
+      const picker = fakePicker({ choose: () => ['library'] });
+      const { run, addRepo, store, repo } = await newCli({ picker });
+      const dotfiles = await addRepo('dotfiles');
+
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('export', 'triage');
+
+      expect(picker.offered).toEqual(['dotfiles', 'library']);
+      expect(stdout).toEqual(['exported triage → library']);
+      expect(stderr).toEqual([]);
+      expect(existsSync(join(repo.path, 'triage'))).toBe(true);
+      expect(existsSync(join(dotfiles.path, 'triage'))).toBe(false);
+    });
+
+    it('exports into the picked repos in name order whatever order they were picked in', async () => {
+      const picker = fakePicker({ choose: (labels) => [...labels].reverse() });
+      const { run, addRepo, store } = await newCli({ picker });
+
+      await addRepo('dotfiles');
+      storeSkill(store, 'triage');
+
+      const { stdout } = await run('export', 'triage');
+
+      expect(stdout).toEqual(['exported triage → dotfiles', 'exported triage → library']);
+    });
+
+    it('says no repo was selected when nothing is picked', async () => {
+      const picker = fakePicker({ choose: () => [] });
+      const { run, store, repo } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('export', 'triage');
+
+      expect(stdout).toEqual(['nothing to export: no repo selected']);
+      expect(stderr).toEqual([]);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('says no repo is registered without offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run, store } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+      await run('repos', 'remove', 'library');
+
+      const { stdout, stderr } = await run('export', 'triage');
+
+      expect(stdout).toEqual(['nothing to export: no repo is registered']);
+      expect(stderr).toEqual([]);
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses without a terminal, naming --to and every registered repo', async () => {
+      const { run, store, repo } = await newCli();
+
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('export', 'triage'));
+
+      expect(error).toBeInstanceOf(MissingDestinationError);
+      expect(error.message.split('\n')).toEqual([
+        'no repo named, and no terminal to choose from',
+        '  name them with --to: library',
+      ]);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('says the store holds no skills under --all-skills without offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run } = await newCli({ picker });
+
+      const { stdout, stderr } = await run('export', '--all-skills');
+
+      expect(stdout).toEqual(['nothing to export: the store holds no skills']);
+      expect(stderr).toEqual([]);
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses a skill that cannot travel before offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run, store, repo } = await newCli({ picker });
+      const skillPath = storeSkill(store, 'triage');
+
+      writeSkillDirectory(join(skillPath, 'nested'));
+
+      const error = await captureError(() => run('export', 'triage'));
+
+      expect(error).toBeInstanceOf(UnportableSkillError);
+      expect(picker.offered).toEqual([]);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('refuses an unknown skill before offering a pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run, store } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('export', 'triage', 'ghost'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no skill named "ghost"');
+      expect(picker.offered).toEqual([]);
+    });
   });
 
   describe('refusals', () => {
     it('refuses a run with neither skills nor --all-skills', async () => {
       const { run, repo } = await newCli();
 
-      const error = captureError(() => run('export', 'library'));
+      const error = await captureError(() => run('export'));
 
       expect(error).toBeInstanceOf(CommanderError);
       expect(error.message).toBe("error: missing required argument 'skills' (or use --all-skills)");
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('says --to took the skills when they follow it', async () => {
+      const { run, store, repo } = await newCli();
+
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('export', '--to', 'library', 'triage'));
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message.split('\n')).toEqual([
+        "error: missing required argument 'skills' (or use --all-skills)",
+        '  --to takes every name after it, so name the skills before it',
+      ]);
       expect(readdirSync(repo.path)).toEqual(['.git']);
     });
 
@@ -304,7 +462,7 @@ describe('export', () => {
 
       storeSkill(store, 'triage');
 
-      const error = captureError(() => run('export', 'library', 'triage', '--all-skills'));
+      const error = await captureError(() => run('export', 'triage', '--all-skills', '--to', 'library'));
 
       expect(error).toBeInstanceOf(CommanderError);
       expect(error.message).toBe('error: --all-skills cannot be combined with named skills');
@@ -318,31 +476,11 @@ describe('export', () => {
       storeSkill(store, 'review');
       writeSkillDirectory(join(skillPath, 'nested'));
 
-      const error = captureError(() => run('export', 'library', '--all-skills'));
+      const error = await captureError(() => run('export', '--all-skills', '--to', 'library'));
 
       expect(error).toBeInstanceOf(UnportableSkillError);
       expect(error.message).toBe(`skill "${skillPath}" is not portable. Contains a nested skill.`);
       expect(readdirSync(repo.path)).toEqual(['.git']);
-    });
-
-    it('refuses an unregistered repo under --all-skills when the store holds no skills', async () => {
-      const { run } = await newCli();
-
-      const error = captureError(() => run('export', 'ghost', '--all-skills'));
-
-      expect(error).toBeInstanceOf(EntityNotFoundError);
-      expect(error.message).toBe('no repo named "ghost"');
-    });
-
-    it('refuses a missing repo directory under --all-skills when the store holds no skills', async () => {
-      const { run, repo } = await newCli();
-
-      rmSync(repo.path, { recursive: true });
-
-      const error = captureError(() => run('export', 'library', '--all-skills'));
-
-      expect(error).toBeInstanceOf(InvalidPathError);
-      expect(error.message).toBe(`${repo.path} does not exist`);
     });
 
     it('refuses a repo that is not registered', async () => {
@@ -350,10 +488,19 @@ describe('export', () => {
 
       storeSkill(store, 'triage');
 
-      const error = captureError(() => run('export', 'ghost', 'triage'));
+      const error = await captureError(() => run('export', 'triage', '--to', 'ghost'));
 
       expect(error).toBeInstanceOf(EntityNotFoundError);
       expect(error.message).toBe('no repo named "ghost"');
+    });
+
+    it('reports an unknown skill ahead of an unknown repo', async () => {
+      const { run } = await newCli();
+
+      const error = await captureError(() => run('export', 'ghost', '--to', 'nowhere'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no skill named "ghost"');
     });
 
     it('refuses a skill the store does not hold, exporting none of the others', async () => {
@@ -361,7 +508,7 @@ describe('export', () => {
 
       storeSkill(store, 'triage');
 
-      const error = captureError(() => run('export', 'library', 'triage', 'ghost'));
+      const error = await captureError(() => run('export', 'triage', 'ghost', '--to', 'library'));
 
       expect(error).toBeInstanceOf(EntityNotFoundError);
       expect(error.message).toBe('no skill named "ghost"');
@@ -374,7 +521,7 @@ describe('export', () => {
 
       writeSkillDirectory(join(skillPath, 'nested'));
 
-      const error = captureError(() => run('export', 'library', 'triage', '--force'));
+      const error = await captureError(() => run('export', 'triage', '--to', 'library', '--force'));
 
       expect(error).toBeInstanceOf(UnportableSkillError);
       expect(error.message).toBe(`skill "${skillPath}" is not portable. Contains a nested skill.`);
@@ -387,7 +534,7 @@ describe('export', () => {
       storeSkill(store, 'triage');
       rmSync(repo.path, { recursive: true });
 
-      const error = captureError(() => run('export', 'library', 'triage'));
+      const error = await captureError(() => run('export', 'triage', '--to', 'library'));
 
       expect(error).toBeInstanceOf(InvalidPathError);
       expect(error.message).toBe(`${repo.path} does not exist`);
@@ -400,7 +547,7 @@ describe('export', () => {
       rmSync(repo.path, { recursive: true });
       writeFileSync(repo.path, 'mine', 'utf8');
 
-      const error = captureError(() => run('export', 'library', 'triage'));
+      const error = await captureError(() => run('export', 'triage', '--to', 'library'));
 
       expect(error).toBeInstanceOf(InvalidPathError);
       expect(error.message).toBe(`${repo.path} is not a directory`);
@@ -412,7 +559,7 @@ describe('export', () => {
       storeSkill(store, 'triage');
       rmSync(join(repo.path, '.git'), { recursive: true });
 
-      const error = captureError(() => run('export', 'library', 'triage'));
+      const error = await captureError(() => run('export', 'triage', '--to', 'library'));
 
       expect(error).toBeInstanceOf(InvalidPathError);
       expect(error.message).toBe(`${repo.path} is not inside a git work tree`);
@@ -429,13 +576,12 @@ describe('export', () => {
  * `CommanderError`, and console is spied rather than `configureOutput`-ed
  * because the actions print through console directly.
  */
-async function newCli() {
+async function newCli(dependencies: ProgramDependencies = {}) {
   const store = new GrimoireStore(await tempRoot());
-  const program = silence(buildProgram(store));
-  const repo = await tempGitRepo();
+  const program = silence(buildProgram(store, dependencies));
 
   /** Everything the command printed, and the error it threw, if any. */
-  function capture(argv: string[]) {
+  async function capture(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
     let thrown: unknown;
@@ -446,7 +592,7 @@ async function newCli() {
     const warn = vi.spyOn(console, 'warn').mockImplementation(toStderr);
 
     try {
-      program.parse(argv, { from: 'user' });
+      await program.parseAsync(argv, { from: 'user' });
     } catch (caught) {
       thrown = caught;
     } finally {
@@ -458,8 +604,8 @@ async function newCli() {
     return { stdout, stderr, thrown };
   }
 
-  function run(...argv: string[]) {
-    const { stdout, stderr, thrown } = capture(argv);
+  async function run(...argv: string[]) {
+    const { stdout, stderr, thrown } = await capture(argv);
 
     if (thrown !== undefined) {
       throw thrown as Error;
@@ -469,8 +615,8 @@ async function newCli() {
   }
 
   /** For a run that throws after it has printed: the lines come back with the error. */
-  function runFailing(...argv: string[]) {
-    const { stdout, stderr, thrown } = capture(argv);
+  async function runFailing(...argv: string[]) {
+    const { stdout, stderr, thrown } = await capture(argv);
 
     if (thrown === undefined) {
       throw new Error('expected a refusal');
@@ -479,9 +625,16 @@ async function newCli() {
     return { stdout, stderr, error: thrown as Error };
   }
 
-  run('repos', 'add', 'library', repo.path);
+  async function addRepo(name: string) {
+    const added = await tempGitRepo();
+    await run('repos', 'add', name, added.path);
 
-  return { run, runFailing, store, repo };
+    return added;
+  }
+
+  const repo = await addRepo('library');
+
+  return { run, runFailing, addRepo, store, repo };
 }
 
 /**
@@ -504,9 +657,9 @@ function silence(program: Command): Command {
 }
 
 /** The error a refusal threw, so the whole multi-line message can be asserted on. */
-function captureError(operation: () => unknown): Error {
+async function captureError(operation: () => Promise<unknown>): Promise<Error> {
   try {
-    operation();
+    await operation();
   } catch (error) {
     return error as Error;
   }

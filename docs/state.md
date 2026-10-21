@@ -34,7 +34,7 @@ error: workspace name "a/b" must start with a letter or digit and contain only l
 For a repo, the message reads `repo name` instead.
 
 The rule is checked when a name is registered or renamed, and again on [every load](#load-failures). It is what lets
-[`unclone`](./commands/unclone.md) tell a workspace name from a path.
+[`clone --drop`](./commands/clone.md#what-a-target-may-be) tell a workspace name from a path.
 
 ## The path rule
 

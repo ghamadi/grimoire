@@ -76,6 +76,7 @@ export {
 export {
   PathCollisionError,
   describeCollision,
+  type Collision,
   type PathCollisionErrorProps,
 } from '@/lib/errors/path-collision';
 export { InvalidShapeError, type InvalidShapeErrorProps } from '@/lib/errors/invalid-shape';
@@ -95,6 +96,10 @@ export {
   type WorkspaceUnreadableErrorProps,
 } from '@/lib/errors/workspace-unreadable';
 export { NoTerminalError, type NoTerminalErrorProps } from '@/lib/errors/no-terminal';
+export {
+  MissingDestinationError,
+  type MissingDestinationErrorProps,
+} from '@/lib/errors/missing-destination';
 export { GitUnavailableError } from '@/lib/errors/git-unavailable';
 export { NpmUnavailableError } from '@/lib/errors/npm-unavailable';
 export { NpmFailedError, type NpmFailedErrorProps } from '@/lib/errors/npm-failed';

@@ -133,7 +133,7 @@ function describeDeploymentProblem(params: {
         headline: `clone of ${problem.skill} in ${label} is no longer in the store`,
         lines: [
           { sentence: 'Forget the record:' },
-          { commandArguments: ['unclone', problem.skill, target] },
+          { commandArguments: ['clone', problem.skill, '--drop', target] },
         ],
       };
 
@@ -143,13 +143,13 @@ function describeDeploymentProblem(params: {
         lines: problem.recloneable
           ? [
               { sentence: 'Copy it again:' },
-              { commandArguments: ['clone', problem.skill, target] },
+              { commandArguments: ['clone', problem.skill, '--to', target] },
               { sentence: 'Or forget the record:' },
-              { commandArguments: ['unclone', problem.skill, target] },
+              { commandArguments: ['clone', problem.skill, '--drop', target] },
             ]
           : [
               { sentence: 'Forget the record:' },
-              { commandArguments: ['unclone', problem.skill, target] },
+              { commandArguments: ['clone', problem.skill, '--drop', target] },
             ],
       };
 

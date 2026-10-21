@@ -12,9 +12,8 @@ import {
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SkillPicker } from '@/commands/skills';
 import { GrimoireStore } from '@/domains/grimoire-store';
-import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
+import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   AddDeclinedError,
   EntityNotFoundError,
@@ -24,6 +23,7 @@ import {
   WorkspaceUnreadableError,
 } from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
+import { fakePicker } from '@test-helpers/fake-picker';
 import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
@@ -165,8 +165,8 @@ describe('skills add', () => {
   });
 
   it('adds only what a terminal picks, without --all', async () => {
-    const picker = fakePicker((sources) => sources.filter((source) => source.name === 'brainstorm'));
-    const { run, store } = await newCli({ skillPicker: picker });
+    const picker = fakePicker({ choose: () => ['brainstorm'] });
+    const { run, store } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
     const { stdout, stderr } = await run('skills', 'add', container);
@@ -177,18 +177,18 @@ describe('skills add', () => {
   });
 
   it('offers the picker every source the crawl found, in crawl order', async () => {
-    const picker = fakePicker(() => []);
-    const { run } = await newCli({ skillPicker: picker });
+    const picker = fakePicker({ choose: () => [] });
+    const { run } = await newCli({ picker });
     const container = await newContainer('deploy', 'brainstorm');
 
     await run('skills', 'add', container);
 
-    expect(picker.offered.map((source) => source.name)).toEqual(['brainstorm', 'deploy']);
+    expect(picker.offered).toEqual(['brainstorm', 'deploy']);
   });
 
   it('reports in source order whatever order the picker returns', async () => {
-    const picker = fakePicker((sources) => [...sources].reverse());
-    const { run } = await newCli({ skillPicker: picker });
+    const picker = fakePicker({ choose: (labels) => [...labels].reverse() });
+    const { run } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
     const { stdout } = await run('skills', 'add', container);
@@ -197,20 +197,20 @@ describe('skills add', () => {
   });
 
   it('says so and touches nothing when the picker chooses nothing', async () => {
-    const picker = fakePicker(() => []);
-    const { run, store } = await newCli({ skillPicker: picker });
+    const picker = fakePicker({ choose: () => [] });
+    const { run, store } = await newCli({ picker });
     const container = await newContainer('brainstorm', 'deploy');
 
     const { stdout, stderr } = await run('skills', 'add', container);
 
-    expect(stdout).toEqual(['nothing added: no skill selected']);
+    expect(stdout).toEqual(['nothing to add: no skill selected']);
     expect(stderr).toEqual([]);
     expect(existsSync(store.paths.skills)).toBe(false);
   });
 
   it('runs a picked source through the collision rules', async () => {
-    const picker = fakePicker((sources) => sources);
-    const { run, store } = await newCli({ skillPicker: picker });
+    const picker = fakePicker({ choose: (labels) => labels });
+    const { run, store } = await newCli({ picker });
     const container = await newContainer('triage');
 
     storeSkill(store, 'triage');
@@ -289,7 +289,7 @@ describe('skills add', () => {
 
     expect(stdout).toEqual(['added brainstorm']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${join(personal, 'brainstorm')} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm personal\`, or delete it yourself`,
+      `warning: could not link brainstorm → personal: ${join(personal, 'brainstorm')} holds a directory that differs from the store copy at "SKILL.md" — keep it with \`grimoire clone brainstorm --to personal\`, or delete it yourself`,
     ]);
     expect(existsSync(join(store.paths.skills, 'brainstorm'))).toBe(true);
   });
@@ -308,7 +308,7 @@ describe('skills add', () => {
 
     expect(stdout).toEqual(['added brainstorm']);
     expect(stderr).toEqual([
-      `warning: could not link brainstorm → personal: ${cloned} is a clone — unclone it first with \`grimoire unclone brainstorm personal\``,
+      `warning: could not link brainstorm → personal: ${cloned} is a clone — unclone it first with \`grimoire clone brainstorm --drop personal\``,
     ]);
     expect(lstatSync(cloned).isDirectory()).toBe(true);
   });
@@ -621,22 +621,6 @@ function silence(program: Command): Command {
   }
 
   return program;
-}
-
-/** An interactive picker that records what it was offered and returns whatever `choose` selects. */
-function fakePicker(
-  choose: (sources: SkillSource[]) => SkillSource[],
-): SkillPicker & { offered: SkillSource[] } {
-  const offered: SkillSource[] = [];
-
-  return {
-    offered,
-    isInteractive: () => true,
-    pick: ({ sources }) => {
-      offered.push(...sources);
-      return Promise.resolve(choose(sources));
-    },
-  };
 }
 
 /** A skill directory, whose manifest any entry in `files` may override. */

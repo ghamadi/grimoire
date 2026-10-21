@@ -87,7 +87,7 @@ choose the skills you want to add.
 $ grimoire workspaces add claude-work ~/.claude-work/skills
 registered workspace "claude-work" → /Users/me/.claude-work/skills (manual)
 
-$ grimoire link triage claude-work
+$ grimoire link triage --to claude-work
 linked triage → claude-work
 ```
 
@@ -123,10 +123,10 @@ dangling link or a missing clone, each with its fix.
 ### Going further
 
 ```shell
-grimoire clone brainstorm claude-work   # a real copy instead of a link
-grimoire repos add library ~/dotfiles   # register a directory in a git work tree
-grimoire export library triage          # copy triage into it, then commit it yourself
-grimoire skills remove triage           # unlink it everywhere and move the store copy to the trash
+grimoire clone brainstorm --to claude-work  # a real copy instead of a link
+grimoire repos add library ~/dotfiles       # register a directory in a git work tree
+grimoire export triage --to library         # copy triage into it, then commit it yourself
+grimoire skills remove triage               # unlink it everywhere and move the store copy to the trash
 ```
 
 ## What grimoire touches
@@ -145,19 +145,17 @@ Skills removed from the store go to `~/.grimoire/.trash/` until `grimoire trash 
 
 ## Commands
 
-| Command                                       | Description                                             |
-| --------------------------------------------- | ------------------------------------------------------- |
-| [`workspaces`](./docs/commands/workspaces.md) | Manage the workspaces grimoire deploys to               |
-| [`skills`](./docs/commands/skills.md)         | Manage the skills in the grimoire store                 |
-| [`link`](./docs/commands/link.md)             | Symlink store skills into workspaces                    |
-| [`unlink`](./docs/commands/unlink.md)         | Remove a skill's links from workspaces                  |
-| [`clone`](./docs/commands/clone.md)           | Copy a store skill into workspaces                      |
-| [`unclone`](./docs/commands/unclone.md)       | Forget clone records                                    |
-| [`repos`](./docs/commands/repos.md)           | Manage the git repos grimoire exports skills to         |
-| [`export`](./docs/commands/export.md)         | Copy store skills into a repo, replacing what is there  |
-| [`trash`](./docs/commands/trash.md)           | Manage the trash that removed skills are moved to       |
-| [`status`](./docs/commands/status.md)         | Show where skills are deployed, and what has gone stale |
-| [`update`](./docs/commands/update.md)         | Update grimoire to the latest release                   |
+| Command                                       | Description                                                     |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| [`workspaces`](./docs/commands/workspaces.md) | Manage the workspaces grimoire deploys to                       |
+| [`skills`](./docs/commands/skills.md)         | Manage the skills in the grimoire store                         |
+| [`link`](./docs/commands/link.md)             | Symlink store skills into workspaces, or remove their links     |
+| [`clone`](./docs/commands/clone.md)           | Copy a store skill into workspaces, or forget its clone records |
+| [`repos`](./docs/commands/repos.md)           | Manage the git repos grimoire exports skills to                 |
+| [`export`](./docs/commands/export.md)         | Copy store skills into repos, replacing what is there           |
+| [`trash`](./docs/commands/trash.md)           | Manage the trash that removed skills are moved to               |
+| [`status`](./docs/commands/status.md)         | Show where skills are deployed, and what has gone stale         |
+| [`update`](./docs/commands/update.md)         | Update grimoire to the latest release                           |
 
 Each page lists the command's arguments, every outcome and its exact output. `grimoire <command> --help` prints the short
 form.

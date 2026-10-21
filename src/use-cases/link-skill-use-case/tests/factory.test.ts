@@ -247,7 +247,7 @@ describe('link-skill-use-case factory', () => {
       const error = refusal(() => linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal'] }));
 
       expect(error.message).toBe(
-        `could not link brainstorm → personal: ${path} is a clone — unclone it first with \`grimoire unclone brainstorm personal\``,
+        `could not link brainstorm → personal: ${path} is a clone — unclone it first with \`grimoire clone brainstorm --drop personal\``,
       );
     });
 

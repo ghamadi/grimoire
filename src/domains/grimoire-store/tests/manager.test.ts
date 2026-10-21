@@ -752,7 +752,7 @@ describe('reading state.json', () => {
     expect(refusal(() => manager.getRegistry()).message).toContain('personal');
   });
 
-  // `unclone` reads any target outside the name alphabet as a path, so a
+  // `clone --drop` reads any target outside the name alphabet as a path, so a
   // hand-written name like this one could never be addressed by name.
   it('refuses a workspace name outside the allowed alphabet, naming it', async () => {
     const { manager, store } = await newManager();

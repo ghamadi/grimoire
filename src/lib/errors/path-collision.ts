@@ -1,6 +1,11 @@
-import type { Collision } from '@/domains/grimoire-store';
 import { normalizePath, type PathRelation } from '@/lib/paths';
 import { GrimoireError } from '@/lib/errors/grimoire-error';
+
+/** How a path sits against the store or against a registered entry. */
+export type Collision =
+  | { kind: 'grimoire-home'; path: string; relation: PathRelation }
+  | { kind: 'workspace'; name: string; path: string; relation: PathRelation }
+  | { kind: 'repo'; name: string; path: string; relation: PathRelation };
 
 export type PathCollisionErrorProps = {
   path: string;

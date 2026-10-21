@@ -28,6 +28,6 @@ content is lost only through [ignored files](./commands/export.md#ignored-files-
 
 ## What follows from it
 
-- `unclone` and `skills remove --forget-clones` forget records and leave directories.
+- `clone --drop` and `skills remove --forget-clones` forget records and leave directories.
 - A plain `clone` adopts a directory it finds rather than replacing it.
 - Even `--overwrite` declines a directory that is neither a recorded clone nor a skill.

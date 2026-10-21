@@ -187,9 +187,9 @@ unregistered workspace "personal" → /Users/me/.claude/skills
 + "deploy": { "clones": [ { "path": "/Users/me/.claude/skills" } ] }
 ```
 
-[`unclone`](./unclone.md), [`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm) and
-[`status`](./status.md) still find the clone. Records naming a **different** workspace, and ones already recorded by path,
-are left alone.
+[`clone --drop`](./clone.md#clone-skill---drop-targets),
+[`skills remove --forget-clones`](./skills.md#skills-remove-skills---forget-clones-alias-rm) and [`status`](./status.md)
+still find the clone. Records naming a **different** workspace, and ones already recorded by path, are left alone.
 
 `--hard` forgets them instead:
 

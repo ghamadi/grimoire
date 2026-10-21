@@ -31,7 +31,7 @@ describe('export-skills-use-case factory', () => {
 
       storeSkill(store, 'triage');
 
-      const error = refusal(() => exportSkills({ repoName: 'ghost', skillNames: ['triage'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['ghost'], skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(EntityNotFoundError);
       expect((error as EntityNotFoundError).entity).toBe('repo');
@@ -44,7 +44,7 @@ describe('export-skills-use-case factory', () => {
       storeSkill(store, 'triage');
 
       const error = refusal(() =>
-        exportSkills({ repoName: 'library', skillNames: ['triage', 'ghost'] }),
+        exportSkills({ repoNames: ['library'], skillNames: ['triage', 'ghost'] }),
       );
 
       expect(error).toBeInstanceOf(EntityNotFoundError);
@@ -52,14 +52,28 @@ describe('export-skills-use-case factory', () => {
       expect(readdirSync(repo.path)).toEqual(['.git']);
     });
 
-    it('reports the repo when both the repo and a skill are unknown', async () => {
+    it('reports the skill when both a repo and a skill are unknown', async () => {
       const { exportSkills, repo } = await newUseCase();
 
-      const error = refusal(() => exportSkills({ repoName: 'ghost', skillNames: ['phantom'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['ghost'], skillNames: ['phantom'] }));
 
       expect(error).toBeInstanceOf(EntityNotFoundError);
-      expect((error as EntityNotFoundError).entity).toBe('repo');
+      expect((error as EntityNotFoundError).entity).toBe('skill');
       expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('reports the first unregistered repo in the order given', async () => {
+      const { exportSkills, store, addRepo } = await newUseCase();
+
+      storeSkill(store, 'triage');
+      await addRepo('dotfiles');
+
+      const error = refusal(() =>
+        exportSkills({ repoNames: ['library', 'ghost', 'phantom', 'dotfiles'], skillNames: ['triage'] }),
+      );
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect((error as EntityNotFoundError).entryName).toBe('ghost');
     });
 
     it('reports an unknown skill named after an unportable one', async () => {
@@ -68,7 +82,7 @@ describe('export-skills-use-case factory', () => {
       mkdirSync(join(store.paths.skills, 'broken'), { recursive: true });
 
       const error = refusal(() =>
-        exportSkills({ repoName: 'library', skillNames: ['broken', 'ghost'] }),
+        exportSkills({ repoNames: ['library'], skillNames: ['broken', 'ghost'] }),
       );
 
       expect(error).toBeInstanceOf(EntityNotFoundError);
@@ -85,7 +99,7 @@ describe('export-skills-use-case factory', () => {
         mkdirSync(join(store.paths.skills, 'broken'), { recursive: true });
 
         const error = refusal(() =>
-          exportSkills({ repoName: 'library', skillNames: ['triage', 'broken'], force }),
+          exportSkills({ repoNames: ['library'], skillNames: ['triage', 'broken'], force }),
         );
 
         expect(error).toBeInstanceOf(UnportableSkillError);
@@ -99,7 +113,7 @@ describe('export-skills-use-case factory', () => {
       storeSkill(store, 'triage');
       rmSync(repo.path, { recursive: true });
 
-      const error = refusal(() => exportSkills({ repoName: 'library', skillNames: ['triage'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['library'], skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(InvalidPathError);
       expect((error as InvalidPathError).reason).toBe('missing');
@@ -113,7 +127,7 @@ describe('export-skills-use-case factory', () => {
       rmSync(repo.path, { recursive: true });
       writeFileSync(repo.path, 'mine', 'utf8');
 
-      const error = refusal(() => exportSkills({ repoName: 'library', skillNames: ['triage'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['library'], skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(InvalidPathError);
       expect((error as InvalidPathError).reason).toBe('not-a-directory');
@@ -126,11 +140,27 @@ describe('export-skills-use-case factory', () => {
       storeSkill(store, 'triage');
       rmSync(join(repo.path, '.git'), { recursive: true });
 
-      const error = refusal(() => exportSkills({ repoName: 'library', skillNames: ['triage'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['library'], skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(InvalidPathError);
       expect((error as InvalidPathError).reason).toBe('not-in-git-work-tree');
       expect(readdirSync(repo.path)).toEqual([]);
+    });
+
+    it('refuses the whole run when one of several repos is no longer a work tree', async () => {
+      const { exportSkills, store, repo, addRepo } = await newUseCase();
+
+      storeSkill(store, 'triage');
+      const dotfiles = await addRepo('dotfiles');
+      rmSync(join(dotfiles.path, '.git'), { recursive: true });
+
+      const error = refusal(() =>
+        exportSkills({ repoNames: ['library', 'dotfiles'], skillNames: ['triage'] }),
+      );
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect((error as InvalidPathError).path).toBe(dotfiles.path);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
     });
   });
 
@@ -141,7 +171,7 @@ describe('export-skills-use-case factory', () => {
 
       storeSkill(store, 'triage', { '.hidden': 'dotfile', 'references/notes.md': 'deep notes' });
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
       expect(report).toEqual({
         exported: [{ skill: 'triage', repo: 'library' }],
@@ -157,7 +187,7 @@ describe('export-skills-use-case factory', () => {
       const { exportSkills, store, repo } = await newUseCase();
 
       storeSkill(store, 'triage');
-      exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
       expect(existsSync(stagingPath(repo.path))).toBe(false);
     });
@@ -170,7 +200,7 @@ describe('export-skills-use-case factory', () => {
       writeSkillDirectory(dest, { [SKILL_MANIFEST]: 'old', 'old.md': 'old' });
       repo.commitAll();
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
       expect(report.exported).toEqual([{ skill: 'triage', repo: 'library' }]);
       expect(readFileSync(join(dest, SKILL_MANIFEST), 'utf8')).toBe('# skill\n');
@@ -186,7 +216,7 @@ describe('export-skills-use-case factory', () => {
       writeFileSync(join(dest, 'notes.md'), 'notes', 'utf8');
       repo.commitAll();
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
       expect(report.exported).toEqual([{ skill: 'triage', repo: 'library' }]);
       expect(readdirSync(dest)).toEqual([SKILL_MANIFEST]);
@@ -200,7 +230,7 @@ describe('export-skills-use-case factory', () => {
       writeFileSync(dest, 'a file', 'utf8');
       repo.commitAll();
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
       expect(report.exported).toEqual([{ skill: 'triage', repo: 'library' }]);
       expect(lstatSync(dest).isDirectory()).toBe(true);
@@ -216,7 +246,7 @@ describe('export-skills-use-case factory', () => {
       writeSkillDirectory(dest, { 'debug.log': 'ignored' });
       repo.commitAll();
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
       expect(report.exported).toEqual([{ skill: 'triage', repo: 'library' }]);
       expect(existsSync(join(dest, 'debug.log'))).toBe(false);
@@ -252,7 +282,7 @@ describe('export-skills-use-case factory', () => {
       repo.commitAll();
       apply(dest);
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] });
 
       expect(report.declined).toEqual([{ skill: 'triage', repo: 'library', path: dest }]);
       expect(readFileSync(join(dest, SKILL_MANIFEST), 'utf8')).toBe('old');
@@ -267,7 +297,7 @@ describe('export-skills-use-case factory', () => {
       repo.commitAll();
       writeFileSync(join(held, 'notes.md'), 'edited', 'utf8');
 
-      const error = refusal(() => exportSkills({ repoName: 'library', skillNames: ['triage'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['library'], skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(ExportDeclinedError);
       expect(readFileSync(join(held, 'notes.md'), 'utf8')).toBe('edited');
@@ -278,16 +308,16 @@ describe('export-skills-use-case factory', () => {
       const dest = join(repo.path, 'triage');
 
       storeSkill(store, 'triage');
-      exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
-      const error = refusal(() => exportSkills({ repoName: 'library', skillNames: ['triage'] }));
+      const error = refusal(() => exportSkills({ repoNames: ['library'], skillNames: ['triage'] }));
 
       expect(error).toBeInstanceOf(ExportDeclinedError);
       expect((error as ExportDeclinedError).refusals).toEqual([
         { skill: 'triage', repo: 'library', path: dest },
       ]);
       expect(
-        exportSkills({ repoName: 'library', skillNames: ['triage'], force: true }).exported,
+        exportSkills({ repoNames: ['library'], skillNames: ['triage'], force: true }).exported,
       ).toEqual([{ skill: 'triage', repo: 'library' }]);
     });
 
@@ -300,7 +330,7 @@ describe('export-skills-use-case factory', () => {
       repo.commitAll();
       writeFileSync(join(dest, 'notes.md'), 'edited', 'utf8');
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage'], force: true });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'], force: true });
 
       expect(report.exported).toEqual([{ skill: 'triage', repo: 'library' }]);
       expect(readdirSync(dest)).toEqual([SKILL_MANIFEST]);
@@ -313,7 +343,7 @@ describe('export-skills-use-case factory', () => {
       storeSkill(store, 'review');
 
       const report = exportSkills({
-        repoName: 'library',
+        repoNames: ['library'],
         skillNames: ['triage', 'review', 'triage'],
       });
 
@@ -324,14 +354,53 @@ describe('export-skills-use-case factory', () => {
       expect(report.declined).toEqual([]);
     });
 
+    it('exports skill by skill, each into every repo in the order given', async () => {
+      const { exportSkills, store, repo, addRepo } = await newUseCase();
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'review');
+      const dotfiles = await addRepo('dotfiles');
+
+      const report = exportSkills({
+        repoNames: ['library', 'dotfiles'],
+        skillNames: ['triage', 'review'],
+      });
+
+      expect(report.exported).toEqual([
+        { skill: 'triage', repo: 'library' },
+        { skill: 'triage', repo: 'dotfiles' },
+        { skill: 'review', repo: 'library' },
+        { skill: 'review', repo: 'dotfiles' },
+      ]);
+      expect(readdirSync(repo.path).sort()).toEqual(['.git', 'review', 'triage']);
+      expect(readdirSync(dotfiles.path).sort()).toEqual(['.git', 'review', 'triage']);
+    });
+
+    it('exports to a repo named twice once', async () => {
+      const { exportSkills, store, addRepo } = await newUseCase();
+
+      storeSkill(store, 'triage');
+      await addRepo('dotfiles');
+
+      const report = exportSkills({
+        repoNames: ['library', 'dotfiles', 'library'],
+        skillNames: ['triage'],
+      });
+
+      expect(report.exported).toEqual([
+        { skill: 'triage', repo: 'library' },
+        { skill: 'triage', repo: 'dotfiles' },
+      ]);
+    });
+
     it('returns a decline beside an export rather than throwing', async () => {
       const { exportSkills, store, repo } = await newUseCase();
 
       storeSkill(store, 'triage');
       storeSkill(store, 'review');
-      exportSkills({ repoName: 'library', skillNames: ['triage'] });
+      exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] });
 
       expect(report).toEqual({
         exported: [{ skill: 'review', repo: 'library' }],
@@ -345,16 +414,53 @@ describe('export-skills-use-case factory', () => {
 
       storeSkill(store, 'triage');
       storeSkill(store, 'review');
-      exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] });
+      exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] });
 
       const error = refusal(() =>
-        exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] }),
+        exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] }),
       );
 
       expect(error).toBeInstanceOf(ExportDeclinedError);
       expect((error as ExportDeclinedError).refusals).toEqual([
         { skill: 'triage', repo: 'library', path: join(repo.path, 'triage') },
         { skill: 'review', repo: 'library', path: join(repo.path, 'review') },
+      ]);
+    });
+
+    it('returns a decline in one repo beside an export into another rather than throwing', async () => {
+      const { exportSkills, store, repo, addRepo } = await newUseCase();
+
+      storeSkill(store, 'triage');
+      await addRepo('dotfiles');
+      exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
+
+      const report = exportSkills({ repoNames: ['library', 'dotfiles'], skillNames: ['triage'] });
+
+      expect(report).toEqual({
+        exported: [{ skill: 'triage', repo: 'dotfiles' }],
+        declined: [{ skill: 'triage', repo: 'library', path: join(repo.path, 'triage') }],
+        failed: [],
+      });
+    });
+
+    it('throws when every pair across several repos is declined', async () => {
+      const { exportSkills, store, repo, addRepo } = await newUseCase();
+      const repoNames = ['library', 'dotfiles'];
+      const skillNames = ['triage', 'review'];
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'review');
+      const dotfiles = await addRepo('dotfiles');
+      exportSkills({ repoNames, skillNames });
+
+      const error = refusal(() => exportSkills({ repoNames, skillNames }));
+
+      expect(error).toBeInstanceOf(ExportDeclinedError);
+      expect((error as ExportDeclinedError).refusals).toEqual([
+        { skill: 'triage', repo: 'library', path: join(repo.path, 'triage') },
+        { skill: 'triage', repo: 'dotfiles', path: join(dotfiles.path, 'triage') },
+        { skill: 'review', repo: 'library', path: join(repo.path, 'review') },
+        { skill: 'review', repo: 'dotfiles', path: join(dotfiles.path, 'review') },
       ]);
     });
 
@@ -366,7 +472,7 @@ describe('export-skills-use-case factory', () => {
       storeSkill(store, 'review');
       writeFileSync(staging, 'mine', 'utf8');
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] });
 
       expect(report.exported).toEqual([]);
       expect(report.failed).toEqual([
@@ -395,7 +501,7 @@ describe('export-skills-use-case factory', () => {
       writeSkillDirectory(dest, { 'notes.md': 'mine' });
       writeFileSync(stagingPath(repo.path), 'mine', 'utf8');
 
-      const report = exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] });
+      const report = exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] });
 
       expect(report).toEqual({
         exported: [],
@@ -420,7 +526,7 @@ describe('export-skills-use-case factory', () => {
         chmodSync(unreadable, 0o000);
         onTestFinished(() => chmodSync(unreadable, 0o644));
 
-        const report = exportSkills({ repoName: 'library', skillNames: ['triage', 'review'] });
+        const report = exportSkills({ repoNames: ['library'], skillNames: ['triage', 'review'] });
 
         expect(report.exported).toEqual([{ skill: 'review', repo: 'library' }]);
         expect(report.failed).toEqual([
@@ -455,7 +561,7 @@ describe('export-skills-use-case factory', () => {
           }
         });
 
-        const report = exportSkills({ repoName: 'library', skillNames: ['triage'] });
+        const report = exportSkills({ repoNames: ['library'], skillNames: ['triage'] });
         const [entry] = readdirSync(staging);
 
         expect(report.failed).toEqual([]);
@@ -484,13 +590,19 @@ describe('export-skills-use-case factory', () => {
 async function newUseCase() {
   const store = new GrimoireStore(join(await tempRoot(), '.grimoire'));
   const manager = new GrimoireStoreManager(store);
-  const { path, commitAll } = await tempGitRepo();
-  const registered = manager.registerRepo({ name: 'library', path });
+
+  const addRepo = async (name: string) => {
+    const { path, commitAll } = await tempGitRepo();
+    const registered = manager.registerRepo({ name, path });
+
+    return { path: registered.path, commitAll };
+  };
 
   return {
     exportSkills: createExportSkillsUseCase({ storeManager: manager }),
     store,
-    repo: { path: registered.path, commitAll },
+    repo: await addRepo('library'),
+    addRepo,
   };
 }
 

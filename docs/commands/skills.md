@@ -51,6 +51,8 @@ a terminal, no --all     →  multi-select prompt         (the normal path)
 no terminal, no --all    →  refuse, exit 1
 ```
 
+[Pickers](../conventions.md#pickers) covers what counts as a terminal and how a pick runs.
+
 A container with nothing under it, or a run where nothing ends up selected, isn't a refusal — both exit 0:
 
 ```shell
@@ -58,7 +60,7 @@ $ grimoire skills add ~/dev
 nothing to add: no skill found under /Users/me/dev
 
 $ grimoire skills add ~/dev/skills
-nothing added: no skill selected
+nothing to add: no skill selected
 ```
 
 ### The name in the store
@@ -99,8 +101,8 @@ Output is grouped as in [Outcomes](../conventions.md#outcomes), with the line sh
 [When the name is taken](#when-the-name-is-taken): `added`, `already in the store`, then warnings, then the auto-link lines
 in [`link`](./link.md)'s order.
 
-A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill-workspaces), prints a
-warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
+A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill---to-workspaces), prints
+a warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
 
 ### When the name is taken
 
@@ -223,7 +225,8 @@ clones left in place: triage → work
 forgot clone triage → work
 ```
 
-Forgetting one record at a time, for a skill still in the store, is [`unclone`](./unclone.md)'s job.
+Forgetting one record at a time, for a skill still in the store, is [`clone --drop`](./clone.md#clone-skill---drop-targets)'s
+job.
 
 ### What `remove` refuses
 
