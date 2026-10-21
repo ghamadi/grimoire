@@ -6,8 +6,8 @@ link. A clone does not follow the store. It changes only when `--overwrite` repl
 `clone --drop` forgets clone records. It never touches the cloned directory.
 
 ```shell
-grimoire clone <skill> --to <workspaces...> [--overwrite]
-grimoire clone <skill> --drop <targets...>
+grimoire clone <skill> [--to <workspaces...>] [--overwrite]
+grimoire clone <skill> --drop [targets...]
 ```
 
 ## Arguments
@@ -17,7 +17,7 @@ grimoire clone <skill> --drop <targets...>
 | `<skill>`              | The store skill to copy. Must exist, and pass the portability check, before any destination is examined. With `--drop`, the skill the records belong to, which need not be in the store. |
 | `--to <workspaces...>` | Registered workspace names to clone into. Left out, you [choose them](#choosing-workspaces).                                                                                             |
 | `--overwrite`          | Replaces a skill directory already at the destination with the store copy, deleting the old directory. Not allowed with `--drop`.                                                        |
-| `--drop <targets...>`  | Workspace names or recorded paths whose records to forget. Left out, you [choose them](#choosing-clones-to-drop).                                                                        |
+| `--drop [targets...]`  | Workspace names or recorded paths whose records to forget. Left out, you [choose them](#choosing-clones-to-drop).                                                                        |
 
 Repeated names follow [the shared rule](../conventions.md#arguments).
 

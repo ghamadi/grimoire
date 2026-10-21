@@ -168,6 +168,14 @@ With `--drop` and no workspace named, `link` offers every registered workspace i
 [as the conventions describe](../conventions.md#missing-destinations). A workspace is offered whether or not it holds the
 link. What you pick is unlinked as if named after `--drop`.
 
+Without a terminal, the refusal also names `--all-workspaces`:
+
+```shell
+$ grimoire link triage --drop | cat
+error: no workspace named, and no terminal to choose from
+  use --all-workspaces, or name them after --drop: personal work
+```
+
 With no workspace registered, or nothing picked, the exit code is 0:
 
 ```shell

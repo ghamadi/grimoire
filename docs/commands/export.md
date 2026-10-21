@@ -4,8 +4,8 @@
 sharing belong to git and to you: grimoire commits nothing, and records nothing about what it exported.
 
 ```shell
-grimoire export <skills...> --to <repos...> [--force]
-grimoire export --all-skills --to <repos...> [--force]
+grimoire export <skills...> [--to <repos...>] [--force]
+grimoire export --all-skills [--to <repos...>] [--force]
 ```
 
 ## Arguments
