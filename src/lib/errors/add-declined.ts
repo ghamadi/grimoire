@@ -5,8 +5,8 @@ import { describeUnportableSkill, type UnportableSkillReason } from '@/lib/error
 export type AddRefusal =
   /** `storePath` is the store copy's path; `entry` names the first file the comparison found differing. */
   | { kind: 'differs'; skill: string; storePath: string; entry: string }
-  | { kind: 'unportable'; skill: string; sourcePath: string; reason: UnportableSkillReason }
-  /** `root` is the side holding the symlink; `entry` names it. */
+  | { kind: 'unportable'; skill: string; location: string; reason: UnportableSkillReason }
+  /** `root` is the side holding the symlink: the source's location or the store copy's path. `entry` names it. */
   | { kind: 'incomparable'; skill: string; root: string; entry: string };
 
 /**
@@ -21,7 +21,7 @@ export function describeAddRefusal(refusal: AddRefusal): string {
     case 'differs':
       return `${describePrefix(refusal)}: the store holds a different ${refusal.skill}, differing at "${refusal.entry}" — edit or replace ${refusal.storePath}`;
     case 'unportable':
-      return `${describePrefix(refusal)}: ${describeUnportableSkill({ path: refusal.sourcePath, reason: refusal.reason })}`;
+      return `${describePrefix(refusal)}: ${describeUnportableSkill({ location: refusal.location, reason: refusal.reason })}`;
     case 'incomparable':
       return `${describePrefix(refusal)}: ${refusal.root} holds the symlink "${refusal.entry}", so the two copies cannot be compared`;
   }

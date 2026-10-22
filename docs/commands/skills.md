@@ -5,20 +5,20 @@ it.
 
 | Command                                                           | Purpose                                             |
 | ----------------------------------------------------------------- | --------------------------------------------------- |
-| [`skills add`](#skills-add-path---all)                            | Add a skill, or a directory of skills, to the store |
+| [`skills add`](#skills-add-source---all)                          | Add a skill, or a directory of skills, to the store |
 | [`skills list`](#skills-list-alias-ls)                            | List what the store holds                           |
 | [`skills path`](#skills-path-skill)                               | Print the path of a store skill, or of the store    |
 | [`skills remove`](#skills-remove-skills---forget-clones-alias-rm) | Remove a skill from the store                       |
 
-## `skills add <path> [--all]`
+## `skills add <source> [--all]`
 
-| Argument | Meaning                                                      |
-| -------- | ------------------------------------------------------------ |
-| `path`   | A skill directory, or a directory to search under for skills |
+| Argument | Meaning                                                                 |
+| -------- | ----------------------------------------------------------------------- |
+| `source` | A skill directory, a directory to search under for skills, or a git URL |
 
-| Flag    | Default | Effect                                                              |
-| ------- | ------- | ------------------------------------------------------------------- |
-| `--all` | false   | add every skill found under `path`, skipping the interactive picker |
+| Flag    | Default | Effect                                                                |
+| ------- | ------- | --------------------------------------------------------------------- |
+| `--all` | false   | add every skill found under `source`, skipping the interactive picker |
 
 ```shell
 $ grimoire skills add ~/dev/skills --all
@@ -28,9 +28,9 @@ linked brainstorm → personal
 already linked triage → personal
 ```
 
-### What `<path>` may be
+### What `<source>` may be
 
-A directory holding `SKILL.md` at its root is the skill itself. Otherwise, `<path>` is a container: the crawl descends
+A directory holding `SKILL.md` at its root is the skill itself. Otherwise, `<source>` is a container: the crawl descends
 indefinitely, skipping entries whose name starts with `.`, and stops the moment it identifies a skill. It reads no file
 contents beyond checking for `SKILL.md`.
 
@@ -43,6 +43,37 @@ contains another skill is refused as not portable:
 ```shell
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
+
+### Adding from a git URL
+
+An argument that starts with `https://`, `ssh://` or `git@<host>:` is a git URL. Any other argument is a path, so `http://`
+and `file://` URLs fail as paths that do not exist.
+
+```shell
+$ grimoire skills add https://github.com/someone/skills.git --all
+cloning https://github.com/someone/skills.git…
+added brainstorm
+added deploy
+linked brainstorm → personal
+linked deploy → personal
+```
+
+grimoire prints `cloning <url>…` on stderr, then makes a shallow clone of the repo's default branch in a temporary directory.
+There is no way to pick a branch, a tag or a folder. A web URL such as `…/tree/main/skills` fails as a failed clone.
+
+The clone is a source like any other directory: discovery, the picker, `--all`, collisions and auto-linking all work as
+described on this page. Its `.git` directory is not copied. The clone is removed when the run ends, however it ends, Ctrl-C
+included.
+
+A repo that is itself a skill takes the name git gives the clone, so `…/triage.git` is added as `triage`.
+
+Messages name each skill by its path inside the repo, and the repo itself by the URL:
+
+```shell
+warning: could not add scratch: skill "tools/scratch" is not portable. Contains a nested skill.
+```
+
+Nothing records where a skill came from. The store copy is yours to edit, and later changes to the repo do not reach it.
 
 ### Choosing what to add
 
@@ -139,7 +170,34 @@ $ grimoire skills add ~/.grimoire/skills
 error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
-**2. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
+**2. A git URL clones, and git can be run.** The error includes git's own reason:
+
+```shell
+$ grimoire skills add https://github.com/someone/nope.git
+cloning https://github.com/someone/nope.git…
+error: could not clone https://github.com/someone/nope.git:
+  remote: Repository not found.
+  fatal: repository 'https://github.com/someone/nope.git/' not found
+```
+
+Ctrl-C during the clone fails the same way:
+
+```shell
+$ grimoire skills add https://github.com/someone/skills.git
+cloning https://github.com/someone/skills.git…
+^Cerror: could not clone https://github.com/someone/skills.git:
+  git was stopped by SIGINT
+```
+
+Without git:
+
+```shell
+$ grimoire skills add https://github.com/someone/skills.git
+cloning https://github.com/someone/skills.git…
+error: could not run git: repos need it installed and on your PATH
+```
+
+**3. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
 
 ```shell
 $ grimoire skills add ~/dev/skills

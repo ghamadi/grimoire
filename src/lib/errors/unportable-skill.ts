@@ -25,7 +25,7 @@ export class UnportableSkillError extends GrimoireError {
   readonly reason: UnportableSkillReason;
 
   constructor(props: UnportableSkillErrorProps) {
-    super(describeUnportableSkill(props));
+    super(describeUnportableSkill({ location: props.path, reason: props.reason }));
 
     this.name = 'UnportableSkillError';
     this.path = props.path;
@@ -40,6 +40,9 @@ export class UnportableSkillError extends GrimoireError {
  * and again inside an add refusal — so the sentence lives here rather than in
  * either error, or it arrives in two voices.
  */
-export function describeUnportableSkill(props: UnportableSkillErrorProps): string {
-  return `skill "${props.path}" is not portable. ${REASON_MESSAGES[props.reason]}`;
+export function describeUnportableSkill(props: {
+  location: string;
+  reason: UnportableSkillReason;
+}): string {
+  return `skill "${props.location}" is not portable. ${REASON_MESSAGES[props.reason]}`;
 }

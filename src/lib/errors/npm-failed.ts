@@ -1,4 +1,5 @@
 import { GrimoireError } from '@/lib/errors/grimoire-error';
+import { formatIndentedLines } from '@/lib/errors/indented-lines';
 import { formatShellCommand } from '@/lib/shell-command';
 
 export type NpmFailedErrorProps = {
@@ -12,16 +13,9 @@ export class NpmFailedError extends GrimoireError {
 
   constructor(props: NpmFailedErrorProps) {
     const { args, stderr } = props;
-    const stderrLines = stderr
-      .trim()
-      .split('\n')
-      .filter((line) => line.trim() !== '');
 
     super(
-      [
-        `\`${formatShellCommand(['npm', ...args])}\` failed:`,
-        ...stderrLines.map((line) => `  ${line}`),
-      ].join('\n'),
+      [`\`${formatShellCommand(['npm', ...args])}\` failed:`, ...formatIndentedLines(stderr)].join('\n'),
     );
 
     this.name = 'NpmFailedError';

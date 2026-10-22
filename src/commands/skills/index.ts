@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { findSkillSources, type SkillSource } from '@/domains/skill';
@@ -7,9 +9,15 @@ import {
   LinkDeclinedError,
   NoTerminalError,
 } from '@/lib/errors';
+import { cloneRepo } from '@/lib/git';
 import { normalizePath } from '@/lib/paths';
 import type { Picker } from '@/lib/picker';
-import { createAddSkillsUseCase, type AddSkillsReport } from '@/use-cases/add-skills-use-case/factory';
+import { withTempDirectory } from '@/lib/temp-directory';
+import {
+  createAddSkillsUseCase,
+  type AddSkillsReport,
+  type AddSkillsUseCase,
+} from '@/use-cases/add-skills-use-case/factory';
 import {
   createLinkSkillUseCase,
   type LinkSkillReport,
@@ -43,45 +51,32 @@ export function skillsCommand(params: SkillsCommandParams): Command {
   command
     .command('add')
     .description('Add a skill, or a directory of skills, to the store')
-    .argument('<path>', 'a skill directory, or a directory to search under for skills')
-    .option('--all', 'add every skill found under <path>')
-    .action(async (pathArgument: string, options: { all?: boolean }) => {
-      const path = normalizePath(pathArgument);
-      storeManager.assertOutsideStore(path);
+    .argument('<source>', 'a skill directory, a directory to search under for skills, or a git URL')
+    .option('--all', 'add every skill found under <source>')
+    .action(async (source: string, options: { all?: boolean }) => {
+      const addFrom = (params: { location: string; sources: SkillSource[] }) =>
+        addSources({ ...params, all: options.all ?? false, picker, addSkills, linkSkill });
 
-      const sources = findSkillSources({ path });
-      if (sources.length === 0) {
-        console.log(`nothing to add: no skill found under ${path}`);
+      if (!isRemoteSource(source)) {
+        const path = normalizePath(source);
+        storeManager.assertOutsideStore(path);
+
+        await addFrom({ location: path, sources: findSkillSources({ path }) });
         return;
       }
 
-      let selected = sources;
+      console.error(`cloning ${source}…`);
 
-      if (!options.all) {
-        if (!picker.isInteractive()) {
-          throw new NoTerminalError({ path, skillCount: sources.length });
-        }
+      await withTempDirectory(async (directory) => {
+        const repoPath = cloneRepo({ url: source, directory });
+        // Without this, a repo that is itself a skill brings its git database, origin URL included, into the store.
+        rmSync(join(repoPath, '.git'), { recursive: true, force: true });
 
-        const picked = await picker.pick({
-          message: 'Select the skills to add',
-          choices: sources.map((source) => ({ value: source, label: source.name, hint: source.path })),
+        await addFrom({
+          location: source,
+          sources: findSkillSources({ path: repoPath, repoUrl: source }),
         });
-        selected = inSourceOrder({ sources, picked });
-      }
-
-      if (selected.length === 0) {
-        console.log('nothing to add: no skill selected');
-        return;
-      }
-
-      const add = addSkills({ sources: selected });
-      const link = autoLink({
-        linkSkill,
-        skillNames: linkableSkills({ sources: selected, added: add }),
       });
-
-      logAddReport(add);
-      logLinkReport(link);
     });
 
   command
@@ -118,6 +113,55 @@ export function skillsCommand(params: SkillsCommandParams): Command {
 // ----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
+
+function isRemoteSource(source: string): boolean {
+  return /^(?:https:\/\/|ssh:\/\/|git@[^/:]+:)/.test(source);
+}
+
+/** `location` names the crawled source in messages: a path, or the URL a clone was made from. */
+async function addSources(params: {
+  location: string;
+  sources: SkillSource[];
+  all: boolean;
+  picker: Picker;
+  addSkills: AddSkillsUseCase;
+  linkSkill: LinkSkillUseCase;
+}): Promise<void> {
+  const { location, sources, all, picker, addSkills, linkSkill } = params;
+
+  if (sources.length === 0) {
+    console.log(`nothing to add: no skill found under ${location}`);
+    return;
+  }
+
+  let selected = sources;
+
+  if (!all) {
+    if (!picker.isInteractive()) {
+      throw new NoTerminalError({ location, skillCount: sources.length });
+    }
+
+    const picked = await picker.pick({
+      message: 'Select the skills to add',
+      choices: sources.map((source) => ({ value: source, label: source.name, hint: source.location })),
+    });
+    selected = inSourceOrder({ sources, picked });
+  }
+
+  if (selected.length === 0) {
+    console.log('nothing to add: no skill selected');
+    return;
+  }
+
+  const add = addSkills({ sources: selected });
+  const link = autoLink({
+    linkSkill,
+    skillNames: linkableSkills({ sources: selected, added: add }),
+  });
+
+  logAddReport(add);
+  logLinkReport(link);
+}
 
 /** The picked sources in the crawl's order, ignoring anything it did not offer. */
 function inSourceOrder(params: { sources: SkillSource[]; picked: SkillSource[] }): SkillSource[] {

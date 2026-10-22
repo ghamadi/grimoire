@@ -1,5 +1,7 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
-import { GitUnavailableError } from '@/lib/errors';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { GitCloneFailedError, GitUnavailableError } from '@/lib/errors';
 import { isErrnoException } from '@/lib/fs';
 
 /**
@@ -54,6 +56,36 @@ export function hasUncommittedChanges(params: { directory: string; entry: string
   return result.stdout.length > 0;
 }
 
+/**
+ * Clones into a new subdirectory of `directory`, named as git names it.
+ *
+ * @throws GitUnavailableError when git cannot be spawned.
+ * @throws GitCloneFailedError when git fails or is stopped by a signal.
+ */
+export function cloneRepo(params: { url: string; directory: string }): string {
+  const { url, directory } = params;
+
+  if (readdirSync(directory).length > 0) {
+    throw new Error(`cannot clone ${url} into ${directory}: the directory is not empty`);
+  }
+
+  const result = runGit({ directory, args: ['clone', '--depth', '1', '--quiet', '--', url] });
+
+  if (result.status !== 0) {
+    throw new GitCloneFailedError({
+      url,
+      reason: result.signal === null ? result.stderr : `git was stopped by ${result.signal}`,
+    });
+  }
+
+  const [cloneName] = readdirSync(directory);
+  if (cloneName === undefined) {
+    throw new Error(`git cloned ${url} but left nothing in ${directory}`);
+  }
+
+  return join(directory, cloneName);
+}
+
 // -----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
@@ -66,6 +98,7 @@ function runGit(params: { directory: string; args: string[] }): SpawnSyncReturns
     encoding: 'utf8',
     // Without it, a `status` listing past 1 MB fails the spawn with ENOBUFS.
     maxBuffer: Infinity,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
 
   if (result.error) {

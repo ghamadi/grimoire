@@ -10,14 +10,16 @@ describe('findSkillSources', () => {
   it('reports the named directory itself when it is a skill', async () => {
     const skill = writeSkillDirectory(join(await tempRoot(), 'triage'));
 
-    expect(findSkillSources({ path: skill })).toEqual([{ name: 'triage', path: skill }]);
+    expect(findSkillSources({ path: skill })).toEqual([
+      { name: 'triage', path: skill, location: skill },
+    ]);
   });
 
   it('finds a skill several levels down', async () => {
     const root = await tempRoot();
     const skill = writeSkillDirectory(join(root, 'a', 'b', 'c', 'triage'));
 
-    expect(findSkillSources({ path: root })).toEqual([{ name: 'triage', path: skill }]);
+    expect(findSkillSources({ path: root })).toEqual([{ name: 'triage', path: skill, location: skill }]);
   });
 
   it('stops descending once it identifies a skill, ignoring anything nested inside it', async () => {
@@ -25,7 +27,7 @@ describe('findSkillSources', () => {
     const outer = writeSkillDirectory(join(root, 'outer'));
     writeSkillDirectory(join(root, 'outer', 'inner'));
 
-    expect(findSkillSources({ path: root })).toEqual([{ name: 'outer', path: outer }]);
+    expect(findSkillSources({ path: root })).toEqual([{ name: 'outer', path: outer, location: outer }]);
   });
 
   it('skips an entry whose name starts with a dot', async () => {
@@ -33,7 +35,9 @@ describe('findSkillSources', () => {
     writeSkillDirectory(join(root, '.git', 'triage'));
     const kept = writeSkillDirectory(join(root, 'brainstorm'));
 
-    expect(findSkillSources({ path: root })).toEqual([{ name: 'brainstorm', path: kept }]);
+    expect(findSkillSources({ path: root })).toEqual([
+      { name: 'brainstorm', path: kept, location: kept },
+    ]);
   });
 
   it('does not discover a copy a clone left in a workspace staging directory', async () => {
@@ -48,7 +52,9 @@ describe('findSkillSources', () => {
     const skillsDir = join(root, '.claude', 'skills');
     const skill = writeSkillDirectory(join(skillsDir, 'triage'));
 
-    expect(findSkillSources({ path: skillsDir })).toEqual([{ name: 'triage', path: skill }]);
+    expect(findSkillSources({ path: skillsDir })).toEqual([
+      { name: 'triage', path: skill, location: skill },
+    ]);
   });
 
   it('returns nothing for a container holding no skills', async () => {
@@ -67,8 +73,8 @@ describe('findSkillSources', () => {
     const second = writeSkillDirectory(join(root, 'b', 'triage'));
 
     expect(findSkillSources({ path: root })).toEqual([
-      { name: 'triage', path: first },
-      { name: 'triage', path: second },
+      { name: 'triage', path: first, location: first },
+      { name: 'triage', path: second, location: second },
     ]);
   });
 
@@ -78,8 +84,8 @@ describe('findSkillSources', () => {
     const brainstorm = writeSkillDirectory(join(root, 'b', 'brainstorm'));
 
     expect(findSkillSources({ path: root })).toEqual([
-      { name: 'brainstorm', path: brainstorm },
-      { name: 'triage', path: triage },
+      { name: 'brainstorm', path: brainstorm, location: brainstorm },
+      { name: 'triage', path: triage, location: triage },
     ]);
   });
 
@@ -98,7 +104,28 @@ describe('findSkillSources', () => {
     const root = await tempRoot();
     const skill = writeSkillDirectory(join(root, 'triage'));
 
-    expect(findSkillSources({ path: `${skill}/` })).toEqual([{ name: 'triage', path: skill }]);
+    expect(findSkillSources({ path: `${skill}/` })).toEqual([
+      { name: 'triage', path: skill, location: skill },
+    ]);
+  });
+
+  it('locates a nested source by its path inside the repo when given repoUrl', async () => {
+    const root = await tempRoot();
+    const skill = writeSkillDirectory(join(root, 'tools', 'deploy'));
+    const repoUrl = 'https://git.test/someone/skills.git';
+
+    expect(findSkillSources({ path: root, repoUrl })).toEqual([
+      { name: 'deploy', path: skill, location: join('tools', 'deploy') },
+    ]);
+  });
+
+  it('locates a root that is itself a skill by repoUrl', async () => {
+    const skill = writeSkillDirectory(join(await tempRoot(), 'triage'));
+    const repoUrl = 'https://git.test/someone/triage.git';
+
+    expect(findSkillSources({ path: skill, repoUrl })).toEqual([
+      { name: 'triage', path: skill, location: repoUrl },
+    ]);
   });
 
   it('throws InvalidPathError for a path that does not exist', async () => {

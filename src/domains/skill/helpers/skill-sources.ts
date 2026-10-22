@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { assertUsableDirectory } from '@/lib/directories';
 import { normalizePath } from '@/lib/paths';
 import { Skill } from '@/domains/skill/entity';
@@ -12,6 +12,7 @@ import { Skill } from '@/domains/skill/entity';
 export type SkillSource = {
   name: string;
   path: string;
+  location: string;
 };
 
 // -----------------------------------------------------------------------------
@@ -25,20 +26,28 @@ export type SkillSource = {
  * containers — the crawl descends until it finds one and stops there, so a
  * nested skill is never reported separately from the one holding it.
  *
+ * With `repoUrl`, `path` is a clone of that repo.
+ *
  * @throws InvalidPathError if `path` does not exist or is not a directory.
  */
-export function findSkillSources(params: { path: string }): SkillSource[] {
+export function findSkillSources(params: { path: string; repoUrl?: string }): SkillSource[] {
+  const { repoUrl } = params;
   const root = normalizePath(params.path);
   assertUsableDirectory(root);
 
-  return collect(root).sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path));
+  return collect(root)
+    .map((source) => ({
+      ...source,
+      location: repoUrl === undefined ? source.path : relative(root, source.path) || repoUrl,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path));
 }
 
 // -----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
 
-function collect(directory: string): SkillSource[] {
+function collect(directory: string): Omit<SkillSource, 'location'>[] {
   if (Skill.isSkillDirectory(directory)) {
     return [{ name: basename(directory), path: directory }];
   }

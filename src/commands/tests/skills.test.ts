@@ -17,6 +17,8 @@ import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   AddDeclinedError,
   EntityNotFoundError,
+  GitCloneFailedError,
+  GitUnavailableError,
   InvalidPathError,
   NoTerminalError,
   PathCollisionError,
@@ -24,10 +26,12 @@ import {
 } from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { fakePicker } from '@test-helpers/fake-picker';
+import { tempGitRepo } from '@test-helpers/git-repo';
 import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('skills add', () => {
@@ -341,6 +345,266 @@ describe('skills add', () => {
       `warning: could not add gamma: the store holds a different gamma, differing at "SKILL.md" — edit or replace ${join(store.paths.skills, 'gamma')}`,
       `warning: workspace "work" was skipped: ${work} is not an existing directory`,
     ]);
+  });
+});
+
+describe('skills add from a git URL', () => {
+  const url = 'https://git.test/someone/skills.git';
+
+  it.each([
+    'https://git.test/someone/skills.git',
+    'ssh://git.test/someone/skills.git',
+    'git@git.test:someone/skills.git',
+  ])('clones %s', async (source) => {
+    const { run, store } = await newCli();
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => writeSkillDirectory(join(repo, 'brainstorm')));
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout, stderr } = await run('skills', 'add', source, '--all');
+
+    expect(stdout).toEqual(['added brainstorm']);
+    expect(stderr).toEqual([`cloning ${source}…`]);
+    expect(readdirSync(store.paths.skills)).toEqual(['brainstorm']);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('reads an http:// argument as a path', async () => {
+    const { run } = await newCli();
+    const sandbox = await isolateTempDirectory();
+
+    const error = await captureError(() =>
+      run('skills', 'add', 'http://git.test/someone/skills.git', '--all'),
+    );
+
+    expect(error).toBeInstanceOf(InvalidPathError);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('prints the same lines as a local add of the same skills', async () => {
+    const local = await newCli();
+    const remote = await newCli();
+    const container = await newContainer('brainstorm', 'deploy');
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => {
+      writeSkillDirectory(join(repo, 'brainstorm'));
+      writeSkillDirectory(join(repo, 'tools', 'deploy'));
+    });
+    const localOutput = await local.run('skills', 'add', container, '--all');
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout, stderr } = await remote.run('skills', 'add', url, '--all');
+
+    expect(stdout).toEqual(['added brainstorm', 'added deploy']);
+    expect(stdout).toEqual(localOutput.stdout);
+    expect(stderr).toEqual([`cloning ${url}…`]);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('offers the picker each source by its path inside the repo', async () => {
+    const picker = fakePicker({ choose: () => [] });
+    const { run } = await newCli({ picker });
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => {
+      writeSkillDirectory(join(repo, 'brainstorm'));
+      writeSkillDirectory(join(repo, 'tools', 'deploy'));
+    });
+    const sandbox = await isolateTempDirectory();
+
+    await run('skills', 'add', url);
+
+    expect(picker.offeredHints).toEqual(['brainstorm', join('tools', 'deploy')]);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('stores a repo that is itself a skill under the repo name, without its .git', async () => {
+    const { run, store } = await newCli();
+    const { publishRepo } = await newGitHost();
+    const triageUrl = 'https://git.test/someone/triage.git';
+    await publishRepo('someone/triage.git', (repo) => writeSkillDirectory(repo));
+    const sandbox = await isolateTempDirectory();
+
+    const first = await run('skills', 'add', triageUrl, '--all');
+
+    expect(first.stdout).toEqual(['added triage']);
+    expect(existsSync(join(store.paths.skills, 'triage', SKILL_MANIFEST))).toBe(true);
+    expect(existsSync(join(store.paths.skills, 'triage', '.git'))).toBe(false);
+    expect(readdirSync(sandbox)).toEqual([]);
+
+    const second = await run('skills', 'add', triageUrl, '--all');
+
+    expect(second.stdout).toEqual(['already in the store: triage']);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('names an unportable nested skill by its path inside the repo', async () => {
+    const { run } = await newCli();
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => {
+      writeSkillDirectory(join(repo, 'brainstorm'));
+      writeSkillDirectory(join(repo, 'tools', 'scratch'));
+      writeSkillDirectory(join(repo, 'tools', 'scratch', 'sub'));
+    });
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout, stderr } = await run('skills', 'add', url, '--all');
+
+    expect(stdout).toEqual(['added brainstorm']);
+    expect(stderr).toEqual([
+      `cloning ${url}…`,
+      `warning: could not add scratch: skill "${join('tools', 'scratch')}" is not portable. Contains a nested skill.`,
+    ]);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('names an unportable repo that is itself a skill by the URL', async () => {
+    const { run } = await newCli();
+    const { publishRepo } = await newGitHost();
+    const triageUrl = 'https://git.test/someone/triage.git';
+    await publishRepo('someone/triage.git', (repo) => {
+      writeSkillDirectory(repo);
+      writeSkillDirectory(join(repo, 'sub'));
+    });
+    const sandbox = await isolateTempDirectory();
+
+    const error = await captureError(() => run('skills', 'add', triageUrl, '--all'));
+
+    expect(error).toBeInstanceOf(AddDeclinedError);
+    expect(error.message).toBe(
+      `could not add triage: skill "${triageUrl}" is not portable. Contains a nested skill.`,
+    );
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('names a source holding a symlink by its path inside the repo', async () => {
+    const { run, store } = await newCli();
+    const { publishRepo } = await newGitHost();
+    storeSkill(store, 'deploy');
+    await publishRepo('someone/skills.git', (repo) => {
+      writeSkillDirectory(join(repo, 'brainstorm'));
+      writeSkillDirectory(join(repo, 'tools', 'deploy'));
+      symlinkSync(SKILL_MANIFEST, join(repo, 'tools', 'deploy', 'link.md'));
+    });
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout, stderr } = await run('skills', 'add', url, '--all');
+
+    expect(stdout).toEqual(['added brainstorm']);
+    expect(stderr).toEqual([
+      `cloning ${url}…`,
+      `warning: could not add deploy: ${join('tools', 'deploy')} holds the symlink "link.md", so the two copies cannot be compared`,
+    ]);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('says so and touches nothing when the picker chooses nothing', async () => {
+    const picker = fakePicker({ choose: () => [] });
+    const { run, store } = await newCli({ picker });
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => writeSkillDirectory(join(repo, 'brainstorm')));
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout } = await run('skills', 'add', url);
+
+    expect(stdout).toEqual(['nothing to add: no skill selected']);
+    expect(existsSync(store.paths.skills)).toBe(false);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('names the URL when the repo holds no skills', async () => {
+    const { run } = await newCli();
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) =>
+      writeFileSync(join(repo, 'README.md'), '# skills', 'utf8'),
+    );
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout } = await run('skills', 'add', url);
+
+    expect(stdout).toEqual([`nothing to add: no skill found under ${url}`]);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('names the URL when there is no terminal to choose from', async () => {
+    const { run } = await newCli();
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => writeSkillDirectory(join(repo, 'brainstorm')));
+    const sandbox = await isolateTempDirectory();
+
+    const error = await captureError(() => run('skills', 'add', url));
+
+    expect(error).toBeInstanceOf(NoTerminalError);
+    expect(error.message.startsWith(`${url} holds 1 skill`)).toBe(true);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('escapes as AddDeclinedError when every source is declined, leaving the store copy alone', async () => {
+    const { run, store } = await newCli();
+    const { publishRepo } = await newGitHost();
+    storeSkill(store, 'deploy');
+    await publishRepo('someone/skills.git', (repo) =>
+      writeSkillDirectory(join(repo, 'deploy'), { [SKILL_MANIFEST]: 'edited' }),
+    );
+    const sandbox = await isolateTempDirectory();
+
+    const error = await captureError(() => run('skills', 'add', url, '--all'));
+
+    expect(error).toBeInstanceOf(AddDeclinedError);
+    expect(readFileSync(join(store.paths.skills, 'deploy', SKILL_MANIFEST), 'utf8')).toBe('# skill\n');
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('throws GitCloneFailedError and creates no store when the clone fails', async () => {
+    const { runFailing, store } = await newCli();
+    await newGitHost();
+    const missingUrl = 'https://git.test/someone/missing.git';
+    const sandbox = await isolateTempDirectory();
+
+    const { stderr, error } = await runFailing('skills', 'add', missingUrl, '--all');
+
+    expect(error).toBeInstanceOf(GitCloneFailedError);
+    expect(error.message.startsWith(`could not clone ${missingUrl}:\n`)).toBe(true);
+    expect(stderr).toEqual([`cloning ${missingUrl}…`]);
+    expect(existsSync(store.paths.skills)).toBe(false);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('throws GitUnavailableError for a URL with git missing from PATH', async () => {
+    const { run } = await newCli();
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => writeSkillDirectory(join(repo, 'brainstorm')));
+    const sandbox = await isolateTempDirectory();
+    vi.stubEnv('PATH', '');
+
+    const error = await captureError(() => run('skills', 'add', url, '--all'));
+
+    expect(error).toBeInstanceOf(GitUnavailableError);
+    expect(readdirSync(sandbox)).toEqual([]);
+  });
+
+  it('still adds from a local path with git missing from PATH', async () => {
+    const { run } = await newCli();
+    const container = await newContainer('brainstorm');
+    vi.stubEnv('PATH', '');
+
+    const { stdout } = await run('skills', 'add', container, '--all');
+
+    expect(stdout).toEqual(['added brainstorm']);
+  });
+
+  it('links a URL-added skill into an auto-link workspace', async () => {
+    const { run, store } = await newCli();
+    const personal = await newDirectory('personal');
+    const { publishRepo } = await newGitHost();
+    await publishRepo('someone/skills.git', (repo) => writeSkillDirectory(join(repo, 'brainstorm')));
+    await registerAutoLink(run, 'personal', personal);
+    const sandbox = await isolateTempDirectory();
+
+    const { stdout } = await run('skills', 'add', url, '--all');
+
+    expect(stdout).toEqual(['added brainstorm', 'linked brainstorm → personal']);
+    expect(readlinkSync(join(personal, 'brainstorm'))).toBe(join(store.paths.skills, 'brainstorm'));
+    expect(readdirSync(sandbox)).toEqual([]);
   });
 });
 
@@ -812,6 +1076,34 @@ function binOf(store: GrimoireStore, skill: string): string {
   const bin = readdirSync(store.paths.trash).find((name) => name.startsWith(`${skill}-`));
 
   return join(store.paths.trash, bin as string);
+}
+
+/** `file://` rather than a plain path, because git ignores `--depth` for a path. */
+async function newGitHost() {
+  const reposRoot = await tempRoot();
+  const prefixes = ['https://git.test/', 'ssh://git.test/', 'git@git.test:'];
+
+  vi.stubEnv('GIT_CONFIG_COUNT', String(prefixes.length));
+  prefixes.forEach((prefix, index) => {
+    vi.stubEnv(`GIT_CONFIG_KEY_${index}`, `url.file://${reposRoot}/.insteadOf`);
+    vi.stubEnv(`GIT_CONFIG_VALUE_${index}`, prefix);
+  });
+
+  async function publishRepo(name: string, writeSkills: (repo: string) => void): Promise<void> {
+    const { path: repo, commitAll } = await tempGitRepo({ path: join(reposRoot, name) });
+    writeSkills(repo);
+    commitAll();
+  }
+
+  return { publishRepo };
+}
+
+/** Called after every other `tempRoot()`, which would otherwise land in the sandbox too. */
+async function isolateTempDirectory(): Promise<string> {
+  const sandbox = await tempRoot();
+  vi.stubEnv('TMPDIR', sandbox);
+
+  return sandbox;
 }
 
 /** A directory holding one default skill directory per name, outside the store root. */

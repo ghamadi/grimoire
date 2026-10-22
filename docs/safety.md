@@ -9,11 +9,14 @@ Anything you put in a workspace or a repo stays exactly as you left it, apart fr
 - A [`.grimoire-staging/`](./conventions.md#staged-writes) directory, in a workspace during a clone or in a repo during an
   export. It is removed once empty.
 - On [`update`](./commands/update.md), npm replaces grimoire's own installed package. Nothing else is touched.
+- A temporary clone in the system temp directory, during a [`skills add`](./commands/skills.md#adding-from-a-git-url) from a
+  git URL.
 
 ## What grimoire removes outside `~/.grimoire/`
 
 - Its own symlinks.
 - A directory the store is proven to [already hold in full](./conventions.md#containment).
+- The temporary clone a `skills add` from a git URL made, when the run ends.
 - A skill directory at a clone destination when
   [`clone --overwrite`](./commands/clone.md#--overwrite-replaces-a-skill-directory) is passed, once the store copy has
   replaced it.

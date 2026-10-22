@@ -133,9 +133,56 @@ describe('add-skills-use-case factory', () => {
       const error = refusal(() => addSkills({ sources: [scratch] }));
 
       expect((error as AddDeclinedError).refusals).toEqual([
-        { kind: 'unportable', skill: 'scratch', sourcePath: scratch.path, reason: 'nested-skill' },
+        { kind: 'unportable', skill: 'scratch', location: scratch.path, reason: 'nested-skill' },
       ]);
       expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+    });
+  });
+
+  describe('a source located apart from its path', () => {
+    it('names the source by its location in an unportable refusal', async () => {
+      const { addSkills, source } = await newUseCase();
+      const scratch = {
+        ...source('scratch', { 'sub/SKILL.md': '# nested\n' }),
+        location: 'tools/scratch',
+      };
+
+      const error = refusal(() => addSkills({ sources: [scratch] }));
+
+      expect((error as AddDeclinedError).refusals).toEqual([
+        { kind: 'unportable', skill: 'scratch', location: 'tools/scratch', reason: 'nested-skill' },
+      ]);
+    });
+
+    it('names the source by its location when the source holds the symlink', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('brainstorm');
+      const brainstorm = { ...source('brainstorm'), location: 'tools/brainstorm' };
+      symlinkSync(join(brainstorm.path, SKILL_MANIFEST), join(brainstorm.path, 'link.md'));
+
+      const error = refusal(() => addSkills({ sources: [brainstorm] }));
+
+      expect((error as AddDeclinedError).refusals).toEqual([
+        { kind: 'incomparable', skill: 'brainstorm', root: 'tools/brainstorm', entry: 'link.md' },
+      ]);
+    });
+
+    it('keeps the store path when the store copy holds the symlink', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      const storePath = storeSkill('brainstorm');
+      symlinkSync(join(storePath, SKILL_MANIFEST), join(storePath, 'link.md'));
+      const brainstorm = {
+        ...source('brainstorm', { 'link.md': 'a real file' }),
+        location: 'tools/brainstorm',
+      };
+
+      const error = refusal(() => addSkills({ sources: [brainstorm] }));
+
+      expect((error as AddDeclinedError).refusals).toEqual([
+        { kind: 'incomparable', skill: 'brainstorm', root: storePath, entry: 'link.md' },
+      ]);
     });
   });
 
@@ -190,14 +237,8 @@ describe('add-skills-use-case factory', () => {
   describe('two sources sharing a name', () => {
     it('adds the first and finds the second present when their trees match', async () => {
       const { addSkills, store, root } = await newUseCase();
-      const first: SkillSource = {
-        name: 'triage',
-        path: writeSkillDirectory(join(root, 'dev', 'a', 'triage')),
-      };
-      const second: SkillSource = {
-        name: 'triage',
-        path: writeSkillDirectory(join(root, 'dev', 'b', 'triage')),
-      };
+      const first = sourceAt(writeSkillDirectory(join(root, 'dev', 'a', 'triage')));
+      const second = sourceAt(writeSkillDirectory(join(root, 'dev', 'b', 'triage')));
 
       const report = addSkills({ sources: [first, second] });
 
@@ -207,14 +248,12 @@ describe('add-skills-use-case factory', () => {
 
     it('adds the first and declines the second against what the first just wrote', async () => {
       const { addSkills, store, root } = await newUseCase();
-      const first: SkillSource = {
-        name: 'triage',
-        path: writeSkillDirectory(join(root, 'dev', 'a', 'triage'), { [SKILL_MANIFEST]: 'a' }),
-      };
-      const second: SkillSource = {
-        name: 'triage',
-        path: writeSkillDirectory(join(root, 'dev', 'b', 'triage'), { [SKILL_MANIFEST]: 'b' }),
-      };
+      const first = sourceAt(
+        writeSkillDirectory(join(root, 'dev', 'a', 'triage'), { [SKILL_MANIFEST]: 'a' }),
+      );
+      const second = sourceAt(
+        writeSkillDirectory(join(root, 'dev', 'b', 'triage'), { [SKILL_MANIFEST]: 'b' }),
+      );
 
       const report = addSkills({ sources: [first, second] });
 
@@ -301,7 +340,8 @@ async function newUseCase() {
   const manager = new GrimoireStoreManager(store);
 
   function source(name: string, files: Record<string, string | Buffer> = {}): SkillSource {
-    return { name, path: writeSkillDirectory(join(root, 'dev', name), files) };
+    const path = writeSkillDirectory(join(root, 'dev', name), files);
+    return { name, path, location: path };
   }
 
   function storeSkill(name: string, files: Record<string, string | Buffer> = {}): string {
@@ -316,6 +356,10 @@ async function newUseCase() {
     source,
     storeSkill,
   };
+}
+
+function sourceAt(path: string): SkillSource {
+  return { name: 'triage', path, location: path };
 }
 
 /** A skill directory, whose manifest and nested entries any entry in `files` may override. */
