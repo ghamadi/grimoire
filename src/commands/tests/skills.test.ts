@@ -29,6 +29,8 @@ import { fakePicker } from '@test-helpers/fake-picker';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { tempRoot } from '@test-helpers/temp-root';
 
+const credentials = 'user:s3cret';
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -569,6 +571,61 @@ describe('skills add from a git URL', () => {
     expect(readdirSync(sandbox)).toEqual([]);
   });
 
+  describe('a URL carrying credentials', () => {
+    it('leaves them out of the cloning line and the messages naming the URL', async () => {
+      const { run } = await newCli();
+      const { publishRepo } = await newGitHost();
+      await publishRepo('someone/skills.git', (repo) =>
+        writeFileSync(join(repo, 'README.md'), '# skills', 'utf8'),
+      );
+
+      const { stdout, stderr } = await run(
+        'skills',
+        'add',
+        `https://${credentials}@git.test/someone/skills.git`,
+      );
+
+      expect(stdout).toEqual([`nothing to add: no skill found under ${url}`]);
+      expect(stderr).toEqual([`cloning ${url}…`]);
+    });
+
+    it('leaves them out of the name of a repo that is itself a skill', async () => {
+      const { run } = await newCli();
+      const { publishRepo } = await newGitHost();
+      await publishRepo('someone/triage.git', (repo) => {
+        writeSkillDirectory(repo);
+        writeSkillDirectory(join(repo, 'sub'));
+      });
+
+      const error = await captureError(() =>
+        run('skills', 'add', `https://${credentials}@git.test/someone/triage.git`, '--all'),
+      );
+
+      expect(error.message).toBe(
+        'could not add triage: skill "https://git.test/someone/triage.git" is not portable. Contains a nested skill.',
+      );
+    });
+
+    it('leaves them out of a failed clone', async () => {
+      const { runFailing } = await newCli();
+      await newGitHost();
+
+      const { stderr, error } = await runFailing(
+        'skills',
+        'add',
+        `https://${credentials}@git.test/someone/missing.git`,
+        '--all',
+      );
+
+      expect(error).toBeInstanceOf(GitCloneFailedError);
+      expect(error.message.startsWith('could not clone https://git.test/someone/missing.git:\n')).toBe(
+        true,
+      );
+      expect(error.message).not.toContain('s3cret');
+      expect(stderr).toEqual(['cloning https://git.test/someone/missing.git…']);
+    });
+  });
+
   it('throws GitUnavailableError for a URL with git missing from PATH', async () => {
     const { run } = await newCli();
     const { publishRepo } = await newGitHost();
@@ -1081,7 +1138,12 @@ function binOf(store: GrimoireStore, skill: string): string {
 /** `file://` rather than a plain path, because git ignores `--depth` for a path. */
 async function newGitHost() {
   const reposRoot = await tempRoot();
-  const prefixes = ['https://git.test/', 'ssh://git.test/', 'git@git.test:'];
+  const prefixes = [
+    'https://git.test/',
+    `https://${credentials}@git.test/`,
+    'ssh://git.test/',
+    'git@git.test:',
+  ];
 
   vi.stubEnv('GIT_CONFIG_COUNT', String(prefixes.length));
   prefixes.forEach((prefix, index) => {

@@ -64,26 +64,32 @@ export function hasUncommittedChanges(params: { directory: string; entry: string
  */
 export function cloneRepo(params: { url: string; directory: string }): string {
   const { url, directory } = params;
+  const displayUrl = getUrlWithoutCredentials(url);
 
   if (readdirSync(directory).length > 0) {
-    throw new Error(`cannot clone ${url} into ${directory}: the directory is not empty`);
+    throw new Error(`cannot clone ${displayUrl} into ${directory}: the directory is not empty`);
   }
 
   const result = runGit({ directory, args: ['clone', '--depth', '1', '--quiet', '--', url] });
 
   if (result.status !== 0) {
     throw new GitCloneFailedError({
-      url,
+      url: displayUrl,
       reason: result.signal === null ? result.stderr : `git was stopped by ${result.signal}`,
     });
   }
 
   const [cloneName] = readdirSync(directory);
   if (cloneName === undefined) {
-    throw new Error(`git cloned ${url} but left nothing in ${directory}`);
+    throw new Error(`git cloned ${displayUrl} but left nothing in ${directory}`);
   }
 
   return join(directory, cloneName);
+}
+
+/** ssh takes no password from a URL, so only an `https://` URL can carry a secret. */
+export function getUrlWithoutCredentials(url: string): string {
+  return url.replace(/^(https:\/\/)[^/]*@/, '$1');
 }
 
 // -----------------------------------------------------------------------------

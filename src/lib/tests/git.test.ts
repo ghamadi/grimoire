@@ -12,7 +12,12 @@ import {
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { GitCloneFailedError, GitUnavailableError, GrimoireError } from '@/lib/errors';
-import { cloneRepo, hasUncommittedChanges, isInsideGitWorkTree } from '@/lib/git';
+import {
+  cloneRepo,
+  getUrlWithoutCredentials,
+  hasUncommittedChanges,
+  isInsideGitWorkTree,
+} from '@/lib/git';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { tempRoot } from '@test-helpers/temp-root';
 
@@ -404,6 +409,50 @@ describe('cloneRepo', () => {
 
     expect(existsSync(recordPath)).toBe(true);
     expect(readFileSync(recordPath, 'utf8').trim()).toBe('0');
+  });
+
+  it('leaves the credentials out of GitCloneFailedError', async () => {
+    const binDirectory = await tempRoot();
+    writeFileSync(join(binDirectory, 'git'), '#!/bin/sh\necho "fatal: refused" >&2\nexit 128\n');
+    chmodSync(join(binDirectory, 'git'), 0o755);
+    const directory = await tempRoot();
+    vi.stubEnv('PATH', `${binDirectory}:${process.env.PATH}`);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+
+    const error = catchError(() =>
+      cloneRepo({ url: 'https://user:s3cret@git.test/someone/skills.git', directory }),
+    );
+
+    expect(error).toBeInstanceOf(GitCloneFailedError);
+    expect((error as GitCloneFailedError).url).toBe('https://git.test/someone/skills.git');
+    expect((error as GitCloneFailedError).message).toBe(
+      'could not clone https://git.test/someone/skills.git:\n  fatal: refused',
+    );
+  });
+});
+
+// -----------------------------------------------------------------------------
+// getUrlWithoutCredentials
+// -----------------------------------------------------------------------------
+
+describe('getUrlWithoutCredentials', () => {
+  it.each([
+    'https://user:s3cret@git.test/someone/skills.git',
+    'https://s3cret@git.test/someone/skills.git',
+    'https://user:s3c@ret@git.test/someone/skills.git',
+  ])('strips the credentials from %s', (url) => {
+    expect(getUrlWithoutCredentials(url)).toBe('https://git.test/someone/skills.git');
+  });
+
+  it.each([
+    'https://git.test/someone/skills.git',
+    'https://git.test/someone/user@skills.git',
+    'ssh://git@git.test/someone/skills.git',
+    'git@git.test:someone/skills.git',
+  ])('leaves %s as it is', (url) => {
+    expect(getUrlWithoutCredentials(url)).toBe(url);
   });
 });
 

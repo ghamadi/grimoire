@@ -9,7 +9,7 @@ import {
   LinkDeclinedError,
   NoTerminalError,
 } from '@/lib/errors';
-import { cloneRepo } from '@/lib/git';
+import { cloneRepo, getUrlWithoutCredentials } from '@/lib/git';
 import { normalizePath } from '@/lib/paths';
 import type { Picker } from '@/lib/picker';
 import { withTempDirectory } from '@/lib/temp-directory';
@@ -65,7 +65,8 @@ export function skillsCommand(params: SkillsCommandParams): Command {
         return;
       }
 
-      console.error(`cloning ${source}…`);
+      const displayUrl = getUrlWithoutCredentials(source);
+      console.error(`cloning ${displayUrl}…`);
 
       await withTempDirectory(async (directory) => {
         const repoPath = cloneRepo({ url: source, directory });
@@ -73,8 +74,8 @@ export function skillsCommand(params: SkillsCommandParams): Command {
         rmSync(join(repoPath, '.git'), { recursive: true, force: true });
 
         await addFrom({
-          location: source,
-          sources: findSkillSources({ path: repoPath, repoUrl: source }),
+          location: displayUrl,
+          sources: findSkillSources({ path: repoPath, repoUrl: displayUrl }),
         });
       });
     });

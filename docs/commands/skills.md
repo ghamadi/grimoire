@@ -73,6 +73,8 @@ Messages name each skill by its path inside the repo, and the repo itself by the
 warning: could not add scratch: skill "tools/scratch" is not portable. Contains a nested skill.
 ```
 
+A user name or token in an `https://` URL is left out of every line grimoire prints.
+
 Nothing records where a skill came from. The store copy is yours to edit, and later changes to the repo do not reach it.
 
 ### Choosing what to add
