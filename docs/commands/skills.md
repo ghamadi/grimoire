@@ -7,6 +7,7 @@ it.
 | ----------------------------------------------------------------- | --------------------------------------------------- |
 | [`skills add`](#skills-add-path---all)                            | Add a skill, or a directory of skills, to the store |
 | [`skills list`](#skills-list-alias-ls)                            | List what the store holds                           |
+| [`skills path`](#skills-path-skill)                               | Print the path of a store skill, or of the store    |
 | [`skills remove`](#skills-remove-skills---forget-clones-alias-rm) | Remove a skill from the store                       |
 
 ## `skills add <path> [--all]`
@@ -161,6 +162,29 @@ triage
 
 Sorted by name. It lists the store's directory, so a skill with no links or clones still shows up. Empty store prints
 `No skills in the store.`
+
+## `skills path [skill]`
+
+| Argument | Meaning                   |
+| -------- | ------------------------- |
+| `skill`  | A skill name in the store |
+
+Prints the absolute path of the skill's store directory, or of the store with no skill named, alone on one line:
+
+```shell
+$ grimoire skills path triage
+/Users/me/.grimoire/skills/triage
+
+$ grimoire skills path
+/Users/me/.grimoire/skills
+
+$ code "$(grimoire skills path triage)"
+```
+
+The store's path prints even before the store exists.
+
+A name that [`skills list`](#skills-list-alias-ls) would not print is refused with `error: no skill named "<skill>"`. See
+[Refusals](../conventions.md#refusals).
 
 ## `skills remove <skills...> [--forget-clones]` _(alias: `rm`)_
 
