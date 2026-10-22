@@ -62,8 +62,8 @@ grimoire prints `cloning <url>…` on stderr, then makes a shallow clone of the 
 There is no way to pick a branch, a tag or a folder. A web URL such as `…/tree/main/skills` fails as a failed clone.
 
 The clone is a source like any other directory: discovery, the picker, `--all`, collisions and auto-linking all work as
-described on this page. Its `.git` directory is not copied. The clone is removed when the run ends, however it ends, Ctrl-C
-included.
+described on this page. Its `.git` directory is not copied. The clone is removed when the run finishes, fails, is stopped
+with Ctrl-C, or its terminal closes.
 
 A repo that is itself a skill takes the name git gives the clone, so `…/triage.git` is added as `triage`.
 

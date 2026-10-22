@@ -99,40 +99,45 @@ describe('grimoire cli', () => {
     ]);
   });
 
-  it('removes the temporary clone and reports the stopped clone on Ctrl-C', async () => {
-    const url = 'https://git.test/someone/skills.git';
-    const sandbox = await tempRoot();
-    const { binDirectory, markerPath } = await createHangingGit();
-    const child = spawn(process.execPath, [cliBundlePath, 'skills', 'add', url, '--all'], {
-      detached: true,
-      env: {
-        ...process.env,
-        HOME: await tempRoot(),
-        TMPDIR: sandbox,
-        PATH: extendPath(binDirectory),
-      },
-    });
-    onTestFinished(() => {
-      child.kill('SIGKILL');
-    });
+  // A negative pid signals the whole process group, as a terminal's Ctrl-C, or its closing, does.
+  it.each(['SIGINT', 'SIGHUP'] as const)(
+    'removes the temporary clone and reports the stopped clone on a group %s',
+    async (signal) => {
+      const url = 'https://git.test/someone/skills.git';
+      const sandbox = await tempRoot();
+      const { binDirectory, markerPath } = await createHangingGit();
+      const child = spawn(process.execPath, [cliBundlePath, 'skills', 'add', url, '--all'], {
+        detached: true,
+        env: {
+          ...process.env,
+          HOME: await tempRoot(),
+          TMPDIR: sandbox,
+          PATH: extendPath(binDirectory),
+        },
+      });
+      onTestFinished(() => {
+        child.kill('SIGKILL');
+      });
 
-    let stderr = '';
-    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
-    const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
+      let stderr = '';
+      child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
+      const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
 
-    while (!existsSync(markerPath)) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
+      while (!existsSync(markerPath)) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
 
-    // A negative pid signals the whole process group, as a terminal's Ctrl-C does.
-    process.kill(-(child.pid as number), 'SIGINT');
+      process.kill(-(child.pid as number), signal);
 
-    expect(await exited).toBe(1);
-    expect(stderr.trim()).toBe(
-      [`cloning ${url}…`, `error: could not clone ${url}:`, '  git was stopped by SIGINT'].join('\n'),
-    );
-    expect(readdirSync(sandbox)).toEqual([]);
-  });
+      expect(await exited).toBe(1);
+      expect(stderr.trim()).toBe(
+        [`cloning ${url}…`, `error: could not clone ${url}:`, `  git was stopped by ${signal}`].join(
+          '\n',
+        ),
+      );
+      expect(readdirSync(sandbox)).toEqual([]);
+    },
+  );
 
   // A raw EACCES stack through the real process was the original report, so this
   // stays even though the command-level tests cover the same logic.
