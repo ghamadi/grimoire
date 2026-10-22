@@ -294,7 +294,7 @@ first. Other names and an entry's sentences are never styled.
 Problems are what `status` reports, so they go to stdout with the rest. It exits 0 whenever `state.json` loads, problems
 included.
 
-Beyond creating `~/.grimoire/`'s directories when missing, as every command does, it writes nothing: no workspace, no store
-entry, and not `state.json`.
+Beyond creating `~/.grimoire/`'s directories when missing, it writes nothing: no workspace, no store entry, and not
+`state.json`.
 
-Its only refusals are the [load failures](../state.md#load-failures) every command shares.
+Its only refusals are the [load failures](../state.md#load-failures).
