@@ -11,7 +11,7 @@ const reasons: [UnportableSkillReason, string][] = [
 
 describe('describeUnportableSkill', () => {
   it.each(reasons)('describes reason %s', (reason, tail) => {
-    expect(describeUnportableSkill({ path: '/Users/me/dev/scratch', reason })).toBe(
+    expect(describeUnportableSkill({ location: '/Users/me/dev/scratch', reason })).toBe(
       `skill "/Users/me/dev/scratch" is not portable. ${tail}`,
     );
   });
@@ -22,7 +22,7 @@ describe('UnportableSkillError', () => {
     const props = { path: '/Users/me/dev/scratch', reason: 'nested-skill' as const };
     const error = new UnportableSkillError(props);
 
-    expect(error.message).toBe(describeUnportableSkill(props));
+    expect(error.message).toBe(describeUnportableSkill({ location: props.path, reason: props.reason }));
   });
 
   it('carries path and reason on the instance', () => {

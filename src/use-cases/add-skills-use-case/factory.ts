@@ -106,7 +106,7 @@ function decideForSource(params: {
         refusal: {
           kind: 'unportable',
           skill: source.name,
-          sourcePath: source.path,
+          location: source.location,
           reason: error.reason,
         },
       };
@@ -147,7 +147,7 @@ function decideForSource(params: {
         refusal: {
           kind: 'incomparable',
           skill: source.name,
-          root: sourceInStore.root,
+          root: sourceInStore.root === source.path ? source.location : sourceInStore.root,
           entry: sourceInStore.entry,
         },
       };

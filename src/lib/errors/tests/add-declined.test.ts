@@ -12,7 +12,7 @@ const differs: AddRefusal = {
 const unportable: AddRefusal = {
   kind: 'unportable',
   skill: 'scratch',
-  sourcePath: '/Users/me/dev/scratch',
+  location: '/Users/me/dev/scratch',
   reason: 'nested-skill',
 };
 

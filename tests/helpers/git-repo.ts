@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { tempRoot } from '@test-helpers/temp-root';
 
 export type TempGitRepo = {
@@ -12,11 +13,15 @@ export type TempGitRepo = {
  * A fresh, empty git repository for one test, cleaned up when that test
  * finishes. Nothing is committed, so `HEAD` is unborn until `commitAll`.
  *
+ * `path` places the repository somewhere the test already owns, which cleans
+ * it up instead.
+ *
  * `commitAll` comes bound to the repository rather than exported taking a
  * path, so no test can commit anywhere but the repository it created.
  */
-export async function tempGitRepo(): Promise<TempGitRepo> {
-  const path = await tempRoot();
+export async function tempGitRepo(params: { path?: string } = {}): Promise<TempGitRepo> {
+  const path = params.path ?? (await tempRoot());
+  mkdirSync(path, { recursive: true });
 
   execFileSync('git', ['-C', path, 'init', '-q'], { stdio: 'pipe' });
 

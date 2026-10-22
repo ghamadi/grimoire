@@ -1,8 +1,8 @@
-import { execFile } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFile, spawn } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, inject, it } from 'vitest';
+import { describe, expect, inject, it, onTestFinished } from 'vitest';
 import { getPackageName, getVersion } from '@/lib/utils';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
@@ -56,7 +56,7 @@ describe('grimoire cli', () => {
     });
 
     expect(code).toBe(1);
-    expect(stderr).toBe('error: could not run git: repos need it installed and on your PATH');
+    expect(stderr).toBe('error: could not run git: grimoire needs it installed and on your PATH');
   });
 
   it('reports an npm that cannot be run as a refusal', async () => {
@@ -98,6 +98,46 @@ describe('grimoire cli', () => {
       `install -g ${getPackageName()}@${newer}`,
     ]);
   });
+
+  // A negative pid signals the whole process group, as a terminal's Ctrl-C, or its closing, does.
+  it.each(['SIGINT', 'SIGHUP'] as const)(
+    'removes the temporary clone and reports the stopped clone on a group %s',
+    async (signal) => {
+      const url = 'https://git.test/someone/skills.git';
+      const sandbox = await tempRoot();
+      const { binDirectory, markerPath } = await createHangingGit();
+      const child = spawn(process.execPath, [cliBundlePath, 'skills', 'add', url, '--all'], {
+        detached: true,
+        env: {
+          ...process.env,
+          HOME: await tempRoot(),
+          TMPDIR: sandbox,
+          PATH: extendPath(binDirectory),
+        },
+      });
+      onTestFinished(() => {
+        child.kill('SIGKILL');
+      });
+
+      let stderr = '';
+      child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk));
+      const exited = new Promise<number | null>((resolve) => child.on('exit', resolve));
+
+      while (!existsSync(markerPath)) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+
+      process.kill(-(child.pid as number), signal);
+
+      expect(await exited).toBe(1);
+      expect(stderr.trim()).toBe(
+        [`cloning ${url}…`, `error: could not clone ${url}:`, `  git was stopped by ${signal}`].join(
+          '\n',
+        ),
+      );
+      expect(readdirSync(sandbox)).toEqual([]);
+    },
+  );
 
   // A raw EACCES stack through the real process was the original report, so this
   // stays even though the command-level tests cover the same logic.
@@ -159,6 +199,25 @@ function withoutColorEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const colorVariables = ['FORCE_COLOR', 'NO_COLOR', 'NODE_DISABLE_COLORS'];
 
   return Object.fromEntries(Object.entries(env).filter(([name]) => !colorVariables.includes(name)));
+}
+
+function extendPath(binDirectory: string): string {
+  return `${binDirectory}:${process.env.PATH}`;
+}
+
+async function createHangingGit() {
+  const binDirectory = await tempRoot();
+  const gitPath = join(binDirectory, 'git');
+  const markerPath = join(binDirectory, 'started');
+
+  writeFileSync(
+    gitPath,
+    ['#!/bin/sh', `touch '${markerPath}'`, 'exec sleep 30'].join('\n') + '\n',
+    'utf8',
+  );
+  chmodSync(gitPath, 0o755);
+
+  return { binDirectory, markerPath };
 }
 
 async function createFakeNpm(params: { latestVersion: string; globalRoot: string }) {

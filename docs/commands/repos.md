@@ -6,8 +6,9 @@ handle history, review and sharing with git. There is no import. Skills go from 
 Repos are **flat**: an exported skill lands at `<repo path>/<skill>`, so the directory holds one entry per skill and nothing
 is nested.
 
-grimoire runs git read-only. It never commits, stages or changes a config. Only `repos add` and `export` run it, and every
-other command works without git installed.
+grimoire runs git read-only. It never commits, stages or changes a config. Only `repos add`, `export` and
+[`skills add`](./skills.md#adding-from-a-git-url) given a git URL run it, and every other command works without git
+installed.
 
 Repo names and [workspace](./workspaces.md) names are separate registries: a repo and a workspace may share a name.
 
@@ -71,7 +72,7 @@ If git is not installed or not on your `PATH`, `add` refuses with:
 
 ```shell
 $ grimoire repos add library ~/dotfiles/skills
-error: could not run git: repos need it installed and on your PATH
+error: could not run git: grimoire needs it installed and on your PATH
 ```
 
 ## `repos remove <name>` _(alias: `rm`)_

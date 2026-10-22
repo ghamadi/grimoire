@@ -1,9 +1,23 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { GitUnavailableError, GrimoireError } from '@/lib/errors';
-import { hasUncommittedChanges, isInsideGitWorkTree } from '@/lib/git';
+import { GitCloneFailedError, GitUnavailableError, GrimoireError } from '@/lib/errors';
+import {
+  cloneRepo,
+  getUrlWithoutCredentials,
+  hasUncommittedChanges,
+  isInsideGitWorkTree,
+} from '@/lib/git';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { tempRoot } from '@test-helpers/temp-root';
 
@@ -305,6 +319,140 @@ describe('hasUncommittedChanges flags and pathspec magic', () => {
     hasUncommittedChanges({ directory: repo, entry: 'library' });
 
     expect(readFileSync(join(repo, '.git/index')).equals(before)).toBe(true);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// cloneRepo
+// -----------------------------------------------------------------------------
+
+describe('cloneRepo', () => {
+  it('clones into a directory named as git names it, and returns its path', async () => {
+    const { path: source, commitAll } = await tempGitRepo({
+      path: join(await tempRoot(), 'triage.git'),
+    });
+    write({ repo: source, path: 'SKILL.md', content: 'skill' });
+    commitAll();
+    const directory = await tempRoot();
+
+    const clone = cloneRepo({ url: `file://${source}`, directory });
+
+    expect(clone).toBe(join(directory, 'triage'));
+    expect(readFileSync(join(clone, 'SKILL.md'), 'utf8')).toBe('skill');
+  });
+
+  it('clones one commit deep', async () => {
+    const { path: repo, commitAll } = await tempGitRepo();
+    write({ repo, path: 'a.txt' });
+    commitAll();
+    write({ repo, path: 'b.txt' });
+    commitAll();
+
+    const clone = cloneRepo({ url: `file://${repo}`, directory: await tempRoot() });
+
+    const count = execFileSync('git', ['-C', clone, 'rev-list', '--count', 'HEAD'], {
+      encoding: 'utf8',
+    });
+    expect(count.trim()).toBe('1');
+  });
+
+  it('throws a plain Error before cloning into a non-empty directory', async () => {
+    const { path: repo, commitAll } = await tempGitRepo();
+    write({ repo, path: 'a.txt' });
+    commitAll();
+    const directory = await tempRoot();
+    write({ repo: directory, path: 'occupant.txt' });
+
+    const error = catchError(() => cloneRepo({ url: `file://${repo}`, directory }));
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(GrimoireError);
+    expect(readdirSync(directory)).toEqual(['occupant.txt']);
+  });
+
+  it("throws GitCloneFailedError carrying git's reason for a missing repo", async () => {
+    const url = `file://${join(await tempRoot(), 'missing')}`;
+    const directory = await tempRoot();
+
+    const error = catchError(() => cloneRepo({ url, directory }));
+
+    expect(error).toBeInstanceOf(GitCloneFailedError);
+    expect((error as GitCloneFailedError).message.startsWith(`could not clone ${url}:`)).toBe(true);
+    expect((error as GitCloneFailedError).message).toContain('fatal:');
+  });
+
+  it('throws GitUnavailableError with git missing from PATH', async () => {
+    const directory = await tempRoot();
+    vi.stubEnv('PATH', '');
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+
+    expect(() => cloneRepo({ url: 'file:///nowhere', directory })).toThrow(GitUnavailableError);
+  });
+
+  it('runs git with terminal prompts turned off', async () => {
+    const binDirectory = await tempRoot();
+    const recordPath = join(binDirectory, 'prompt');
+    writeFileSync(
+      join(binDirectory, 'git'),
+      `#!/bin/sh\necho "$GIT_TERMINAL_PROMPT" > '${recordPath}'\n`,
+    );
+    chmodSync(join(binDirectory, 'git'), 0o755);
+    const directory = await tempRoot();
+    vi.stubEnv('PATH', `${binDirectory}:${process.env.PATH}`);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+
+    catchError(() => cloneRepo({ url: 'https://git.test/someone/skills.git', directory }));
+
+    expect(existsSync(recordPath)).toBe(true);
+    expect(readFileSync(recordPath, 'utf8').trim()).toBe('0');
+  });
+
+  it('leaves the credentials out of GitCloneFailedError', async () => {
+    const binDirectory = await tempRoot();
+    writeFileSync(join(binDirectory, 'git'), '#!/bin/sh\necho "fatal: refused" >&2\nexit 128\n');
+    chmodSync(join(binDirectory, 'git'), 0o755);
+    const directory = await tempRoot();
+    vi.stubEnv('PATH', `${binDirectory}:${process.env.PATH}`);
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+
+    const error = catchError(() =>
+      cloneRepo({ url: 'https://user:s3cret@git.test/someone/skills.git', directory }),
+    );
+
+    expect(error).toBeInstanceOf(GitCloneFailedError);
+    expect((error as GitCloneFailedError).url).toBe('https://git.test/someone/skills.git');
+    expect((error as GitCloneFailedError).message).toBe(
+      'could not clone https://git.test/someone/skills.git:\n  fatal: refused',
+    );
+  });
+});
+
+// -----------------------------------------------------------------------------
+// getUrlWithoutCredentials
+// -----------------------------------------------------------------------------
+
+describe('getUrlWithoutCredentials', () => {
+  it.each([
+    'https://user:s3cret@git.test/someone/skills.git',
+    'https://s3cret@git.test/someone/skills.git',
+    'https://user:s3c@ret@git.test/someone/skills.git',
+  ])('strips the credentials from %s', (url) => {
+    expect(getUrlWithoutCredentials(url)).toBe('https://git.test/someone/skills.git');
+  });
+
+  it.each([
+    'https://git.test/someone/skills.git',
+    'https://git.test/someone/user@skills.git',
+    'ssh://git@git.test/someone/skills.git',
+    'git@git.test:someone/skills.git',
+  ])('leaves %s as it is', (url) => {
+    expect(getUrlWithoutCredentials(url)).toBe(url);
   });
 });
 

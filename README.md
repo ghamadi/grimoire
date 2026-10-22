@@ -10,7 +10,8 @@ nothing tells you when one breaks.
 grimoire keeps one copy of each skill in a store you edit, deploys it from there, and tracks every place it went. When you
 want version history, or to share skills with others, it exports them into a git repo of yours.
 
-grimoire manages skills you write or already have on disk. It ships no skills, fetches none, and is not a package manager.
+grimoire manages skills you write or already have on disk. It ships no skills and is not a package manager. It can copy
+skills once from a git URL, and records nothing about where they came from.
 
 ## Install
 
@@ -27,7 +28,7 @@ Or install it with pnpm, yarn or bun:
 Each installs `grimoire` and `grim`, the same binary under a shorter name.
 
 It needs Node 22.18 or later, on macOS or Linux. npm refuses the install on Windows; WSL works. git is needed only to export
-skills to a repo.
+skills to a repo, or to add skills from a git URL.
 
 > [!NOTE]
 >
@@ -123,10 +124,11 @@ dangling link or a missing clone, each with its fix.
 ### Going further
 
 ```shell
-grimoire clone brainstorm --to claude-work  # a real copy instead of a link
-grimoire repos add library ~/dotfiles       # register a directory in a git work tree
-grimoire export triage --to library         # copy triage into it, then commit it yourself
-grimoire skills remove triage               # unlink it everywhere and move the store copy to the trash
+grimoire skills add https://github.com/someone/skills.git  # copy skills from a git repo, once
+grimoire clone brainstorm --to claude-work                 # a real copy instead of a link
+grimoire repos add library ~/dotfiles                      # register a directory in a git work tree
+grimoire export triage --to library                        # copy triage into it, then commit it yourself
+grimoire skills remove triage                              # unlink it everywhere and move the store copy to the trash
 ```
 
 ## What grimoire touches
