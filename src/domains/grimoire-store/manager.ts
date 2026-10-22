@@ -275,12 +275,15 @@ export class GrimoireStoreManager {
 
   /**
    * The store's path for a skill.
-   * @throws EntityNotFoundError if the store does not hold it.
+   * @throws EntityNotFoundError if no entry of the store's `skills/` has exactly this name,
+   * or, with `requireSkillDirectory`, the entry holds no SKILL.md.
    */
-  requireSkillPath(name: string) {
+  requireSkillPath(name: string, options: { requireSkillDirectory?: boolean } = {}) {
     this.ensureLayout();
     const path = this.skillPath(name);
-    if (!existsSync(path)) {
+    const isEntry = readdirSync(this.store.paths.skills).includes(name);
+    const isFound = isEntry && (!options.requireSkillDirectory || Skill.isSkillDirectory(path));
+    if (!isFound) {
       throw new EntityNotFoundError({ entity: 'skill', name });
     }
     return path;

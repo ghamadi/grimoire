@@ -79,8 +79,8 @@ The rule exists because `export` writes into a repo's directory, which must not 
 
 ## Load failures
 
-Every command loads `state.json` first. When it cannot, the command prints an error to stderr, exits 1 and does nothing else.
-That includes `repos remove`.
+Every command loads `state.json` first, except `skills list`, `skills path`, `trash empty` and `update`, which never read it.
+When it cannot, the command prints an error to stderr, exits 1 and does nothing else. That includes `repos remove`.
 
 - A `state.json` that is not valid JSON prints `error: <state.json path>: is not valid JSON`.
 - A `state.json` that does not match its shape, including a name that breaks [the name rule](#names), is refused with a

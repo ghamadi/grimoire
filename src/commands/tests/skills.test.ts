@@ -9,7 +9,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GrimoireStore } from '@/domains/grimoire-store';
@@ -383,6 +383,49 @@ describe('skills list', () => {
   });
 });
 
+describe('skills path', () => {
+  it("prints a skill's store directory, alone", async () => {
+    const { run, store } = await newCli();
+
+    storeSkill(store, 'triage');
+
+    const { stdout, stderr } = await run('skills', 'path', 'triage');
+
+    expect(stdout).toEqual([join(store.paths.skills, 'triage')]);
+    expect(stderr).toEqual([]);
+  });
+
+  it("prints the store's skills directory before the store exists, creating nothing", async () => {
+    const { run, store } = await newCli();
+
+    expect((await run('skills', 'path')).stdout).toEqual([store.paths.skills]);
+    expect(existsSync(store.paths.skills)).toBe(false);
+  });
+
+  it('refuses a skill the store does not hold, printing nothing', async () => {
+    const { runFailing } = await newCli();
+
+    const { stdout, error } = await runFailing('skills', 'path', 'nope');
+
+    expect(error).toBeInstanceOf(EntityNotFoundError);
+    expect(error.message).toBe('no skill named "nope"');
+    expect(stdout).toEqual([]);
+  });
+
+  it('refuses a loose file and a directory with no SKILL.md', async () => {
+    const { run, store } = await newCli();
+
+    storeSkill(store, 'brainstorm');
+    writeFileSync(join(store.paths.skills, 'notes.md'), 'not a skill', 'utf8');
+    mkdirSync(join(store.paths.skills, 'draft'));
+
+    expect(await captureError(() => run('skills', 'path', 'notes.md'))).toBeInstanceOf(
+      EntityNotFoundError,
+    );
+    expect(await captureError(() => run('skills', 'path', 'draft'))).toBeInstanceOf(EntityNotFoundError);
+  });
+});
+
 describe('skills remove', () => {
   it('clears the links into a skill, then reports where its store copy went', async () => {
     const { run, store } = await newCli();
@@ -551,6 +594,18 @@ describe('skills remove', () => {
     expect(trashEntries(store)).toEqual([]);
   });
 
+  it('refuses a name that resolves outside the store, moving nothing', async () => {
+    const { run, store } = await newCli();
+    const outside = await newDirectory('outside');
+    const name = relative(store.paths.skills, outside);
+
+    const error = await captureError(() => run('skills', 'remove', name));
+
+    expect(error).toBeInstanceOf(EntityNotFoundError);
+    expect(existsSync(outside)).toBe(true);
+    expect(trashEntries(store)).toEqual([]);
+  });
+
   it('refuses the whole run when a registered workspace cannot be read', async () => {
     const { run, store } = await newCli();
     const work = await newDirectory('work');
@@ -581,9 +636,10 @@ async function newCli(dependencies: ProgramDependencies = {}) {
   const store = new GrimoireStore(await tempRoot());
   const program = silence(buildProgram(store, dependencies));
 
-  async function run(...argv: string[]) {
+  async function capture(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
+    let thrown: unknown;
 
     const log = vi.spyOn(console, 'log').mockImplementation((line: string) => void stdout.push(line));
     const toStderr = (line: string) => void stderr.push(line);
@@ -592,16 +648,38 @@ async function newCli(dependencies: ProgramDependencies = {}) {
 
     try {
       await program.parseAsync(argv, { from: 'user' });
+    } catch (caught) {
+      thrown = caught;
     } finally {
       log.mockRestore();
       error.mockRestore();
       warn.mockRestore();
     }
 
+    return { stdout, stderr, thrown };
+  }
+
+  async function run(...argv: string[]) {
+    const { stdout, stderr, thrown } = await capture(argv);
+
+    if (thrown !== undefined) {
+      throw thrown as Error;
+    }
+
     return { stdout, stderr };
   }
 
-  return { run, store };
+  async function runFailing(...argv: string[]) {
+    const { stdout, stderr, thrown } = await capture(argv);
+
+    if (thrown === undefined) {
+      throw new Error('expected a refusal');
+    }
+
+    return { stdout, stderr, error: thrown as Error };
+  }
+
+  return { run, runFailing, store };
 }
 
 /**

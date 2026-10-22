@@ -2148,6 +2148,68 @@ describe('skillPath', () => {
   });
 });
 
+describe('requireSkillPath', () => {
+  it('answers the path of a skill directory, with or without requireSkillDirectory', async () => {
+    const { manager, store } = await newManager();
+    const path = writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    expect(manager.requireSkillPath('triage')).toBe(path);
+    expect(manager.requireSkillPath('triage', { requireSkillDirectory: true })).toBe(path);
+  });
+
+  it('refuses a missing skill', async () => {
+    const { manager } = await newManager();
+
+    const error = refusalOf(() => manager.requireSkillPath('triage'));
+
+    expect(error).toBeInstanceOf(EntityNotFoundError);
+    expect(error.message).toBe('no skill named "triage"');
+  });
+
+  it.each([
+    ['a loose file', 'notes.txt', (path: string) => writeFileSync(path, 'notes\n', 'utf8')],
+    ['a directory without SKILL.md', 'drafts', (path: string) => mkdirSync(path)],
+  ])('answers %s, but refuses it with requireSkillDirectory', async (_, name, write) => {
+    const { manager, store } = await newManager();
+
+    mkdirSync(store.paths.skills, { recursive: true });
+    write(join(store.paths.skills, name));
+
+    expect(manager.requireSkillPath(name)).toBe(join(store.paths.skills, name));
+    expect(() => manager.requireSkillPath(name, { requireSkillDirectory: true })).toThrow(
+      EntityNotFoundError,
+    );
+  });
+
+  it.each([
+    ['a skill outside the store', '../../outside', (root: string) => join(root, 'outside')],
+    ['the skills directory itself', '.', (root: string) => join(root, '.grimoire', 'skills')],
+    [
+      'a skill nested inside another',
+      'triage/nested',
+      (root: string) => join(root, '.grimoire', 'skills', 'triage', 'nested'),
+    ],
+  ])('refuses a name that resolves to %s', async (_, name, skillDirectory) => {
+    const { manager, root } = await newManager();
+
+    writeSkillDirectory(skillDirectory(root));
+
+    expect(() => manager.requireSkillPath(name)).toThrow(EntityNotFoundError);
+  });
+
+  it.each([
+    ['a trailing slash', 'triage/'],
+    ['a leading ./', './triage'],
+    ['a different case', 'Triage'],
+  ])('refuses a name that spells an entry with %s', async (_, name) => {
+    const { manager, store } = await newManager();
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    expect(() => manager.requireSkillPath(name)).toThrow(EntityNotFoundError);
+  });
+});
+
 describe('skillsDirectory and statePath', () => {
   it("answer the store's own paths, creating nothing", async () => {
     const { manager, store } = await newManager();

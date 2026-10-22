@@ -91,6 +91,18 @@ export function skillsCommand(params: SkillsCommandParams): Command {
     .action(() => logSkillNames(storeManager.listSkillNames()));
 
   command
+    .command('path')
+    .description('Print the path of a store skill, or of the store')
+    .argument('[skill]', 'a skill name in the store')
+    .action((skillName: string | undefined) =>
+      console.log(
+        skillName === undefined
+          ? storeManager.skillsDirectory()
+          : storeManager.requireSkillPath(skillName, { requireSkillDirectory: true }),
+      ),
+    );
+
+  command
     .command('remove')
     .alias('rm')
     .description('Remove a skill from the store')
