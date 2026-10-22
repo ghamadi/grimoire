@@ -72,7 +72,7 @@ If git is not installed or not on your `PATH`, `add` refuses with:
 
 ```shell
 $ grimoire repos add library ~/dotfiles/skills
-error: could not run git: repos need it installed and on your PATH
+error: could not run git: grimoire needs it installed and on your PATH
 ```
 
 ## `repos remove <name>` _(alias: `rm`)_

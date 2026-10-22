@@ -196,7 +196,7 @@ Without git:
 ```shell
 $ grimoire skills add https://github.com/someone/skills.git
 cloning https://github.com/someone/skills.git…
-error: could not run git: repos need it installed and on your PATH
+error: could not run git: grimoire needs it installed and on your PATH
 ```
 
 **3. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.

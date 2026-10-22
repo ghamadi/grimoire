@@ -5,7 +5,7 @@ import { GrimoireError } from '@/lib/errors/grimoire-error';
  */
 export class GitUnavailableError extends GrimoireError {
   constructor() {
-    super('could not run git: repos need it installed and on your PATH');
+    super('could not run git: grimoire needs it installed and on your PATH');
 
     this.name = 'GitUnavailableError';
   }

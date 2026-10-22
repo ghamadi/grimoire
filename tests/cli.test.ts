@@ -56,7 +56,7 @@ describe('grimoire cli', () => {
     });
 
     expect(code).toBe(1);
-    expect(stderr).toBe('error: could not run git: repos need it installed and on your PATH');
+    expect(stderr).toBe('error: could not run git: grimoire needs it installed and on your PATH');
   });
 
   it('reports an npm that cannot be run as a refusal', async () => {

@@ -246,5 +246,5 @@ error: /Users/me/library is not inside a git work tree
 
 ```shell
 $ grimoire export triage --to library
-error: could not run git: repos need it installed and on your PATH
+error: could not run git: grimoire needs it installed and on your PATH
 ```
