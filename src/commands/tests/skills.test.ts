@@ -411,6 +411,19 @@ describe('skills path', () => {
     expect(error.message).toBe('no skill named "nope"');
     expect(stdout).toEqual([]);
   });
+
+  it('refuses a loose file and a directory with no SKILL.md', async () => {
+    const { run, store } = await newCli();
+
+    storeSkill(store, 'brainstorm');
+    writeFileSync(join(store.paths.skills, 'notes.md'), 'not a skill', 'utf8');
+    mkdirSync(join(store.paths.skills, 'draft'));
+
+    expect(await captureError(() => run('skills', 'path', 'notes.md'))).toBeInstanceOf(
+      EntityNotFoundError,
+    );
+    expect(await captureError(() => run('skills', 'path', 'draft'))).toBeInstanceOf(EntityNotFoundError);
+  });
 });
 
 describe('skills remove', () => {
@@ -623,7 +636,6 @@ async function newCli(dependencies: ProgramDependencies = {}) {
   const store = new GrimoireStore(await tempRoot());
   const program = silence(buildProgram(store, dependencies));
 
-  /** Everything the command printed, and the error it threw, if any. */
   async function capture(argv: string[]) {
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -657,7 +669,6 @@ async function newCli(dependencies: ProgramDependencies = {}) {
     return { stdout, stderr };
   }
 
-  /** For a refusal whose output matters: the lines come back with the error. */
   async function runFailing(...argv: string[]) {
     const { stdout, stderr, thrown } = await capture(argv);
 
