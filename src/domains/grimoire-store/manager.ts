@@ -15,7 +15,7 @@ import {
   type Collision,
   type RegistryEntity,
 } from '@/lib/errors';
-import { dirname, join, matchesGlob } from 'node:path';
+import { join, matchesGlob } from 'node:path';
 import {
   findDanglingStoreLinks,
   findStoreLinks,
@@ -275,14 +275,15 @@ export class GrimoireStoreManager {
 
   /**
    * The store's path for a skill.
-   * @throws EntityNotFoundError if the name is not an entry of the store's `skills/`,
-   * or, with `requireSkillDirectory`, an entry without SKILL.md.
+   * @throws EntityNotFoundError if no entry of the store's `skills/` has exactly this name,
+   * or, with `requireSkillDirectory`, the entry holds no SKILL.md.
    */
   requireSkillPath(name: string, options: { requireSkillDirectory?: boolean } = {}) {
     this.ensureLayout();
     const path = this.skillPath(name);
-    const isFound = options.requireSkillDirectory ? Skill.isSkillDirectory(path) : existsSync(path);
-    if (dirname(path) !== this.store.paths.skills || !isFound) {
+    const isEntry = readdirSync(this.store.paths.skills).includes(name);
+    const isFound = isEntry && (!options.requireSkillDirectory || Skill.isSkillDirectory(path));
+    if (!isFound) {
       throw new EntityNotFoundError({ entity: 'skill', name });
     }
     return path;

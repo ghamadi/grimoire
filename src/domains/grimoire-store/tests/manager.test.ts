@@ -2196,6 +2196,18 @@ describe('requireSkillPath', () => {
 
     expect(() => manager.requireSkillPath(name)).toThrow(EntityNotFoundError);
   });
+
+  it.each([
+    ['a trailing slash', 'triage/'],
+    ['a leading ./', './triage'],
+    ['a different case', 'Triage'],
+  ])('refuses a name that spells an entry with %s', async (_, name) => {
+    const { manager, store } = await newManager();
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'));
+
+    expect(() => manager.requireSkillPath(name)).toThrow(EntityNotFoundError);
+  });
 });
 
 describe('skillsDirectory and statePath', () => {
