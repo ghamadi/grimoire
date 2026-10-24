@@ -9,6 +9,7 @@ import {
   LinkDeclinedError,
   NoTerminalError,
 } from '@/lib/errors';
+import { assertUsableDirectory } from '@/lib/directories';
 import { cloneRepo, getUrlWithoutCredentials } from '@/lib/git';
 import { normalizePath } from '@/lib/paths';
 import type { Picker } from '@/lib/picker';
@@ -54,18 +55,30 @@ export function skillsCommand(params: SkillsCommandParams): Command {
     .argument('<source>', 'a skill directory, a directory to search under for skills, or a git URL')
     .option('--all', 'add every skill found under <source>')
     .action(async (source: string, options: { all?: boolean }) => {
+      const all = options.all ?? false;
+      const mustRefuse = !all && !picker.isInteractive();
       const addFrom = (params: { location: string; sources: SkillSource[] }) =>
-        addSources({ ...params, all: options.all ?? false, picker, addSkills, linkSkill });
+        addSources({ ...params, all, picker, addSkills, linkSkill });
 
       if (!isRemoteSource(source)) {
         const path = normalizePath(source);
         storeManager.assertOutsideStore(path);
+        assertUsableDirectory(path);
+
+        if (mustRefuse) {
+          throw new NoTerminalError({ location: path });
+        }
 
         await addFrom({ location: path, sources: findSkillSources({ path }) });
         return;
       }
 
       const displayUrl = getUrlWithoutCredentials(source);
+
+      if (mustRefuse) {
+        throw new NoTerminalError({ location: displayUrl });
+      }
+
       console.error(`cloning ${displayUrl}…`);
 
       await withTempDirectory(async (directory) => {
@@ -138,10 +151,6 @@ async function addSources(params: {
   let selected = sources;
 
   if (!all) {
-    if (!picker.isInteractive()) {
-      throw new NoTerminalError({ location, skillCount: sources.length });
-    }
-
     const picked = await picker.pick({
       message: 'Select the skills to add',
       choices: sources.map((source) => ({ value: source, label: source.name, hint: source.location })),

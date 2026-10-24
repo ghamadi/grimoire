@@ -392,6 +392,33 @@ describe('export', () => {
       expect(readdirSync(repo.path)).toEqual(['.git']);
     });
 
+    it('refuses without a terminal, naming only --to, when no repo is registered', async () => {
+      const { run, store, repo } = await newCli();
+
+      storeSkill(store, 'triage');
+      await run('repos', 'remove', 'library');
+
+      const error = await captureError(() => run('export', 'triage'));
+
+      expect(error).toBeInstanceOf(MissingDestinationError);
+      expect(error.message.split('\n')).toEqual([
+        'no repo named, and no terminal to choose from',
+        '  name them with --to',
+      ]);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
+    it('refuses an unknown skill without a terminal', async () => {
+      const { run, store, repo } = await newCli();
+
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('export', 'ghost'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(readdirSync(repo.path)).toEqual(['.git']);
+    });
+
     it('says the store holds no skills under --all-skills without offering a pick', async () => {
       const picker = fakePicker({ choose: (labels) => labels });
       const { run } = await newCli({ picker });

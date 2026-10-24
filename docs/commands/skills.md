@@ -61,6 +61,8 @@ linked deploy → personal
 grimoire prints `cloning <url>…` on stderr, then makes a shallow clone of the repo's default branch in a temporary directory.
 There is no way to pick a branch, a tag or a folder. A web URL such as `…/tree/main/skills` fails as a failed clone.
 
+Without a terminal or `--all`, grimoire refuses without contacting the repo. It prints no `cloning` line and clones nothing.
+
 The clone is a source like any other directory: discovery, the picker, `--all`, collisions and auto-linking all work as
 described on this page. Its `.git` directory is not copied. The clone is removed when the run finishes, fails, is stopped
 with Ctrl-C, or its terminal closes.
@@ -87,7 +89,11 @@ no terminal, no --all    →  refuse, exit 1
 
 [Pickers](../conventions.md#pickers) covers what counts as a terminal and how a pick runs.
 
-A container with nothing under it, or a run where nothing ends up selected, isn't a refusal — both exit 0:
+A path is checked first: it must exist and sit outside the store. Then a run with no terminal and no `--all` refuses before
+anything is crawled or cloned, even when the source holds no skills.
+
+With a terminal or `--all`, a container with nothing under it, or a run where nothing ends up selected, isn't a refusal. Both
+exit 0:
 
 ```shell
 $ grimoire skills add ~/dev
@@ -203,7 +209,7 @@ error: could not run git: grimoire needs it installed and on your PATH
 
 ```shell
 $ grimoire skills add ~/dev/skills
-error: /Users/me/dev/skills holds 12 skills and no terminal to choose from
+error: no terminal to choose skills from /Users/me/dev/skills
   use --all to add every one
 ```
 

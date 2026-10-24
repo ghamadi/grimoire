@@ -140,7 +140,7 @@ error: failed to clone triage → c: /Users/me/c/.agents/skills/.grimoire-stagin
 Without `--to`, `clone` offers every registered workspace in name order,
 [as the conventions describe](../conventions.md#missing-destinations). What you pick is cloned into as if named after `--to`.
 
-With no workspace registered, or nothing picked, the exit code is 0:
+On a terminal, with no workspace registered or nothing picked, the exit code is 0:
 
 ```shell
 $ grimoire clone triage
@@ -198,7 +198,7 @@ error: no clone named, and no terminal to choose from
   name them after --drop: personal '/Users/me/My Projects/skills'
 ```
 
-With no record for the skill, or nothing picked, the exit code is 0:
+On a terminal, with no record for the skill or nothing picked, the exit code is 0:
 
 ```shell
 $ grimoire clone triage --drop

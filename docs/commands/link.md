@@ -176,7 +176,7 @@ error: no workspace named, and no terminal to choose from
   use --all-workspaces, or name them after --drop: personal work
 ```
 
-With no workspace registered, or nothing picked, the exit code is 0:
+On a terminal, with no workspace registered or nothing picked, the exit code is 0:
 
 ```shell
 $ grimoire link triage --drop

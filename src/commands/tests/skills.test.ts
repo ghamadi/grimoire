@@ -108,7 +108,7 @@ describe('skills add', () => {
   });
 
   it('exits clean with a message when the container holds no skills', async () => {
-    const { run } = await newCli();
+    const { run } = await newCli({ picker: fakePicker({ choose: (labels) => labels }) });
     const container = await newContainer();
 
     const { stdout, stderr } = await run('skills', 'add', container);
@@ -125,18 +125,23 @@ describe('skills add', () => {
 
     expect(error).toBeInstanceOf(NoTerminalError);
     expect(error.message).toBe(
-      `${container} holds 2 skills and no terminal to choose from\n  use --all to add every one`,
+      [`no terminal to choose skills from ${container}`, '  use --all to add every one'].join('\n'),
     );
     expect(existsSync(store.paths.skills)).toBe(false);
   });
 
-  it('reads "holds 1 skill" when the refusal is over a lone skill', async () => {
+  it('refuses without --all when there is no terminal, even over an empty container', async () => {
     const { run } = await newCli();
-    const skill = writeSkillDirectory(join(await newDirectory('dev'), 'triage'));
+    const container = await newContainer();
 
-    const error = await captureError(() => run('skills', 'add', skill));
+    expect(await captureError(() => run('skills', 'add', container))).toBeInstanceOf(NoTerminalError);
+  });
 
-    expect(error.message).toContain(`${skill} holds 1 skill and no terminal`);
+  it('refuses a path that does not exist as one when there is no terminal', async () => {
+    const { run } = await newCli();
+    const missing = join(await newDirectory('dev'), 'missing');
+
+    expect(await captureError(() => run('skills', 'add', missing))).toBeInstanceOf(InvalidPathError);
   });
 
   it('refuses a path inside a store that has never been created', async () => {
@@ -514,7 +519,7 @@ describe('skills add from a git URL', () => {
   });
 
   it('names the URL when the repo holds no skills', async () => {
-    const { run } = await newCli();
+    const { run } = await newCli({ picker: fakePicker({ choose: (labels) => labels }) });
     const { publishRepo } = await newGitHost();
     await publishRepo('someone/skills.git', (repo) =>
       writeFileSync(join(repo, 'README.md'), '# skills', 'utf8'),
@@ -527,16 +532,19 @@ describe('skills add from a git URL', () => {
     expect(readdirSync(sandbox)).toEqual([]);
   });
 
-  it('names the URL when there is no terminal to choose from', async () => {
-    const { run } = await newCli();
+  it('names the URL and clones nothing when there is no terminal to choose from', async () => {
+    const { runFailing } = await newCli();
     const { publishRepo } = await newGitHost();
     await publishRepo('someone/skills.git', (repo) => writeSkillDirectory(join(repo, 'brainstorm')));
     const sandbox = await isolateTempDirectory();
 
-    const error = await captureError(() => run('skills', 'add', url));
+    const { stderr, error } = await runFailing('skills', 'add', url);
 
     expect(error).toBeInstanceOf(NoTerminalError);
-    expect(error.message.startsWith(`${url} holds 1 skill`)).toBe(true);
+    expect(error.message).toBe(
+      [`no terminal to choose skills from ${url}`, '  use --all to add every one'].join('\n'),
+    );
+    expect(stderr.some((line) => line.startsWith('cloning'))).toBe(false);
     expect(readdirSync(sandbox)).toEqual([]);
   });
 
@@ -573,7 +581,7 @@ describe('skills add from a git URL', () => {
 
   describe('a URL carrying credentials', () => {
     it('leaves them out of the cloning line and the messages naming the URL', async () => {
-      const { run } = await newCli();
+      const { run } = await newCli({ picker: fakePicker({ choose: (labels) => labels }) });
       const { publishRepo } = await newGitHost();
       await publishRepo('someone/skills.git', (repo) =>
         writeFileSync(join(repo, 'README.md'), '# skills', 'utf8'),

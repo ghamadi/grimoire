@@ -24,6 +24,19 @@ describe('MissingDestinationError', () => {
     );
   });
 
+  it('names only the flag to use when there are no choices', () => {
+    const error = new MissingDestinationError({
+      noun: 'repo',
+      remedy: 'name them with --to',
+      choiceLabels: [],
+    });
+
+    expect(error.message.split('\n')).toEqual([
+      'no repo named, and no terminal to choose from',
+      '  name them with --to',
+    ]);
+  });
+
   it('carries the props it was constructed with', () => {
     const error = new MissingDestinationError(props);
 

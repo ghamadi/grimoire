@@ -195,7 +195,7 @@ nothing to export: the store holds no skills
 Without `--to`, `export` offers the registered repos by name,
 [as the conventions describe](../conventions.md#missing-destinations). What you pick is exported to as if named after `--to`.
 
-With no repo registered, or nothing picked, the exit code is 0:
+On a terminal, with no repo registered or nothing picked, the exit code is 0:
 
 ```shell
 $ grimoire export triage
@@ -205,6 +205,14 @@ nothing to export: no repo is registered
 ```shell
 $ grimoire export triage
 nothing to export: no repo selected
+```
+
+Without a terminal and with no repo registered, the run refuses:
+
+```shell
+$ grimoire export triage | cat
+error: no repo named, and no terminal to choose from
+  name them with --to
 ```
 
 ## What `export` refuses

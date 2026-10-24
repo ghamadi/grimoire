@@ -568,6 +568,33 @@ describe('clone', () => {
       ]);
       expect(existsSync(join(personal, 'triage'))).toBe(false);
     });
+
+    it('refuses without a terminal, naming only --to, when no workspace is registered', async () => {
+      const { run, store } = await newCli();
+
+      storeSkill(store, 'triage');
+
+      const error = await captureError(() => run('clone', 'triage'));
+
+      expect(error).toBeInstanceOf(MissingDestinationError);
+      expect(error.message.split('\n')).toEqual([
+        'no workspace named, and no terminal to choose from',
+        '  name them with --to',
+      ]);
+      expect(existsSync(store.paths.state)).toBe(false);
+    });
+
+    it('refuses an unknown skill without a terminal', async () => {
+      const { run } = await newCli();
+      const personal = await newDirectory('personal');
+
+      await run('workspaces', 'add', 'personal', personal);
+
+      const error = await captureError(() => run('clone', 'ghost'));
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(existsSync(join(personal, 'ghost'))).toBe(false);
+    });
   });
 
   describe('--drop', () => {
@@ -717,6 +744,21 @@ describe('clone', () => {
           `  name them after --drop: personal '${spaced}'`,
         ]);
         expect(clonesOf(store, 'triage')).toHaveLength(2);
+      });
+
+      it('refuses without a terminal, naming only --drop, when the skill has no clone records', async () => {
+        const { run, store } = await newCli();
+
+        await run('workspaces', 'add', 'personal', await newDirectory('personal'));
+
+        const error = await captureError(() => run('clone', 'triage', '--drop'));
+
+        expect(error).toBeInstanceOf(MissingDestinationError);
+        expect(error.message.split('\n')).toEqual([
+          'no clone named, and no terminal to choose from',
+          '  name them after --drop',
+        ]);
+        expect(clonesOf(store, 'triage')).toEqual([]);
       });
     });
   });

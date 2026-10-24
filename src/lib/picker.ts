@@ -40,16 +40,15 @@ export async function pickChoices<T>(params: {
 }): Promise<PickChoicesResult<T>> {
   const { picker, message, choices, refusal } = params;
 
-  // Ahead of the terminal check, so a run with nothing to offer ends the same way with or without a terminal.
-  if (choices.length === 0) {
-    return { kind: 'no-choices' };
-  }
-
   if (!picker.isInteractive()) {
     throw new MissingDestinationError({
       ...refusal,
       choiceLabels: choices.map((choice) => choice.label),
     });
+  }
+
+  if (choices.length === 0) {
+    return { kind: 'no-choices' };
   }
 
   const picked = new Set(await picker.pick({ message, choices }));
