@@ -1,4 +1,4 @@
-import { lstatSync, mkdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -410,6 +410,32 @@ describe('link', () => {
           '  use --all-workspaces, or name them after --drop: personal work',
         ]);
         expect(lstatSync(join(personal, 'brainstorm')).isSymbolicLink()).toBe(true);
+      });
+
+      it('refuses without a terminal, naming only the flags, when no workspace is registered', async () => {
+        const { run, store } = await newCli();
+        const skillPath = storeSkill(store, 'brainstorm');
+
+        const error = await captureError(() => run('link', 'brainstorm', '--drop'));
+
+        expect(error).toBeInstanceOf(MissingDestinationError);
+        expect(error.message.split('\n')).toEqual([
+          'no workspace named, and no terminal to choose from',
+          '  use --all-workspaces, or name them after --drop',
+        ]);
+        expect(existsSync(skillPath)).toBe(true);
+      });
+
+      it('refuses an unknown skill without a terminal', async () => {
+        const { run } = await newCli();
+        const personal = await newDirectory('personal');
+
+        await run('workspaces', 'add', 'personal', personal);
+
+        const error = await captureError(() => run('link', 'ghost', '--drop'));
+
+        expect(error).toBeInstanceOf(EntityNotFoundError);
+        expect(existsSync(join(personal, 'ghost'))).toBe(false);
       });
     });
   });

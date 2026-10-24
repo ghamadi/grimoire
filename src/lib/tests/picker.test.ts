@@ -86,17 +86,26 @@ describe('pickChoices', () => {
   const message = 'Select the repos';
   const refusal = { noun: 'repo', remedy: 'name them with --to' };
 
-  it.each([true, false])(
-    'returns no-choices without offering a pick when isInteractive is %s',
-    async (isInteractive) => {
-      const picker = fakePicker({ choose: (labels) => labels, isInteractive });
+  it('returns no-choices without offering a pick on a terminal', async () => {
+    const picker = fakePicker({ choose: (labels) => labels });
 
-      await expect(pickChoices({ picker, message, choices: [], refusal })).resolves.toEqual({
-        kind: 'no-choices',
-      });
-      expect(picker.offered).toEqual([]);
-    },
-  );
+    await expect(pickChoices({ picker, message, choices: [], refusal })).resolves.toEqual({
+      kind: 'no-choices',
+    });
+    expect(picker.offered).toEqual([]);
+  });
+
+  it('refuses with no choice labels when there is nothing to offer and no terminal', async () => {
+    const picker = fakePicker({ choose: (labels) => labels, isInteractive: false });
+
+    await expect(pickChoices({ picker, message, choices: [], refusal })).rejects.toMatchObject({
+      name: 'MissingDestinationError',
+      noun: 'repo',
+      remedy: 'name them with --to',
+      choiceLabels: [],
+    });
+    expect(picker.offered).toEqual([]);
+  });
 
   it('refuses with every choice label when there is no terminal', async () => {
     const picker = fakePicker({ choose: (labels) => labels, isInteractive: false });

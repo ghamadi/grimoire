@@ -17,7 +17,7 @@ export class MissingDestinationError extends GrimoireError {
     super(
       [
         `no ${noun} named, and no terminal to choose from`,
-        `  ${remedy}: ${formatShellCommand(choiceLabels)}`,
+        choiceLabels.length > 0 ? `  ${remedy}: ${formatShellCommand(choiceLabels)}` : `  ${remedy}`,
       ].join('\n'),
     );
 
