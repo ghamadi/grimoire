@@ -1,17 +1,25 @@
 # grimoire
 
-One store for your agent skills. Deploy them to every directory your agents read from, and export them to git repos for
-history and sharing.
+One store for your agent skills, linked into every directory your agents read from.
 
-If you run more than one agent, account or config directory, each one needs its own copy of your skills. The copies drift as
-you edit them, and nothing records where they went. Symlinking by hand fixes the drift, but you make every link yourself, and
-nothing tells you when one breaks.
+grimoire is for anyone who keeps the same skills in more than one place: two agents, two accounts, or a project's own
+`.agents/skills`. Copy them by hand, and each copy drifts as you edit it, and nothing records where they went. Symlinking by
+hand fixes the drift, but you make every link yourself, and nothing tells you when one breaks.
 
-grimoire keeps one copy of each skill in a store you edit, deploys it from there, and tracks every place it went. When you
-want version history, or to share skills with others, it exports them into a git repo of yours.
+grimoire keeps one copy in a store you edit, links it into each directory, and tracks every place it went. For a directory
+that can't use a link, it makes a copy instead and keeps a record of it. For version history or sharing, it exports skills
+into a git repo of yours.
 
-grimoire manages skills you write or already have on disk. It ships no skills and is not a package manager. It can copy
-skills once from a git URL, and records nothing about where they came from.
+```
+Before
+~/.claude/skills/triage/              a copy
+~/.claude-work/skills/triage/         another copy, drifting from the first
+
+After
+~/.grimoire/skills/triage/            the one copy you edit
+~/.claude/skills/triage         ──►   ~/.grimoire/skills/triage
+~/.claude-work/skills/triage    ──►   ~/.grimoire/skills/triage
+```
 
 ## Install
 
@@ -19,29 +27,23 @@ skills once from a git URL, and records nothing about where they came from.
 npm install -g @ghamadi/grimoire
 ```
 
-Or install it with pnpm, yarn or bun:
+It installs `grimoire` and `grim`, the same binary under a shorter name. It needs Node 22.18 or later, on macOS or Linux. npm
+refuses the install on Windows; WSL works.
 
-- `pnpm add -g @ghamadi/grimoire`
-- `yarn global add @ghamadi/grimoire`
-- `bun add -g @ghamadi/grimoire`
-
-Each installs `grimoire` and `grim`, the same binary under a shorter name.
-
-It needs Node 22.18 or later, on macOS or Linux. npm refuses the install on Windows; WSL works. git is needed only to export
-skills to a repo, or to add skills from a git URL.
-
-> [!NOTE]
->
-> [`grimoire update`](./docs/commands/update.md) can update grimoire itself only when it was installed with `npm install -g`.
-> If you installed it with pnpm, yarn or bun, `grimoire update` installs nothing. It prints the command for you to run with
-> your package manager instead.
+grimoire ships no skills. It manages the ones you write or already have on disk. Given a git URL, it copies skills from the
+repo once and records nothing about the source, so later changes to the repo never reach your store.
 
 ## How it works
 
 The **store** is `~/.grimoire/skills/`, with one directory per skill. It is the copy you edit.
 
 A **workspace** is a directory an agent reads skills from, such as `~/.claude/skills` or a project's `.agents/skills`. A
-**repo** is a directory inside a git work tree. You register each by name.
+**repo** is a directory inside a git work tree, where you keep skills under version control or share them. You register
+workspaces and repos by name.
+
+> [!NOTE]
+>
+> grimoire works without any repo. You need git installed only to export skills to a repo, or to add skills from a git URL.
 
 A skill leaves the store in one of three ways:
 
@@ -56,7 +58,8 @@ A workspace registered with `--auto-link` receives a link to every skill added t
 ## Quick start
 
 Say your skills already sit in `~/.claude/skills`, and you've set up a second Claude account for work, with its config in
-`~/.claude-work`. You want some of your skills available there too.
+`~/.claude-work`. You want some of your skills available there too. The steps are the same for any other agent that reads
+skills from a directory: register that directory as one more workspace.
 
 ### 1. Register the directory your skills are in
 
@@ -82,10 +85,23 @@ Each skill is copied into `~/.grimoire/skills/`. Because `claude-personal` is au
 replaced with a link to its store copy, which holds the same files. Without `--all`, grimoire displays a picker for you to
 choose the skills you want to add.
 
-### 3. Share a skill with a second workspace
+### 3. Add skills from a git repo
+
+```shell
+$ grimoire skills add https://github.com/someone/skills.git --all
+cloning https://github.com/someone/skills.git…
+added deploy
+linked deploy → claude-personal
+```
+
+grimoire clones the repo into a temporary directory, adds the skills it finds there, and deletes the clone. The store copy of
+`deploy` is now yours to edit like any other.
+
+### 4. Share a skill with a second workspace
 
 ```shell
 $ grimoire workspaces add claude-work ~/.claude-work/skills
+created /Users/me/.claude-work/skills
 registered workspace "claude-work" → /Users/me/.claude-work/skills (manual)
 
 $ grimoire link triage --to claude-work
@@ -93,9 +109,9 @@ linked triage → claude-work
 ```
 
 `claude-work` has no `--auto-link`, so it gets only the skills you link into it. An edit to `triage` in the store now shows
-in both workspaces.
+in both workspaces. `grimoire workspaces add` creates the directory when it is missing.
 
-### 4. See where everything is deployed
+### 5. See where everything is deployed
 
 ```shell
 $ grimoire status
@@ -107,11 +123,12 @@ Workspaces  2 registered
 │ claude-work     │ manual    │ ok    │ /Users/me/.claude-work/skills │
 └─────────────────┴───────────┴───────┴───────────────────────────────┘
 
-Skills  2 in /Users/me/.grimoire/skills
+Skills  3 in /Users/me/.grimoire/skills
 ┌────────────┬─────────────────┬─────────────┐
 │ SKILL      │ claude-personal │ claude-work │
 ├────────────┼─────────────────┼─────────────┤
 │ brainstorm │ link            │ ·           │
+│ deploy     │ link            │ ·           │
 │ triage     │ link            │ link        │
 └────────────┴─────────────────┴─────────────┘
 
@@ -124,11 +141,12 @@ dangling link or a missing clone, each with its fix.
 ### Going further
 
 ```shell
-grimoire skills add https://github.com/someone/skills.git  # copy skills from a git repo, once
-grimoire clone brainstorm --to claude-work                 # a real copy instead of a link
-grimoire repos add library ~/dotfiles                      # register a directory in a git work tree
-grimoire export triage --to library                        # copy triage into it, then commit it yourself
-grimoire skills remove triage                              # unlink it everywhere and move the store copy to the trash
+code "$(grimoire skills path triage)"       # open the store copy of triage in your editor
+grimoire link triage --drop claude-work     # remove the link, and keep the skill in the store
+grimoire clone brainstorm --to claude-work  # a real copy instead of a link
+grimoire repos add library ~/dotfiles       # register a directory in a git work tree
+grimoire export triage --to library         # copy triage into it, then commit it yourself
+grimoire skills remove triage               # unlink it everywhere and move the store copy to the trash
 ```
 
 ## What grimoire touches
