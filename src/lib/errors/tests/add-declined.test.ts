@@ -53,6 +53,16 @@ describe('describeAddRefusal', () => {
       'could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read',
     );
   });
+
+  it('describes a denial by the system', () => {
+    expect(
+      describeAddRefusal({
+        kind: 'inaccessible',
+        skill: 'scratch',
+        reason: "EACCES: permission denied, mkdir '/store/skills/scratch'",
+      }),
+    ).toBe("could not add scratch: EACCES: permission denied, mkdir '/store/skills/scratch'");
+  });
 });
 
 describe('AddDeclinedError', () => {

@@ -1,7 +1,8 @@
 import { unlinkSync } from 'node:fs';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { Workspace } from '@/domains/workspace';
-import { UnreadableWorkspaceRemovalError, WorkspaceInUseError } from '@/lib/errors';
+import { InvalidPathError, UnreadableWorkspaceRemovalError, WorkspaceInUseError } from '@/lib/errors';
+import { isAccessDenied } from '@/lib/fs';
 
 type RemoveWorkspaceUseCaseFactoryParams = {
   storeManager: GrimoireStoreManager;
@@ -73,6 +74,10 @@ export function createRemoveWorkspaceUseCase(
 
     if (!hard && links.length > 0) {
       throw new WorkspaceInUseError({ name, links: links.map(({ skill }) => skill) });
+    }
+
+    if (links.length > 0 && isAccessDenied({ path: registered.path, access: 'write' })) {
+      throw new InvalidPathError({ path: registered.path, reason: 'unwritable' });
     }
 
     // The symlink only: whatever it points at in the store stays.

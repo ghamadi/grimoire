@@ -2020,14 +2020,33 @@ describe('emptyTrash', () => {
     writeSkillDirectory(join(triageBinPath, 'store'));
     writeSkillDirectory(join(deployBinPath, 'store'));
 
-    expect(manager.emptyTrash()).toEqual([deployBinPath, triageBinPath]);
+    expect(manager.emptyTrash()).toEqual({
+      deletedPaths: [deployBinPath, triageBinPath],
+      failures: [],
+    });
     expect(readdirSync(store.paths.trash)).toEqual([]);
   });
 
   it('returns nothing for an empty trash', async () => {
     const { manager } = await newManager();
 
-    expect(manager.emptyTrash()).toEqual([]);
+    expect(manager.emptyTrash()).toEqual({ deletedPaths: [], failures: [] });
+  });
+
+  it.skipIf(runsAsRoot)('reports a bin it cannot delete, and deletes the rest', async () => {
+    const { manager, store } = await newManager();
+    const triageBinPath = join(store.paths.trash, 'triage-20260915T124530');
+    const deployBinPath = join(store.paths.trash, 'deploy-20260920T091502');
+
+    writeSkillDirectory(join(triageBinPath, 'store'));
+    writeSkillDirectory(join(deployBinPath, 'store'));
+    lockDirectory({ path: deployBinPath, mode: 0o555 });
+
+    const { deletedPaths, failures } = manager.emptyTrash();
+
+    expect(deletedPaths).toEqual([triageBinPath]);
+    expect(failures.map(({ path }) => path)).toEqual([deployBinPath]);
+    expect(existsSync(triageBinPath)).toBe(false);
   });
 
   it('leaves .trash/ in place', async () => {
@@ -2047,7 +2066,7 @@ describe('emptyTrash', () => {
     mkdirSync(store.paths.trash, { recursive: true });
     writeFileSync(strayPath, 'notes\n', 'utf8');
 
-    expect(manager.emptyTrash()).toEqual([strayPath]);
+    expect(manager.emptyTrash()).toEqual({ deletedPaths: [strayPath], failures: [] });
     expect(existsSync(strayPath)).toBe(false);
   });
 

@@ -27,6 +27,40 @@ describe('grimoire cli', () => {
     expect(stderr).toBe('error: no workspace named "nope"');
   });
 
+  describe.skipIf(runsAsRoot)('permission errors', () => {
+    it('reports one on stderr without a stack, and exits non-zero', async () => {
+      const home = await tempRoot();
+      const grimoireHome = join(home, '.grimoire');
+
+      mkdirSync(grimoireHome);
+      lockDirectory({ path: grimoireHome });
+
+      const { stdout, stderr, code } = await runCli(['status'], { home });
+
+      expect(code).toBe(1);
+      expect(stdout).toBe('');
+      expect(stderr).toMatch(/^error: EACCES: permission denied/);
+      expect(stderr.split('\n')).toHaveLength(1);
+    });
+
+    it('prints the bins it deleted before reporting one it could not', async () => {
+      const home = await tempRoot();
+      const trash = join(home, '.grimoire', '.trash');
+      const deleted = join(trash, 'deploy-20260920T091502');
+      const locked = join(trash, 'triage-20260915T124530');
+
+      mkdirSync(deleted, { recursive: true });
+      mkdirSync(join(locked, 'store'), { recursive: true });
+      lockDirectory({ path: locked, mode: 0o555 });
+
+      const { stdout, stderr, code } = await runCli(['trash', 'empty'], { home });
+
+      expect(code).toBe(1);
+      expect(stdout).toBe(`deleted ${deleted}`);
+      expect(stderr).toMatch(new RegExp(`^error: failed to delete ${locked}: EACCES`));
+    });
+  });
+
   it('prints status without escape codes when stdout is piped', async () => {
     const { stdout, code } = await runCli(['status'], { home: await tempRoot(), dropColorEnv: true });
 

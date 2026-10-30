@@ -2,7 +2,7 @@ import { lstatSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { UnlinkDeclinedError, type UnlinkRefusal, type UnlinkRefusalReason } from '@/lib/errors';
-import { getDirectoryAccess } from '@/lib/fs';
+import { getDirectoryAccess, isPermissionError } from '@/lib/fs';
 import { relate } from '@/lib/paths';
 import { assertUnreachable } from '@/lib/utils';
 
@@ -145,7 +145,16 @@ function unlinkSkillFromWorkspace(params: UnlinkSkillFromWorkspaceParams): PairO
 
   if (status.isSymbolicLink()) {
     if (relate({ candidate: destinationPath, reference: skillPath }) === 'equals') {
-      unlinkSync(destinationPath);
+      try {
+        unlinkSync(destinationPath);
+      } catch (error) {
+        if (isPermissionError(error)) {
+          return decline('unwritable');
+        }
+
+        throw error;
+      }
+
       return { kind: 'unlinked' };
     }
 

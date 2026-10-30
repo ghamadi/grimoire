@@ -1409,6 +1409,77 @@ describe('skills path', () => {
 });
 
 describe('skills remove', () => {
+  describe.skipIf(runsAsRoot)('permissions', () => {
+    it('refuses over a read-only workspace holding a link, changing nothing', async () => {
+      const { run, runFailing, store } = await newCli();
+      const work = await newDirectory('work');
+      const skillPath = storeSkill(store, 'triage');
+      const brainstormPath = storeSkill(store, 'brainstorm');
+
+      await registerWorkspace(run, 'work', work);
+      const link = linkEntry({ workspace: work, store, skill: 'triage' });
+      lockDirectory({ path: work, mode: 0o555 });
+
+      const { stdout, error } = await runFailing('skills', 'remove', 'brainstorm', 'triage');
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${work} cannot be written`);
+      expect(stdout).toEqual([]);
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(existsSync(skillPath)).toBe(true);
+      expect(existsSync(brainstormPath)).toBe(true);
+    });
+
+    it('ignores a read-only workspace holding no link to the skill', async () => {
+      const { run, store } = await newCli();
+      const work = await newDirectory('work');
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'brainstorm');
+      await registerWorkspace(run, 'work', work);
+      linkEntry({ workspace: work, store, skill: 'brainstorm' });
+      lockDirectory({ path: work, mode: 0o555 });
+
+      const { stdout } = await run('skills', 'remove', 'triage');
+
+      expect(stdout).toEqual([`trashed triage → ${onlyBin(store)}`]);
+    });
+
+    it('refuses over a skill it cannot move, keeping its links', async () => {
+      const { run, runFailing, store } = await newCli();
+      const work = await newDirectory('work');
+      const skillPath = storeSkill(store, 'triage');
+
+      await registerWorkspace(run, 'work', work);
+      const link = linkEntry({ workspace: work, store, skill: 'triage' });
+      lockDirectory({ path: skillPath, mode: 0o555 });
+
+      const { error } = await runFailing('skills', 'remove', 'triage');
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${skillPath} cannot be written`);
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    });
+
+    it('refuses over a read-only trash, keeping the links', async () => {
+      const { run, runFailing, store } = await newCli();
+      const work = await newDirectory('work');
+      const skillPath = storeSkill(store, 'triage');
+
+      await registerWorkspace(run, 'work', work);
+      const link = linkEntry({ workspace: work, store, skill: 'triage' });
+      mkdirSync(store.paths.trash, { recursive: true });
+      lockDirectory({ path: store.paths.trash, mode: 0o555 });
+
+      const { error } = await runFailing('skills', 'remove', 'triage');
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${store.paths.trash} cannot be written`);
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(existsSync(skillPath)).toBe(true);
+    });
+  });
+
   it('clears the links into a skill, then reports where its store copy went', async () => {
     const { run, store } = await newCli();
     const work = await newDirectory('work');

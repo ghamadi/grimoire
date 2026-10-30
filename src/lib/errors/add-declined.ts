@@ -8,7 +8,9 @@ export type AddRefusal =
   | { kind: 'unportable'; skill: string; location: string; reason: UnportableSkillReason }
   /** `root` is the side holding the symlink: the source's location or the store copy's path. `entry` names it. */
   | { kind: 'incomparable'; skill: string; root: string; entry: string }
-  | { kind: 'unreadable'; skill: string; path: string };
+  | { kind: 'unreadable'; skill: string; path: string }
+  /** `reason` is the system's own sentence, for a denial anywhere in copying or comparing. */
+  | { kind: 'inaccessible'; skill: string; reason: string };
 
 /**
  * `could not add <skill>: …` — no `warning: ` or `error: ` prefix.
@@ -27,6 +29,8 @@ export function describeAddRefusal(refusal: AddRefusal): string {
       return `${describePrefix(refusal)}: ${refusal.root} holds the symlink "${refusal.entry}", so the two copies cannot be compared`;
     case 'unreadable':
       return `${describePrefix(refusal)}: ${refusal.path} cannot be read`;
+    case 'inaccessible':
+      return `${describePrefix(refusal)}: ${refusal.reason}`;
   }
 }
 

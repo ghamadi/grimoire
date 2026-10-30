@@ -110,6 +110,9 @@ Links and clones that still point at the workspace are handled differently:
 | Links      | refuses, naming every one   | deletes the symlinks |
 | Clones     | records rewritten to a path | records forgotten    |
 
+With `--hard`, a workspace holding links that can't be written refuses with `error: <path> cannot be written`, and nothing
+changes.
+
 ### An unreadable workspace refuses
 
 An [unreadable](../conventions.md#unreachable-and-unreadable-workspaces) workspace refuses, with `--hard` too. The refusal

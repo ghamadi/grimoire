@@ -485,6 +485,27 @@ describe('link', () => {
     });
 
     describe.skipIf(runsAsRoot)('permissions', () => {
+      it('declines to drop a link from a read-only workspace, and drops the rest', async () => {
+        const { run, store } = await newCli();
+        const personal = await newDirectory('personal');
+        const work = await newDirectory('work');
+        const skillPath = storeSkill(store, 'brainstorm');
+
+        await run('workspaces', 'add', 'personal', personal);
+        await run('workspaces', 'add', 'work', work);
+        symlinkSync(skillPath, join(personal, 'brainstorm'));
+        symlinkSync(skillPath, join(work, 'brainstorm'));
+        lockDirectory({ path: personal, mode: 0o555 });
+
+        const { stdout, stderr } = await run('link', 'brainstorm', '--drop', 'personal', 'work');
+
+        expect(stdout).toEqual(['unlinked brainstorm → work']);
+        expect(stderr).toEqual([
+          `warning: could not unlink brainstorm → personal: ${join(personal, 'brainstorm')} cannot be written`,
+        ]);
+        expect(readdirSync(personal)).toEqual(['brainstorm']);
+      });
+
       it('refuses to link into a read-only workspace, with one error line', async () => {
         const { run, store } = await newCli();
         const path = await newDirectory('personal');

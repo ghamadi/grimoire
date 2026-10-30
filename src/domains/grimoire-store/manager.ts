@@ -14,6 +14,7 @@ import {
   PathCollisionError,
   type Collision,
   type RegistryEntity,
+  type TrashFailure,
 } from '@/lib/errors';
 import { join, matchesGlob } from 'node:path';
 import {
@@ -23,7 +24,7 @@ import {
   type StoreLink,
 } from '@/domains/grimoire-store/helpers/store-links';
 import { Skill } from '@/domains/skill';
-import { copyTree, movePath } from '@/lib/fs';
+import { copyTree, isPermissionError, movePath } from '@/lib/fs';
 import { Repo } from '@/domains/repo';
 import { Workspace } from '@/domains/workspace';
 import { isInsideGitWorkTree } from '@/lib/git';
@@ -263,6 +264,11 @@ export class GrimoireStoreManager {
     return this.store.paths.skills;
   }
 
+  /** The store's `.trash/` directory, whether or not it exists. */
+  trashDirectory(): string {
+    return this.store.paths.trash;
+  }
+
   /** The store's `state.json`, whether or not it exists. */
   statePath(): string {
     return this.store.paths.state;
@@ -444,19 +450,21 @@ export class GrimoireStoreManager {
     return binPath;
   }
 
-  /** Deletes every entry under `.trash/` and returns their paths sorted by name, leaving `.trash/` itself. */
-  emptyTrash(): string[] {
+  /**
+   * Deletes every entry under `.trash/`, sorted by name, leaving `.trash/` itself.
+   * An entry the system won't let go is reported, and may be left partly deleted.
+   */
+  emptyTrash(): { deletedPaths: string[]; failures: TrashFailure[] } {
     this.ensureLayout();
 
-    const entryPaths = readdirSync(this.store.paths.trash)
+    const outcomes = readdirSync(this.store.paths.trash)
       .sort((a, b) => a.localeCompare(b))
-      .map((name) => join(this.store.paths.trash, name));
+      .map((name) => deleteTrashEntry(join(this.store.paths.trash, name)));
 
-    for (const entryPath of entryPaths) {
-      rmSync(entryPath, { recursive: true, force: true });
-    }
-
-    return entryPaths;
+    return {
+      deletedPaths: outcomes.flatMap(({ path, error }) => (error ? [] : [path])),
+      failures: outcomes.flatMap(({ path, error }) => (error ? [{ path, error }] : [])),
+    };
   }
 
   /** Drops the skill's whole entry from `state.json`, writing nothing when it has none. */
@@ -632,6 +640,20 @@ export class GrimoireStoreManager {
 // ----------------------------------------------------------------------------
 // INTERNAL HELPERS
 // ----------------------------------------------------------------------------
+
+function deleteTrashEntry(path: string): { path: string; error?: TrashFailure['error'] } {
+  try {
+    rmSync(path, { recursive: true, force: true });
+
+    return { path };
+  } catch (error) {
+    if (isPermissionError(error)) {
+      return { path, error };
+    }
+
+    throw error;
+  }
+}
 
 /**
  * Refuses the whole registry over the first registration whose path touches the

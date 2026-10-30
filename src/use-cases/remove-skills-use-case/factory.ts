@@ -1,7 +1,8 @@
 import { unlinkSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { GrimoireStoreManager, RegisteredWorkspace } from '@/domains/grimoire-store';
-import { WorkspaceUnreadableError } from '@/lib/errors';
-import { getDirectoryAccess } from '@/lib/fs';
+import { InvalidPathError, WorkspaceUnreadableError } from '@/lib/errors';
+import { getDirectoryAccess, isAccessDenied } from '@/lib/fs';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES
@@ -74,6 +75,14 @@ export function createRemoveSkillsUseCase(
         .map((link) => ({ workspace: workspace.name, link })),
     );
 
+    assertRemovalWritable({
+      storeManager,
+      skillNames,
+      linkPaths: linksFromWorkspacesInventory
+        .filter(({ link }) => skillNames.includes(link.storeSkill))
+        .map(({ link }) => link.path),
+    });
+
     const at = now();
 
     return skillNames.map((name) => {
@@ -105,6 +114,31 @@ export function createRemoveSkillsUseCase(
       };
     });
   };
+}
+
+/**
+ * Checked up front because links are cleared before the store copy moves, so a
+ * move that failed later would leave a skill still in the store with its links gone.
+ *
+ * @throws InvalidPathError naming the first place the removal could not change.
+ */
+function assertRemovalWritable(params: {
+  storeManager: GrimoireStoreManager;
+  skillNames: string[];
+  linkPaths: string[];
+}): void {
+  const { storeManager, skillNames, linkPaths } = params;
+
+  const deniedPath = [
+    storeManager.skillsDirectory(),
+    storeManager.trashDirectory(),
+    ...skillNames.map((name) => storeManager.skillPath(name)),
+    ...linkPaths.map((path) => dirname(path)),
+  ].find((path) => isAccessDenied({ path, access: 'write' }));
+
+  if (deniedPath !== undefined) {
+    throw new InvalidPathError({ path: deniedPath, reason: 'unwritable' });
+  }
 }
 
 /**

@@ -10,7 +10,12 @@ import { GrimoireError } from '@/lib/errors/grimoire-error';
  * reason here carries data beyond its name.
  */
 export type UnlinkRefusalReason =
-  'directory' | 'not-a-link' | 'foreign-symlink' | 'workspace-unreachable' | 'workspace-unreadable';
+  | 'directory'
+  | 'not-a-link'
+  | 'foreign-symlink'
+  | 'unwritable'
+  | 'workspace-unreachable'
+  | 'workspace-unreadable';
 
 /**
  * One pair `link --drop` stepped over: a fact about the filesystem, not a mistake
@@ -40,6 +45,8 @@ export function describeUnlinkRefusal(refusal: UnlinkRefusal): string {
       return `${prefix} is not a link`;
     case 'foreign-symlink':
       return `${prefix} is a symlink pointing elsewhere`;
+    case 'unwritable':
+      return `${prefix} cannot be written`;
     case 'workspace-unreachable':
       return `${prefix} workspace path does not resolve`;
     case 'workspace-unreadable':

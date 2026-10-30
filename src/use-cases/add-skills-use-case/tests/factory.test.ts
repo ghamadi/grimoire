@@ -1,9 +1,9 @@
-import { existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
-import { AddDeclinedError, InvalidPathError } from '@/lib/errors';
+import { AddDeclinedError, InvalidPathError, describeAddRefusal } from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
@@ -140,6 +140,50 @@ describe('add-skills-use-case factory', () => {
     });
 
     describe.skipIf(runsAsRoot)('permissions', () => {
+      it('declines a source holding a file it cannot read, leaving nothing of it in the store', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const brainstorm = source('brainstorm');
+        const scratch = source('scratch', { 'refs/guide.md': 'guide' });
+        const guide = join(scratch.path, 'refs', 'guide.md');
+
+        chmodSync(guide, 0o000);
+
+        const report = addSkills({ sources: [scratch, brainstorm] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['brainstorm']);
+        expect(report.declined).toEqual([{ kind: 'unreadable', skill: 'scratch', path: guide }]);
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
+
+      it('declines a source whose store copy holds a file it cannot read, and adds the rest', async () => {
+        const { addSkills, source, storeSkill } = await newUseCase();
+        const brainstorm = source('brainstorm');
+        const scratch = source('scratch');
+        const storedManifest = join(storeSkill('scratch'), SKILL_MANIFEST);
+
+        chmodSync(storedManifest, 0o000);
+
+        const report = addSkills({ sources: [scratch, brainstorm] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['brainstorm']);
+        expect(report.declined.map(describeAddRefusal).join('\n')).toContain(
+          'could not add scratch: EACCES',
+        );
+      });
+
+      it('declines every source when the store cannot be written', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const brainstorm = source('brainstorm');
+
+        mkdirSync(store.paths.skills, { recursive: true });
+        lockDirectory({ path: store.paths.skills, mode: 0o555 });
+
+        const error = refusal(() => addSkills({ sources: [brainstorm] }));
+
+        expect(error).toBeInstanceOf(AddDeclinedError);
+        expect(error.message).toContain('could not add brainstorm: EACCES');
+      });
+
       it('declines a source holding a folder it can list but not enter, and adds the rest', async () => {
         const { addSkills, store, source } = await newUseCase();
         const brainstorm = source('brainstorm');

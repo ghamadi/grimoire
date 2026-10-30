@@ -3,6 +3,7 @@ import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { Skill, type SkillSource } from '@/domains/skill';
 import { compareContainment } from '@/lib/directory-containment';
 import { AddDeclinedError, type AddRefusal, InvalidPathError, UnportableSkillError } from '@/lib/errors';
+import { isAccessDenied, isPermissionError } from '@/lib/fs';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES
@@ -55,7 +56,7 @@ export function createAddSkillsUseCase(factoryParams: AddSkillsUseCaseFactoryPar
     const declined: AddRefusal[] = [];
 
     for (const source of params.sources) {
-      const outcome = decideForSource({ source, storeManager });
+      const outcome = decideWithinPermissions({ source, storeManager });
 
       switch (outcome.kind) {
         case 'added':
@@ -87,6 +88,34 @@ type SourceOutcome =
   | { kind: 'present'; storeExtra?: string }
   | { kind: 'declined'; refusal: AddRefusal };
 
+/** A denial costs that source rather than the run, so the sources already added still get reported. */
+function decideWithinPermissions(params: {
+  source: SkillSource;
+  storeManager: GrimoireStoreManager;
+}): SourceOutcome {
+  const { source } = params;
+
+  try {
+    return decideForSource(params);
+  } catch (error) {
+    if (error instanceof InvalidPathError && error.reason === 'unreadable') {
+      return {
+        kind: 'declined',
+        refusal: { kind: 'unreadable', skill: source.name, path: error.path },
+      };
+    }
+
+    if (isPermissionError(error)) {
+      return {
+        kind: 'declined',
+        refusal: { kind: 'inaccessible', skill: source.name, reason: error.message },
+      };
+    }
+
+    throw error;
+  }
+}
+
 /**
  * Verifies and, depending on what the store already holds under that name,
  * copies or classifies one source.
@@ -97,29 +126,23 @@ function decideForSource(params: {
 }): SourceOutcome {
   const { source, storeManager } = params;
 
-  try {
-    Skill.createVerified(source);
-  } catch (error) {
-    if (error instanceof UnportableSkillError) {
-      return {
-        kind: 'declined',
-        refusal: {
-          kind: 'unportable',
-          skill: source.name,
-          location: source.location,
-          reason: error.reason,
-        },
-      };
-    }
+  const sourceSkill = verifySource(source);
 
-    if (error instanceof InvalidPathError && error.reason === 'unreadable') {
-      return {
-        kind: 'declined',
-        refusal: { kind: 'unreadable', skill: source.name, path: error.path },
-      };
-    }
+  if ('refusal' in sourceSkill) {
+    return { kind: 'declined', refusal: sourceSkill.refusal };
+  }
 
-    throw error;
+  // Checked ahead of the copy: a copy that fails names the store path, not the
+  // unreadable file, and leaves a partial skill behind.
+  const unreadableFile = sourceSkill.flattenedTree.find((path) =>
+    isAccessDenied({ path, access: 'read' }),
+  );
+
+  if (unreadableFile !== undefined) {
+    return {
+      kind: 'declined',
+      refusal: { kind: 'unreadable', skill: source.name, path: unreadableFile },
+    };
   }
 
   const storePath = storeManager.skillPath(source.name);
@@ -158,6 +181,25 @@ function decideForSource(params: {
           entry: sourceInStore.entry,
         },
       };
+  }
+}
+
+function verifySource(source: SkillSource): Skill | { refusal: AddRefusal } {
+  try {
+    return Skill.createVerified(source);
+  } catch (error) {
+    if (error instanceof UnportableSkillError) {
+      return {
+        refusal: {
+          kind: 'unportable',
+          skill: source.name,
+          location: source.location,
+          reason: error.reason,
+        },
+      };
+    }
+
+    throw error;
   }
 }
 

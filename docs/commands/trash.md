@@ -24,6 +24,17 @@ Deletion is permanent. There is no prompt and no undo, so move anything worth ke
 
 A symlink inside a bin is removed; what it points at is left alone.
 
+A bin that can't be deleted doesn't stop the others. It may be left partly deleted. The bins deleted print first, then the
+run exits 1, with no count line:
+
+```shell
+$ grimoire trash empty
+deleted /Users/me/.grimoire/.trash/deploy-20260920T091502
+error: failed to delete /Users/me/.grimoire/.trash/triage-20260915T124530: EACCES: permission denied, rmdir '/Users/me/.grimoire/.trash/triage-20260915T124530/store'
+```
+
+Several print `error: deletions failed:`, followed by each sentence on its own line, indented two spaces.
+
 An empty trash is not an error, and exits 0:
 
 ```shell

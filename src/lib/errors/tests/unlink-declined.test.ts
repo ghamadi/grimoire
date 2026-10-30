@@ -41,6 +41,14 @@ describe('describeUnlinkRefusal', () => {
   });
 });
 
+describe('describeUnlinkRefusal for a link it cannot remove', () => {
+  it('names the link', () => {
+    expect(describeUnlinkRefusal(refusal('unwritable'))).toBe(
+      'could not unlink brainstorm → personal: /ws/personal/brainstorm cannot be written',
+    );
+  });
+});
+
 describe('UnlinkDeclinedError', () => {
   it('routes to the exit-1 branch as a GrimoireError', () => {
     const error = new UnlinkDeclinedError({ refusals: [refusal('directory')] });

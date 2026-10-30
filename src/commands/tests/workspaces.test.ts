@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -335,6 +343,22 @@ describe('workspaces remove', () => {
       `unregistered workspace "personal" → ${path}`,
     ]);
     expect(readClones(store).deploy).toEqual([{ path }]);
+  });
+
+  it.skipIf(runsAsRoot)('refuses --hard over a read-only workspace, changing nothing', async () => {
+    const { run, store } = await newCli();
+    const path = await newDirectory('project');
+
+    run('workspaces', 'add', 'personal', path);
+    link({ store, workspacePath: path, skill: 'triage' });
+    lockDirectory({ path, mode: 0o555 });
+
+    const error = captureError(() => run('workspaces', 'remove', 'personal', '--hard'));
+
+    expect(error).toBeInstanceOf(InvalidPathError);
+    expect(error.message).toBe(`${path} cannot be written`);
+    expect(readdirSync(path)).toEqual(['triage']);
+    expect(run('workspaces', 'list').stdout.join('\n')).toContain('personal');
   });
 
   it('reports what --hard cleared and what it left behind', async () => {

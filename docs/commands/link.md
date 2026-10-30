@@ -148,6 +148,7 @@ not linked triage → work
 | a directory                         | declined   | stderr `warning: could not unlink <skill> → <workspace>: <path> is a directory, not a link`      |
 | anything else that is not a symlink | declined   | stderr `warning: could not unlink <skill> → <workspace>: <path> is not a link`                   |
 | a symlink resolving anywhere else   | declined   | stderr `warning: could not unlink <skill> → <workspace>: <path> is a symlink pointing elsewhere` |
+| a link grimoire cannot remove       | declined   | stderr `warning: could not unlink <skill> → <workspace>: <path> cannot be written`               |
 
 Lines print grouped as `unlinked`, then `not linked`, then warnings. The rest follows [Outcomes](../conventions.md#outcomes)
 and [When every destination is declined](../conventions.md#when-every-destination-is-declined).

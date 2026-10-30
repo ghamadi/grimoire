@@ -52,10 +52,16 @@ contains another skill is refused as not portable:
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
 
-A skill holding a folder grimoire can't list or enter is declined the same way:
+A skill holding a folder grimoire can't list or enter, or a file it can't read, is declined the same way:
 
 ```shell
 warning: could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read
+```
+
+Any other permission failure while copying or comparing one source declines that source, with the system's reason:
+
+```shell
+warning: could not add scratch: EACCES: permission denied, mkdir '/Users/me/.grimoire/skills/scratch'
 ```
 
 ### Adding from a git URL
@@ -469,4 +475,12 @@ $ grimoire skills remove triage
 error: cannot remove a skill while a workspace is unreadable
   work: /Volumes/ext/skills cannot be read
   make it readable, or unregister it anyway with `grimoire workspaces remove work --force`
+```
+
+**3. Everything the removal changes can be written.** That is the store's `skills/` and `.trash/` folders, each named skill,
+and each workspace holding a link to one. A read-only workspace holding no such link doesn't matter.
+
+```shell
+$ grimoire skills remove triage
+error: /Users/me/work/.agents/skills cannot be written
 ```

@@ -8,6 +8,11 @@
  */
 export { GrimoireError } from '@/lib/errors/grimoire-error';
 export { AutoLinkStoppedError, type AutoLinkStoppedErrorProps } from '@/lib/errors/auto-link-stopped';
+export {
+  TrashEmptyFailedError,
+  type TrashEmptyFailedErrorProps,
+  type TrashFailure,
+} from '@/lib/errors/trash-empty-failed';
 export { DuplicateNameError, type DuplicateNameErrorProps } from '@/lib/errors/duplicate-name';
 export {
   EntityNotFoundError,

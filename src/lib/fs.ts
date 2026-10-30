@@ -110,13 +110,32 @@ export function movePath(params: { from: string; to: string }): void {
 /** With no `code`, answers whether `error` is any errno error: an `Error` carrying a string `code`. */
 export function isErrnoException(
   error: unknown,
-  code?: 'ENOENT' | 'ENOTDIR' | 'ELOOP' | 'EXDEV' | 'EACCES' | 'EPERM' | 'ENOTEMPTY',
+  code?: 'ENOENT' | 'ENOTDIR' | 'ELOOP' | 'EXDEV' | 'EACCES' | 'EPERM' | 'ENOTEMPTY' | 'EROFS',
 ): error is NodeJS.ErrnoException {
   if (!(error instanceof Error) || !('code' in error)) {
     return false;
   }
 
   return code === undefined ? typeof error.code === 'string' : error.code === code;
+}
+
+export function isPermissionError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    isErrnoException(error, 'EACCES') ||
+    isErrnoException(error, 'EPERM') ||
+    isErrnoException(error, 'EROFS')
+  );
+}
+
+/** Any other failure answers `false`: a missing path is not a denial, and the operation itself reports it. */
+export function isAccessDenied(params: { path: string; access: 'read' | 'write' }): boolean {
+  try {
+    accessSync(params.path, params.access === 'read' ? constants.R_OK : constants.W_OK);
+
+    return false;
+  } catch (error) {
+    return isPermissionError(error);
+  }
 }
 
 // -----------------------------------------------------------------------------
