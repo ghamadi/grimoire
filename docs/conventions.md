@@ -41,7 +41,7 @@ A copy of a store skill is verbatim: dotfiles, nested directories and symlinks i
 A name given twice counts once, keeping its first position.
 
 An `--all-*` flag, such as `--all-skills` or `--all-workspaces`, stands for every item of its kind, in name order. The run
-behaves as if you had typed those names in that order.
+behaves as if you had typed those names in that order. `skills pack --all` follows this rule too.
 
 When the set is empty, the run prints `nothing to <verb>: <reason>` and exits 0:
 
@@ -180,7 +180,8 @@ A refusal exits 1 and touches nothing. The checks run in the order each page lis
 reported. These messages are shared:
 
 - A missing argument prints `error: missing required argument '<name>'`. When the page has an `--all-*` flag for it, the
-  message ends with ` (or use --all-<x>)`, as in `error: missing required argument 'skill' (or use --all-skills)`. A flag
+  message ends with ` (or use --all-<x>)`, as in `error: missing required argument 'skill' (or use --all-skills)`.
+  `skills pack` ends it the same way with its own flag: `error: missing required argument 'skills' (or use --all)`. A flag
   that takes a list, such as `--to`, takes every name after it. So when one was given, a second line names it:
 
   ```shell
@@ -192,7 +193,7 @@ reported. These messages are shared:
 - An unknown skill prints `error: no skill named "<skill>"`.
 - A skill that fails the portability check prints its reason, as in
   `error: skill "/Users/me/.grimoire/skills/triage" is not portable. Contains a nested skill.` Every skill is checked before
-  any destination is examined, so under `--all-skills` one unportable skill refuses the whole run.
+  any destination is examined, so under `--all-skills` or `skills pack --all` one unportable skill refuses the whole run.
 - An unregistered name prints `error: no workspace named "<name>"` or `error: no repo named "<name>"`. Only the first
   unregistered name is reported.
 

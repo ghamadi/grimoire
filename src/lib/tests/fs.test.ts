@@ -16,7 +16,7 @@ import {
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { InvalidPathError } from '@/lib/errors';
-import { getDirectoryAccess, movePath, tryStatSync, writeTreeStaged } from '@/lib/fs';
+import { getDirectoryAccess, movePath, tryStatSync, writeFileStaged, writeTreeStaged } from '@/lib/fs';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
@@ -652,3 +652,84 @@ function readTree(directory: string, prefix = ''): Record<string, string> {
 
   return tree;
 }
+
+describe('writeFileStaged', () => {
+  const CONTENTS = new Uint8Array([1, 2, 3]);
+
+  async function sandbox() {
+    const root = await tempRoot();
+
+    return {
+      to: join(root, 'triage.zip'),
+      stagingDirectory: join(root, '.grimoire-staging'),
+    };
+  }
+
+  it('lands the bytes at `to` and leaves no staging folder', async () => {
+    const { to, stagingDirectory } = await sandbox();
+
+    const result = writeFileStaged({ getContents: () => CONTENTS, to, stagingDirectory });
+
+    expect(result).toStrictEqual({ kind: 'written' });
+    expect(new Uint8Array(readFileSync(to))).toEqual(CONTENTS);
+    expect(existsSync(stagingDirectory)).toBe(false);
+  });
+
+  it('fails when the staging path is a file, writing nothing at `to`', async () => {
+    const { to, stagingDirectory } = await sandbox();
+
+    writeFileSync(stagingDirectory, 'mine');
+
+    const result = writeFileStaged({ getContents: () => CONTENTS, to, stagingDirectory });
+
+    expect(result.kind).toBe('failed');
+    expect(result.kind === 'failed' && result.error).toBeInstanceOf(InvalidPathError);
+    expect(existsSync(to)).toBe(false);
+    expect(readFileSync(stagingDirectory, 'utf8')).toBe('mine');
+  });
+
+  it('leaves in place a staging folder that held something else', async () => {
+    const { to, stagingDirectory } = await sandbox();
+
+    mkdirSync(stagingDirectory);
+    writeFileSync(join(stagingDirectory, 'other'), 'mine');
+
+    writeFileStaged({ getContents: () => CONTENTS, to, stagingDirectory });
+
+    expect(readdirSync(stagingDirectory)).toEqual(['other']);
+  });
+
+  it('fails when getContents throws an errno error, and cleans up', async () => {
+    const { to, stagingDirectory } = await sandbox();
+    const denied = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+
+    const result = writeFileStaged({
+      getContents: () => {
+        throw denied;
+      },
+      to,
+      stagingDirectory,
+    });
+
+    expect(result).toStrictEqual({ kind: 'failed', error: denied });
+    expect(existsSync(to)).toBe(false);
+    expect(existsSync(stagingDirectory)).toBe(false);
+  });
+
+  it('rethrows a plain Error from getContents after the same cleanup', async () => {
+    const { to, stagingDirectory } = await sandbox();
+    const bug = new Error('a bug');
+
+    expect(() =>
+      writeFileStaged({
+        getContents: () => {
+          throw bug;
+        },
+        to,
+        stagingDirectory,
+      }),
+    ).toThrow(bug);
+    expect(existsSync(to)).toBe(false);
+    expect(existsSync(stagingDirectory)).toBe(false);
+  });
+});

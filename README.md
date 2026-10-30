@@ -45,13 +45,14 @@ workspaces and repos by name.
 >
 > grimoire works without any repo. You need git installed only to export skills to a repo, or to add skills from a git URL.
 
-A skill leaves the store in one of three ways:
+A skill leaves the store in one of these ways:
 
-| Command  | Writes                         | Follows store edits                        | Use it for                                                         |
-| -------- | ------------------------------ | ------------------------------------------ | ------------------------------------------------------------------ |
-| `link`   | a symlink in a workspace       | yes, immediately                           | the default                                                        |
-| `clone`  | a recorded copy in a workspace | no, until `clone --overwrite` refreshes it | a workspace that cannot use a symlink, or a project's local skills |
-| `export` | a copy in a repo               | no, until you export again                 | history, review and sharing with git                               |
+| Command       | Writes                         | Follows store edits                         | Use it for                                                         |
+| ------------- | ------------------------------ | ------------------------------------------- | ------------------------------------------------------------------ |
+| `link`        | a symlink in a workspace       | yes, immediately                            | the default                                                        |
+| `clone`       | a recorded copy in a workspace | no, until `clone --overwrite` refreshes it  | a workspace that cannot use a symlink, or a project's local skills |
+| `export`      | a copy in a repo               | no, until you export again                  | history, review and sharing with git                               |
+| `skills pack` | a zip in a folder you choose   | no, until you delete the zip and pack again | uploading to a provider such as claude.ai                          |
 
 A workspace registered with `--auto-link` receives a link to every skill added to the store after it.
 
@@ -146,6 +147,7 @@ grimoire link triage --drop claude-work     # remove the link, and keep the skil
 grimoire clone brainstorm --to claude-work  # a real copy instead of a link
 grimoire repos add library ~/dotfiles       # register a directory in a git work tree
 grimoire export triage --to library         # copy triage into it, then commit it yourself
+grimoire skills pack triage --out ~/dist    # zip triage for uploading to a provider
 grimoire skills remove triage               # unlink it everywhere and move the store copy to the trash
 ```
 
@@ -157,6 +159,8 @@ with the same contents. Two commands go further, but only where you point them:
 - `clone --overwrite` replaces a skill directory in a workspace with the store copy.
 - `export` replaces a skill's entry in a repo when git reports nothing uncommitted there, or when you pass `--force`. Files
   git ignores are not protected. _**grimoire only reads from git: it never commits, stages or pushes**_.
+
+`skills pack` writes zips into the folder you choose and never replaces what is already there.
 
 On `grimoire update`, npm replaces grimoire's own installed package, and nothing else.
 

@@ -1,17 +1,19 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   readlinkSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { CommanderError, type Command } from 'commander';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { GrimoireStore } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST } from '@/domains/skill';
 import {
@@ -21,13 +23,18 @@ import {
   GitUnavailableError,
   InvalidPathError,
   NoTerminalError,
+  PackDeclinedError,
+  PackFailedError,
   PathCollisionError,
+  UnportableSkillError,
   WorkspaceUnreadableError,
 } from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { fakePicker } from '@test-helpers/fake-picker';
 import { tempGitRepo } from '@test-helpers/git-repo';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
+import { readZipEntries, requireZipEntry } from '@test-helpers/zip-entries';
 
 const credentials = 'user:s3cret';
 
@@ -709,6 +716,358 @@ describe('skills list', () => {
     storeSkill(store, 'brainstorm');
 
     expect((await run('skills', 'ls')).stdout).toEqual(['brainstorm']);
+  });
+});
+
+describe('skills pack', () => {
+  describe('what it writes', () => {
+    it('prints each skill in argument order, and each zip holds an exact copy under one folder', async () => {
+      const { run, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      mkdirSync(join(store.paths.skills, 'review', 'refs'), { recursive: true });
+      writeSkillDirectory(join(store.paths.skills, 'review'), { 'refs/guide.md': 'guide' });
+
+      const { stdout, stderr } = await run('skills', 'pack', 'triage', 'review', '--out', out);
+
+      expect(stdout).toEqual([
+        `packed triage → ${join(out, 'triage.zip')}`,
+        `packed review → ${join(out, 'review.zip')}`,
+      ]);
+      expect(stderr).toEqual([]);
+
+      const entries = readZipEntries({ path: join(out, 'review.zip') });
+
+      expect(entries.map(({ name }) => name)).toEqual([
+        'review/',
+        `review/${SKILL_MANIFEST}`,
+        'review/refs/',
+        'review/refs/guide.md',
+      ]);
+      expect(
+        Buffer.from(requireZipEntry({ entries, name: 'review/refs/guide.md' }).data).toString(),
+      ).toBe('guide');
+    });
+
+    it('counts a repeated name once', async () => {
+      const { run, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+
+      const { stdout } = await run('skills', 'pack', 'triage', 'triage', '--out', out);
+
+      expect(stdout).toEqual([`packed triage → ${join(out, 'triage.zip')}`]);
+    });
+
+    it('packs every skill in name order with --all', async () => {
+      const { run, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'brainstorm');
+
+      const { stdout } = await run('skills', 'pack', '--all', '--out', out);
+
+      expect(stdout).toEqual([
+        `packed brainstorm → ${join(out, 'brainstorm.zip')}`,
+        `packed triage → ${join(out, 'triage.zip')}`,
+      ]);
+    });
+
+    it('writes to the current folder by default', async () => {
+      const { run, store } = await newCli();
+      const directory = await newDirectory('here');
+      const previousDirectory = process.cwd();
+
+      storeSkill(store, 'triage');
+      process.chdir(directory);
+      onTestFinished(() => {
+        process.chdir(previousDirectory);
+      });
+
+      const { stdout } = await run('skills', 'pack', 'triage');
+
+      expect(stdout).toEqual([`packed triage → ${join(realpathSync(directory), 'triage.zip')}`]);
+      expect(existsSync(join(directory, 'triage.zip'))).toBe(true);
+    });
+
+    it('adds nothing to the store and leaves no staging folder', async () => {
+      const { run, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+
+      await run('skills', 'pack', 'triage', '--out', out);
+
+      expect(readdirSync(store.paths.skills)).toEqual(['triage']);
+      expect(readdirSync(out)).toEqual(['triage.zip']);
+    });
+
+    it('still runs when state.json is broken', async () => {
+      const { run, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      writeFileSync(store.paths.state, '{ not json', 'utf8');
+
+      const { stdout } = await run('skills', 'pack', 'triage', '--out', out);
+
+      expect(stdout).toEqual([`packed triage → ${join(out, 'triage.zip')}`]);
+    });
+
+    it('accepts the folder containing the store as --out', async () => {
+      const { run, store } = await newCli();
+      const out = dirname(store.paths.root);
+      const skill = 'pack-beside-the-store';
+      const zipPath = join(out, `${skill}.zip`);
+
+      storeSkill(store, skill);
+      onTestFinished(() => {
+        rmSync(zipPath, { force: true });
+      });
+
+      const { stdout } = await run('skills', 'pack', skill, '--out', out);
+
+      expect(stdout).toEqual([`packed ${skill} → ${zipPath}`]);
+    });
+  });
+
+  describe('an empty store', () => {
+    it('prints a message and exits clean under --all, even with a missing --out', async () => {
+      const { run } = await newCli();
+      const out = join(await newDirectory('dist'), 'gone');
+
+      const { stdout, stderr } = await run('skills', 'pack', '--all', '--out', out);
+
+      expect(stdout).toEqual(['nothing to pack: the store holds no skills']);
+      expect(stderr).toEqual([]);
+    });
+  });
+
+  describe('refusals', () => {
+    it('refuses named skills with --all', async () => {
+      const { runFailing } = await newCli();
+
+      const { error } = await runFailing('skills', 'pack', 'triage', '--all');
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe('error: --all cannot be combined with named skills');
+    });
+
+    it('refuses a run with no skill and no --all', async () => {
+      const { runFailing } = await newCli();
+
+      const { error } = await runFailing('skills', 'pack');
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe("error: missing required argument 'skills' (or use --all)");
+    });
+
+    it('refuses an unknown skill', async () => {
+      const { runFailing } = await newCli();
+      const out = await newDirectory('dist');
+
+      const { error } = await runFailing('skills', 'pack', 'nope', '--out', out);
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+      expect(error.message).toBe('no skill named "nope"');
+    });
+
+    it('refuses a store entry with no SKILL.md as unknown', async () => {
+      const { runFailing, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      mkdirSync(join(store.paths.skills, 'draft'), { recursive: true });
+
+      const { error } = await runFailing('skills', 'pack', 'draft', '--out', out);
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+    });
+
+    it('refuses an unportable skill, writing nothing for the others', async () => {
+      const { runFailing, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      mkdirSync(join(store.paths.skills, 'nested', 'sub'), { recursive: true });
+      writeSkillDirectory(join(store.paths.skills, 'nested'), { [`sub/${SKILL_MANIFEST}`]: 'x' });
+
+      const { error } = await runFailing('skills', 'pack', 'triage', 'nested', '--out', out);
+
+      expect(error).toBeInstanceOf(UnportableSkillError);
+      expect(readdirSync(out)).toEqual([]);
+    });
+
+    it('reports an unknown skill named after an unportable one as unknown', async () => {
+      const { runFailing, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      mkdirSync(join(store.paths.skills, 'nested', 'sub'), { recursive: true });
+      writeSkillDirectory(join(store.paths.skills, 'nested'), { [`sub/${SKILL_MANIFEST}`]: 'x' });
+
+      const { error } = await runFailing('skills', 'pack', 'nested', 'nope', '--out', out);
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+    });
+
+    it('reports a bad skill ahead of a bad --out', async () => {
+      const { runFailing } = await newCli();
+      const out = join(await newDirectory('dist'), 'gone');
+
+      const { error } = await runFailing('skills', 'pack', 'nope', '--out', out);
+
+      expect(error).toBeInstanceOf(EntityNotFoundError);
+    });
+
+    it('refuses a missing --out and a --out that is a file', async () => {
+      const { runFailing, store } = await newCli();
+      const directory = await newDirectory('dist');
+      const file = join(directory, 'file');
+
+      storeSkill(store, 'triage');
+      writeFileSync(file, '', 'utf8');
+
+      const missing = await runFailing('skills', 'pack', 'triage', '--out', join(directory, 'gone'));
+      const notDirectory = await runFailing('skills', 'pack', 'triage', '--out', file);
+
+      expect(missing.error).toBeInstanceOf(InvalidPathError);
+      expect(notDirectory.error).toBeInstanceOf(InvalidPathError);
+    });
+
+    it('refuses the store and a folder inside it, including through a symlink', async () => {
+      const { runFailing, store } = await newCli();
+      const link = join(await newDirectory('dev'), 'link');
+
+      storeSkill(store, 'triage');
+      symlinkSync(join(store.paths.skills, 'triage'), link);
+
+      for (const out of [store.paths.root, store.paths.skills, link]) {
+        const { error } = await runFailing('skills', 'pack', 'triage', '--out', out);
+
+        expect(error).toBeInstanceOf(PathCollisionError);
+      }
+
+      expect(readdirSync(store.paths.skills)).toEqual(['triage']);
+    });
+  });
+
+  describe('declines', () => {
+    it('declines a skill holding a symlink, naming it, as a warning beside a packed skill', async () => {
+      const { run, store } = await newCli();
+      const out = await newDirectory('dist');
+      const linked = storeSkill(store, 'linked');
+
+      storeSkill(store, 'triage');
+      mkdirSync(join(linked, 'refs'));
+      symlinkSync(join(linked, SKILL_MANIFEST), join(linked, 'refs', 'alias.md'));
+
+      const { stdout, stderr } = await run('skills', 'pack', 'linked', 'triage', '--out', out);
+
+      expect(stdout).toEqual([`packed triage → ${join(out, 'triage.zip')}`]);
+      expect(stderr).toEqual([
+        `warning: could not pack linked → ${join(out, 'linked.zip')}: the skill holds the symlink "refs/alias.md"`,
+      ]);
+      expect(readdirSync(out)).toEqual(['triage.zip']);
+    });
+
+    it.each([
+      ['a file', (path: string) => writeFileSync(path, 'mine', 'utf8')],
+      ['a folder', (path: string) => mkdirSync(path)],
+      ['a dangling symlink', (path: string) => symlinkSync(join(path, 'gone'), path)],
+    ])('declines when the zip path holds %s, as one error line', async (_, occupy) => {
+      const { runFailing, store } = await newCli();
+      const out = await newDirectory('dist');
+      const zipPath = join(out, 'triage.zip');
+
+      storeSkill(store, 'triage');
+      occupy(zipPath);
+
+      const { stdout, stderr, error } = await runFailing('skills', 'pack', 'triage', '--out', out);
+
+      expect(error).toBeInstanceOf(PackDeclinedError);
+      expect(error.message).toBe(
+        `could not pack triage → ${zipPath}: something is already there — delete it to pack again`,
+      );
+      expect(stdout).toEqual([]);
+      expect(stderr).toEqual([]);
+    });
+
+    it('prints several declines under one header, when every skill declined', async () => {
+      const { runFailing, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'review');
+      storeSkill(store, 'triage');
+      writeFileSync(join(out, 'review.zip'), 'mine', 'utf8');
+      writeFileSync(join(out, 'triage.zip'), 'mine', 'utf8');
+
+      const { stdout, error } = await runFailing('skills', 'pack', '--all', '--out', out);
+
+      expect(error).toBeInstanceOf(PackDeclinedError);
+      expect(error.message).toBe(
+        [
+          'nothing packed:',
+          `  could not pack review → ${join(out, 'review.zip')}: something is already there — delete it to pack again`,
+          `  could not pack triage → ${join(out, 'triage.zip')}: something is already there — delete it to pack again`,
+        ].join('\n'),
+      );
+      expect(stdout).toEqual([]);
+    });
+  });
+
+  describe('failures', () => {
+    it('fails every skill when the staging path is a file', async () => {
+      const { runFailing, store } = await newCli();
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      writeFileSync(join(out, '.grimoire-staging'), '', 'utf8');
+
+      const { error } = await runFailing('skills', 'pack', 'triage', '--out', out);
+
+      expect(error).toBeInstanceOf(PackFailedError);
+      expect(existsSync(join(out, 'triage.zip'))).toBe(false);
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it('fails on a read-only --out', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+
+        storeSkill(store, 'triage');
+        lockDirectory({ path: out, mode: 0o555 });
+
+        const { stdout, error } = await runFailing('skills', 'pack', 'triage', '--out', out);
+
+        expect(error).toBeInstanceOf(PackFailedError);
+        expect(error.message).toContain(`failed to pack triage → ${join(out, 'triage.zip')}: EACCES`);
+        expect(stdout).toEqual([]);
+      });
+
+      it('fails only the skill with an unreadable file, keeping packed lines and warnings, failure last', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const secret = join(storeSkill(store, 'secret'), 'private.md');
+        const linked = storeSkill(store, 'linked');
+
+        storeSkill(store, 'triage');
+        symlinkSync(join(linked, SKILL_MANIFEST), join(linked, 'alias.md'));
+        writeFileSync(secret, 'x', 'utf8');
+        chmodSync(secret, 0o000);
+
+        const { stdout, stderr, error } = await runFailing('skills', 'pack', '--all', '--out', out);
+
+        expect(stdout).toEqual([`packed triage → ${join(out, 'triage.zip')}`]);
+        expect(stderr).toEqual([
+          `warning: could not pack linked → ${join(out, 'linked.zip')}: the skill holds the symlink "alias.md"`,
+        ]);
+        expect(error).toBeInstanceOf(PackFailedError);
+        expect(error.message).toContain(`failed to pack secret → ${join(out, 'secret.zip')}: EACCES`);
+        expect(readdirSync(out)).toEqual(['triage.zip']);
+      });
+    });
   });
 });
 

@@ -6,8 +6,9 @@ Anything you put in a workspace or a repo stays exactly as you left it, apart fr
 
 - Copies of store skills.
 - Its own symlinks.
-- A [`.grimoire-staging/`](./conventions.md#staged-writes) directory, in a workspace during a clone or in a repo during an
-  export. It is removed once empty.
+- The zips [`skills pack`](./commands/skills.md#skills-pack-skills---all---out-directory) writes into the folder you choose.
+- A [`.grimoire-staging/`](./conventions.md#staged-writes) directory, in a workspace during a clone, in a repo during an
+  export, or in the folder `skills pack` writes to. It is removed once empty.
 - On [`update`](./commands/update.md), npm replaces grimoire's own installed package. Nothing else is touched.
 - A temporary clone in the system temp directory, during a [`skills add`](./commands/skills.md#adding-from-a-git-url) from a
   git URL.
