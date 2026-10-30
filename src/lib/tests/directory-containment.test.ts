@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidPathError } from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 import { compareContainment } from '@/lib/directory-containment';
 
@@ -321,6 +322,24 @@ describe('compareContainment', () => {
       expect(() => compareContainment({ candidate: file, reference: pair.reference.root })).toThrow(
         InvalidPathError,
       );
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it('throws on a candidate that cannot be read', async () => {
+        const pair = await newPair();
+
+        lockDirectory({ path: pair.candidate.root });
+
+        expect(() => compare(pair)).toThrow(InvalidPathError);
+      });
+
+      it('throws on a reference that cannot be read', async () => {
+        const pair = await newPair();
+
+        lockDirectory({ path: pair.reference.root });
+
+        expect(() => compare(pair)).toThrow(InvalidPathError);
+      });
     });
   });
 });

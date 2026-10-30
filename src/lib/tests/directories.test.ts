@@ -1,7 +1,9 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { safeFlattenDirectory } from '@/lib/directories';
+import { assertUsableDirectory, safeFlattenDirectory } from '@/lib/directories';
+import { InvalidPathError, type InvalidPathReason } from '@/lib/errors';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
 describe('directories', () => {
@@ -224,7 +226,71 @@ describe('directories', () => {
       warn.mockRestore();
     });
   });
+
+  describe('assertUsableDirectory', () => {
+    it('accepts a directory', async () => {
+      const root = await tempRoot();
+
+      expect(() => assertUsableDirectory(root)).not.toThrow();
+    });
+
+    it('refuses a path that does not exist', async () => {
+      const path = join(await tempRoot(), 'missing');
+
+      expect(reasonFor(path)).toBe('missing');
+    });
+
+    it('refuses a file', async () => {
+      const fixture = await newFixture();
+
+      expect(reasonFor(fixture.file('notes.md', 'notes'))).toBe('not-a-directory');
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it.each([
+        ['cannot be entered', 0o600],
+        ['cannot be listed', 0o300],
+      ])('refuses a directory that %s', async (_, mode) => {
+        const root = await tempRoot();
+
+        lockDirectory({ path: root, mode });
+
+        expect(reasonFor(root)).toBe('unreadable');
+      });
+
+      it('refuses a directory under one that cannot be entered', async () => {
+        const fixture = await newFixture();
+        const path = fixture.directory('locked/inner');
+
+        lockDirectory({ path: dirname(path) });
+
+        expect(reasonFor(path)).toBe('unreadable');
+      });
+
+      it('accepts a directory it can read but not write to', async () => {
+        const root = await tempRoot();
+
+        lockDirectory({ path: root, mode: 0o555 });
+
+        expect(() => assertUsableDirectory(root)).not.toThrow();
+      });
+    });
+  });
 });
+
+function reasonFor(path: string): InvalidPathReason | undefined {
+  try {
+    assertUsableDirectory(path);
+  } catch (error) {
+    if (error instanceof InvalidPathError) {
+      return error.reason;
+    }
+
+    throw error;
+  }
+
+  return undefined;
+}
 
 function flatten(path: string, options?: { includeEmptyDirectories?: boolean }): string[] {
   return sorted(safeFlattenDirectory(path, options));

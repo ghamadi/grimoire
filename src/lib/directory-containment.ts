@@ -51,7 +51,7 @@ const ANY_EXECUTE_BIT = 0o111;
  * Entries are read depth first in lexicographic order, so the entry a refusal
  * names is the same one on every filesystem.
  *
- * @throws InvalidPathError unless both paths are existing directories.
+ * @throws InvalidPathError unless both paths are existing directories that can be read.
  */
 export function compareContainment(comparators: ContainmentComparators): DirectoryContainment {
   assertUsableDirectory(comparators.candidate);

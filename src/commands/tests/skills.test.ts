@@ -160,6 +160,36 @@ describe('skills add', () => {
     expect(error.message).toContain(store.paths.root);
   });
 
+  describe.skipIf(runsAsRoot)('permissions', () => {
+    it('refuses a path that cannot be read', async () => {
+      const { runFailing, store } = await newCli();
+      const source = await newDirectory('skills');
+
+      lockDirectory({ path: source });
+
+      const { stdout, error } = await runFailing('skills', 'add', source, '--all');
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${source} cannot be read`);
+      expect(stdout).toEqual([]);
+      expect(existsSync(store.paths.skills)).toBe(false);
+    });
+
+    it('refuses a path under a folder that cannot be entered', async () => {
+      const { runFailing } = await newCli();
+      const locked = await newDirectory('locked');
+      const source = join(locked, 'skills');
+
+      mkdirSync(source);
+      lockDirectory({ path: locked });
+
+      const { error } = await runFailing('skills', 'add', source, '--all');
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${source} cannot be read`);
+    });
+  });
+
   it('refuses a path that does not exist', async () => {
     const { run } = await newCli();
     const missing = join(await newDirectory('dev'), 'missing');
@@ -950,6 +980,50 @@ describe('skills pack', () => {
       }
 
       expect(readdirSync(store.paths.skills)).toEqual(['triage']);
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it('refuses a --out that cannot be entered', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+
+        storeSkill(store, 'triage');
+        lockDirectory({ path: out, mode: 0o600 });
+
+        const { stdout, error } = await runFailing('skills', 'pack', 'triage', '--out', out);
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${out} cannot be read`);
+        expect(stdout).toEqual([]);
+        expect(readdirSync(out)).toEqual([]);
+      });
+
+      it('refuses a --out under a folder that cannot be entered', async () => {
+        const { runFailing, store } = await newCli();
+        const locked = await newDirectory('locked');
+        const out = join(locked, 'dist');
+
+        mkdirSync(out);
+        storeSkill(store, 'triage');
+        lockDirectory({ path: locked });
+
+        const { stdout, error } = await runFailing('skills', 'pack', 'triage', '--out', out);
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${out} cannot be read`);
+        expect(stdout).toEqual([]);
+      });
+
+      it('reports a bad skill ahead of a --out that cannot be entered', async () => {
+        const { runFailing } = await newCli();
+        const out = await newDirectory('dist');
+
+        lockDirectory({ path: out, mode: 0o600 });
+
+        const { error } = await runFailing('skills', 'pack', 'nope', '--out', out);
+
+        expect(error).toBeInstanceOf(EntityNotFoundError);
+      });
     });
   });
 

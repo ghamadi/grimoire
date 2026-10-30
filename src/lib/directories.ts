@@ -1,12 +1,18 @@
 import { readdirSync } from 'node:fs';
-import { tryStatSync } from '@/lib/fs';
+import { getDirectoryAccess, tryStatSync } from '@/lib/fs';
 import { join } from 'node:path';
 import { InvalidPathError } from '@/lib/errors';
 
 /**
- * A path that does not exist has exactly one meaning — a typo.
+ * A directory grimoire can read but not write to still passes.
+ *
+ * @throws InvalidPathError if `path` does not exist, is not a directory, or cannot be listed or entered.
  */
 export function assertUsableDirectory(path: string): void {
+  if (getDirectoryAccess(path) === 'unreadable') {
+    throw new InvalidPathError({ path, reason: 'unreadable' });
+  }
+
   const status = tryStatSync(path);
 
   if (!status) {

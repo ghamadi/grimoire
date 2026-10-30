@@ -179,7 +179,14 @@ $ grimoire skills add ~/.grimoire/skills
 error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
-**2. A git URL clones, and git can be run.** The error includes git's own reason:
+**2. A local path is an existing folder you can list and enter.**
+
+```shell
+$ grimoire skills add ~/locked
+error: /Users/me/locked cannot be read
+```
+
+**3. A git URL clones, and git can be run.** The error includes git's own reason:
 
 ```shell
 $ grimoire skills add https://github.com/someone/nope.git
@@ -206,7 +213,7 @@ cloning https://github.com/someone/skills.git…
 error: could not run git: grimoire needs it installed and on your PATH
 ```
 
-**3. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
+**4. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
 
 ```shell
 $ grimoire skills add ~/dev/skills
@@ -262,9 +269,9 @@ report.
 
 ### Where the zip goes
 
-`--out` must be an existing folder. It can't be the store or sit inside it, with symlinks resolved. A folder that contains
-the store, such as `~`, is fine. With no `--out`, the zip goes in the current folder as the system reports it, with symlinks
-resolved. On macOS, a run from `/tmp` prints `/private/tmp/triage.zip`.
+`--out` must be an existing folder you can list and enter. It can't be the store or sit inside it, with symlinks resolved. A
+folder that contains the store, such as `~`, is fine. With no `--out`, the zip goes in the current folder as the system
+reports it, with symlinks resolved. On macOS, a run from `/tmp` prints `/private/tmp/triage.zip`.
 
 Anything already at `<out>/<skill>.zip` declines that skill: a file, a folder or a symlink, even a dangling one. There is no
 override, so packing again after an edit means deleting the old zip first.
@@ -307,7 +314,13 @@ With `--all` on an empty store, the run prints `nothing to pack: the store holds
 
 **3. Every skill passes the portability check.**
 
-**4. `--out` is an existing folder.**
+**4. `--out` is an existing folder you can list and enter.** A folder you can enter but can't write to passes this check, and
+each skill then fails as in [Outcomes](#outcomes).
+
+```shell
+$ grimoire skills pack triage --out ~/locked
+error: /Users/me/locked cannot be read
+```
 
 **5. `--out` is not the store, and does not sit inside it.**
 
