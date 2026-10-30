@@ -3,11 +3,7 @@ import { getDirectoryAccess, tryStatSync } from '@/lib/fs';
 import { join } from 'node:path';
 import { InvalidPathError } from '@/lib/errors';
 
-/**
- * A directory grimoire can read but not write to still passes.
- *
- * @throws InvalidPathError if `path` does not exist, is not a directory, or cannot be listed or entered.
- */
+/** A directory grimoire can read but not write to still passes. */
 export function assertUsableDirectory(path: string): void {
   if (getDirectoryAccess(path) === 'unreadable') {
     throw new InvalidPathError({ path, reason: 'unreadable' });
