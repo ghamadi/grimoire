@@ -5,6 +5,7 @@ import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
 import { AddDeclinedError, InvalidPathError } from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 import { createAddSkillsUseCase } from '@/use-cases/add-skills-use-case/factory';
 
@@ -136,6 +137,25 @@ describe('add-skills-use-case factory', () => {
         { kind: 'unportable', skill: 'scratch', location: scratch.path, reason: 'nested-skill' },
       ]);
       expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it('declines a source holding a folder it can list but not enter, and adds the rest', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const brainstorm = source('brainstorm');
+        const scratch = source('scratch', { 'refs/guide.md': 'guide' });
+        const triage = source('triage');
+
+        lockDirectory({ path: join(scratch.path, 'refs'), mode: 0o600 });
+
+        const report = addSkills({ sources: [brainstorm, scratch, triage] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['brainstorm', 'triage']);
+        expect(report.declined).toEqual([
+          { kind: 'unreadable', skill: 'scratch', path: join(scratch.path, 'refs', 'guide.md') },
+        ]);
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
     });
   });
 

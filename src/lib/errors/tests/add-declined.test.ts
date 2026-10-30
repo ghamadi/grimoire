@@ -23,6 +23,12 @@ const incomparable: AddRefusal = {
   entry: 'ref',
 };
 
+const unreadable: AddRefusal = {
+  kind: 'unreadable',
+  skill: 'scratch',
+  path: '/Users/me/dev/scratch/refs/guide.md',
+};
+
 describe('describeAddRefusal', () => {
   it('describes a store copy that differs', () => {
     expect(describeAddRefusal(differs)).toBe(
@@ -39,6 +45,12 @@ describe('describeAddRefusal', () => {
   it('describes a symlink that cannot be compared', () => {
     expect(describeAddRefusal(incomparable)).toBe(
       'could not add notes: /Users/me/dev/notes holds the symlink "ref", so the two copies cannot be compared',
+    );
+  });
+
+  it('describes a source holding an entry that cannot be read', () => {
+    expect(describeAddRefusal(unreadable)).toBe(
+      'could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read',
     );
   });
 });

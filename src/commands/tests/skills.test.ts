@@ -188,6 +188,26 @@ describe('skills add', () => {
       expect(error).toBeInstanceOf(InvalidPathError);
       expect(error.message).toBe(`${source} cannot be read`);
     });
+
+    it('warns about a source holding a folder it can list but not enter, and adds the rest', async () => {
+      const { run, store } = await newCli();
+      const container = await newDirectory('skills');
+      const locked = join(container, 'scratch', 'refs');
+
+      writeSkillDirectory(join(container, 'brainstorm'));
+      mkdirSync(locked, { recursive: true });
+      writeSkillDirectory(join(container, 'scratch'), { 'refs/guide.md': 'guide' });
+      writeSkillDirectory(join(container, 'triage'));
+      lockDirectory({ path: locked, mode: 0o600 });
+
+      const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added brainstorm', 'added triage']);
+      expect(stderr).toEqual([
+        `warning: could not add scratch: ${join(locked, 'guide.md')} cannot be read`,
+      ]);
+      expect(readdirSync(store.paths.skills).sort()).toEqual(['brainstorm', 'triage']);
+    });
   });
 
   it('refuses a path that does not exist', async () => {
