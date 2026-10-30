@@ -18,6 +18,7 @@ import { GrimoireStore } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   AddDeclinedError,
+  AutoLinkStoppedError,
   EntityNotFoundError,
   GitCloneFailedError,
   GitUnavailableError,
@@ -208,6 +209,74 @@ describe('skills add', () => {
       ]);
       expect(readdirSync(store.paths.skills).sort()).toEqual(['brainstorm', 'triage']);
     });
+
+    it('reports what it added before refusing to link a store copy it cannot list', async () => {
+      const { run, runFailing, store } = await newCli();
+      const personal = await newDirectory('personal');
+      const container = await newContainer('fresh', 'locked');
+      const locked = join(storeSkill(store, 'locked'), 'refs');
+
+      mkdirSync(locked);
+      await registerAutoLink(run, 'personal', personal);
+      lockDirectory({ path: locked });
+
+      const { stdout, error } = await runFailing('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added fresh', 'already in the store: locked (also holds "refs")']);
+      expect(error).toBeInstanceOf(AutoLinkStoppedError);
+      expect(error.message).toBe(
+        [
+          `auto-link stopped: ${locked} cannot be read`,
+          '  added skills stay in the store; fix this and run skills add again to link them',
+        ].join('\n'),
+      );
+      expect(existsSync(join(store.paths.skills, 'fresh'))).toBe(true);
+      expect(readdirSync(personal)).toEqual([]);
+
+      chmodSync(locked, 0o755);
+
+      const rerun = await run('skills', 'add', container, '--all');
+
+      expect(rerun.stdout).toEqual([
+        'already in the store: fresh',
+        'already in the store: locked (also holds "refs")',
+        'linked fresh → personal',
+        'linked locked → personal',
+      ]);
+    });
+
+    it('adds without complaint beside a store copy it cannot list when no workspace auto-links', async () => {
+      const { run, store } = await newCli();
+      const container = await newContainer('fresh', 'locked');
+      const locked = join(storeSkill(store, 'locked'), 'refs');
+
+      mkdirSync(locked);
+      lockDirectory({ path: locked });
+
+      const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added fresh', 'already in the store: locked (also holds "refs")']);
+      expect(stderr).toEqual([]);
+    });
+
+    it('warns about a workspace folder it cannot read, and links the rest', async () => {
+      const { run, store } = await newCli();
+      const personal = await newDirectory('personal');
+      const container = await newContainer('brainstorm', 'triage');
+      const locked = join(personal, 'brainstorm');
+
+      mkdirSync(locked);
+      await registerAutoLink(run, 'personal', personal);
+      lockDirectory({ path: locked });
+
+      const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added brainstorm', 'added triage', 'linked triage → personal']);
+      expect(stderr).toEqual([
+        `warning: could not link brainstorm → personal: ${locked} cannot be read`,
+      ]);
+      expect(readlinkSync(join(personal, 'triage'))).toBe(join(store.paths.skills, 'triage'));
+    });
   });
 
   it('refuses a path that does not exist', async () => {
@@ -315,6 +384,39 @@ describe('skills add', () => {
     expect(stdout).toEqual(['already in the store: triage', 'linked triage → personal']);
     expect(stderr).toEqual([]);
     expect(readlinkSync(join(personal, 'triage'))).toBe(join(store.paths.skills, 'triage'));
+  });
+
+  it('reports what it added before refusing to link a store copy holding a nested skill', async () => {
+    const { run, runFailing, store } = await newCli();
+    const personal = await newDirectory('personal');
+    const container = await newContainer('fresh', 'nested');
+    const nested = storeSkill(store, 'nested');
+
+    writeSkillDirectory(join(nested, 'sub'));
+    await registerAutoLink(run, 'personal', personal);
+
+    const { stdout, error } = await runFailing('skills', 'add', container, '--all');
+
+    expect(stdout).toEqual(['added fresh', 'already in the store: nested (also holds "sub")']);
+    expect(error).toBeInstanceOf(AutoLinkStoppedError);
+    expect(error.message).toContain(
+      `auto-link stopped: skill "${nested}" is not portable. Contains a nested skill.`,
+    );
+    expect(readdirSync(personal)).toEqual([]);
+  });
+
+  it('skips the portability check of store copies when no workspace auto-links', async () => {
+    const { run, store } = await newCli();
+    const container = await newContainer('fresh', 'nested');
+    const nested = storeSkill(store, 'nested');
+
+    writeSkillDirectory(join(nested, 'sub'));
+    await run('workspaces', 'add', 'manual', await newDirectory('manual'));
+
+    const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+    expect(stdout).toEqual(['added fresh', 'already in the store: nested (also holds "sub")']);
+    expect(stderr).toEqual([]);
   });
 
   it('changes nothing on a second run', async () => {
@@ -1062,6 +1164,40 @@ describe('skills pack', () => {
         expect(stdout).toEqual([]);
         expect(readdirSync(out)).toEqual([]);
       });
+
+      it('refuses a skill holding a folder it cannot list, writing nothing', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const locked = join(storeSkill(store, 'locked'), 'refs');
+
+        storeSkill(store, 'triage');
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const { stdout, stderr, error } = await runFailing('skills', 'pack', '--all', '--out', out);
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${locked} cannot be read`);
+        expect(stdout).toEqual([]);
+        expect(stderr).toEqual([]);
+        expect(readdirSync(out)).toEqual([]);
+      });
+
+      it('refuses a skill holding a symlink beside a folder it cannot list', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const skill = storeSkill(store, 'locked');
+        const locked = join(skill, 'refs');
+
+        symlinkSync(join(skill, SKILL_MANIFEST), join(skill, 'alias.md'));
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const { error } = await runFailing('skills', 'pack', 'locked', '--out', out);
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${locked} cannot be read`);
+      });
     });
   });
 
@@ -1178,22 +1314,6 @@ describe('skills pack', () => {
         expect(error).toBeInstanceOf(PackFailedError);
         expect(error.message).toContain(`failed to pack secret → ${join(out, 'secret.zip')}: EACCES`);
         expect(readdirSync(out)).toEqual(['triage.zip']);
-      });
-
-      it('fails a skill holding a folder it cannot list', async () => {
-        const { runFailing, store } = await newCli();
-        const out = await newDirectory('dist');
-        const locked = join(storeSkill(store, 'locked'), 'refs');
-
-        mkdirSync(locked);
-        lockDirectory({ path: locked });
-
-        const { stdout, error } = await runFailing('skills', 'pack', 'locked', '--out', out);
-
-        expect(error).toBeInstanceOf(PackFailedError);
-        expect(error.message).toContain(`failed to pack locked → ${join(out, 'locked.zip')}: EACCES`);
-        expect(stdout).toEqual([]);
-        expect(readdirSync(out)).toEqual([]);
       });
     });
   });

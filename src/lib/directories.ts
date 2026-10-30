@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs';
-import { getDirectoryAccess, tryStatSync } from '@/lib/fs';
+import { getDirectoryAccess, isErrnoException, tryStatSync } from '@/lib/fs';
 import { join } from 'node:path';
 import { InvalidPathError } from '@/lib/errors';
 
@@ -24,9 +24,11 @@ export function assertUsableDirectory(path: string): void {
  * @returns a flat list of all files in the directory and its subdirectories.
  * Empty subdirectories are included if the `includeEmptyDirectories` option is true (default).
  *
- * Never throws. If an error occurs, an empty array is returned.
+ * A failure other than a directory that cannot be listed warns and returns an empty array.
+ *
+ * @throws InvalidPathError for a directory that cannot be listed.
  */
-export function safeFlattenDirectory(
+export function flattenDirectory(
   path: string,
   options?: { includeEmptyDirectories?: boolean },
 ): string[] {
@@ -57,6 +59,10 @@ export function safeFlattenDirectory(
   try {
     return recurse(path, true);
   } catch (error) {
+    if (isErrnoException(error, 'EACCES') || isErrnoException(error, 'EPERM')) {
+      throw new InvalidPathError({ path: error.path ?? path, reason: 'unreadable' });
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.warn(`Error flattening directory \`${path}\`: ${message}`);
     return [];

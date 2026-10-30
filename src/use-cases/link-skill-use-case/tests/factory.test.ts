@@ -422,6 +422,58 @@ describe('link-skill-use-case factory', () => {
         expect(existsSync(join(work, 'brainstorm'))).toBe(true);
       });
     });
+
+    describe.skipIf(runsAsRoot)('a destination that cannot be read in full', () => {
+      it('declines a folder it cannot read, and links the next skill', async () => {
+        const { linkSkill, store, workspace } = await newUseCase();
+        const personal = workspace('personal');
+        const path = join(personal, 'brainstorm');
+
+        storeSkill(store, 'brainstorm');
+        storeSkill(store, 'triage');
+        mkdirSync(path);
+        lockDirectory({ path });
+
+        const report = linkSkill({ skillNames: ['brainstorm', 'triage'], workspaces: ['personal'] });
+
+        expect(report.declined).toEqual([
+          {
+            kind: 'occupied',
+            skill: 'brainstorm',
+            workspace: 'personal',
+            path,
+            occupant: { kind: 'unreadable-directory', unreadablePath: path },
+          },
+        ]);
+        expect(report.linked).toEqual([{ skill: 'triage', workspace: 'personal', replaced: false }]);
+      });
+
+      it('declines a folder holding one it cannot read, leaving it in place', async () => {
+        const { linkSkill, store, workspace } = await newUseCase();
+        const personal = workspace('personal');
+        workspace('work');
+        const path = join(personal, 'brainstorm');
+        const locked = join(path, 'refs');
+
+        storeSkill(store, 'brainstorm');
+        mkdirSync(join(store.paths.skills, 'brainstorm', 'refs'));
+        mkdirSync(locked, { recursive: true });
+        lockDirectory({ path: locked });
+
+        const report = linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal', 'work'] });
+
+        expect(report.declined).toEqual([
+          {
+            kind: 'occupied',
+            skill: 'brainstorm',
+            workspace: 'personal',
+            path,
+            occupant: { kind: 'unreadable-directory', unreadablePath: locked },
+          },
+        ]);
+        expect(lstatSync(path).isDirectory()).toBe(true);
+      });
+    });
   });
 
   /**

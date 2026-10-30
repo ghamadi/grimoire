@@ -1,6 +1,6 @@
 import { lstatSync, statSync, type Stats } from 'node:fs';
 import { basename, join } from 'node:path';
-import { safeFlattenDirectory } from '@/lib/directories';
+import { flattenDirectory } from '@/lib/directories';
 import { InvalidPathError, UnportableSkillError } from '@/lib/errors';
 import { isErrnoException, tryStatSync } from '@/lib/fs';
 
@@ -19,7 +19,7 @@ export class Skill {
   constructor(params: SkillParams) {
     this.name = params.name;
     this.path = params.path;
-    this.flattenedTree = safeFlattenDirectory(this.path).sort();
+    this.flattenedTree = flattenDirectory(this.path).sort();
   }
 
   /**

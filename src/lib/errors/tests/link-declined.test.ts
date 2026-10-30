@@ -20,6 +20,18 @@ describe('describeLinkRefusal', () => {
       'workspace "work" was skipped: /Users/me/work/.agents/skills cannot be read',
     );
   });
+
+  it('describes a destination that cannot be read in full', () => {
+    expect(
+      describeLinkRefusal({
+        kind: 'occupied',
+        skill: 'triage',
+        workspace,
+        path: `${workspacePath}/triage`,
+        occupant: { kind: 'unreadable-directory', unreadablePath: `${workspacePath}/triage/refs` },
+      }),
+    ).toBe('could not link triage → work: /Users/me/work/.agents/skills/triage/refs cannot be read');
+  });
 });
 
 describe('LinkDeclinedError', () => {

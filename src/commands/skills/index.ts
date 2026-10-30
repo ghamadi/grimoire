@@ -5,10 +5,13 @@ import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { findSkillSources, type SkillSource } from '@/domains/skill';
 import { packSkills } from '@/commands/skills/helpers/pack';
 import {
+  AutoLinkStoppedError,
   describeAddRefusal,
   describeLinkRefusal,
+  InvalidPathError,
   LinkDeclinedError,
   NoTerminalError,
+  UnportableSkillError,
 } from '@/lib/errors';
 import { assertUsableDirectory } from '@/lib/directories';
 import { cloneRepo, getUrlWithoutCredentials } from '@/lib/git';
@@ -60,7 +63,7 @@ export function skillsCommand(params: SkillsCommandParams): Command {
       const all = options.all ?? false;
       const mustRefuse = !all && !picker.isInteractive();
       const addFrom = (params: { location: string; sources: SkillSource[] }) =>
-        addSources({ ...params, all, picker, addSkills, linkSkill });
+        addSources({ ...params, all, picker, storeManager, addSkills, linkSkill });
 
       if (!isRemoteSource(source)) {
         const path = normalizePath(source);
@@ -167,10 +170,11 @@ async function addSources(params: {
   sources: SkillSource[];
   all: boolean;
   picker: Picker;
+  storeManager: GrimoireStoreManager;
   addSkills: AddSkillsUseCase;
   linkSkill: LinkSkillUseCase;
 }): Promise<void> {
-  const { location, sources, all, picker, addSkills, linkSkill } = params;
+  const { location, sources, all, picker, storeManager, addSkills, linkSkill } = params;
 
   if (sources.length === 0) {
     console.log(`nothing to add: no skill found under ${location}`);
@@ -193,12 +197,15 @@ async function addSources(params: {
   }
 
   const add = addSkills({ sources: selected });
+
+  logAddReport(add);
+
   const link = autoLink({
+    storeManager,
     linkSkill,
     skillNames: linkableSkills({ sources: selected, added: add }),
   });
 
-  logAddReport(add);
   logLinkReport(link);
 }
 
@@ -215,12 +222,28 @@ function linkableSkills(params: { sources: SkillSource[]; added: AddSkillsReport
   return params.sources.filter(({ name }) => names.has(name)).map(({ name }) => name);
 }
 
-function autoLink(params: { linkSkill: LinkSkillUseCase; skillNames: string[] }): LinkSkillReport {
+function autoLink(params: {
+  storeManager: GrimoireStoreManager;
+  linkSkill: LinkSkillUseCase;
+  skillNames: string[];
+}): LinkSkillReport {
+  const { storeManager, linkSkill, skillNames } = params;
+
+  // The link use case verifies every skill before it looks for a workspace, so
+  // with nowhere to link, a bad store copy would still fail the run.
+  if (!storeManager.listRegisteredWorkspaces().some((workspace) => workspace.autoLink)) {
+    return { linked: [], alreadyLinked: [], declined: [] };
+  }
+
   try {
-    return params.linkSkill({ skillNames: params.skillNames });
+    return linkSkill({ skillNames });
   } catch (error) {
     if (error instanceof LinkDeclinedError) {
       return { linked: [], alreadyLinked: [], declined: error.refusals };
+    }
+
+    if (error instanceof InvalidPathError || error instanceof UnportableSkillError) {
+      throw new AutoLinkStoppedError({ reason: error.message });
     }
 
     throw error;

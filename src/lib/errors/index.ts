@@ -7,6 +7,7 @@
  * workspace error tomorrow.
  */
 export { GrimoireError } from '@/lib/errors/grimoire-error';
+export { AutoLinkStoppedError, type AutoLinkStoppedErrorProps } from '@/lib/errors/auto-link-stopped';
 export { DuplicateNameError, type DuplicateNameErrorProps } from '@/lib/errors/duplicate-name';
 export {
   EntityNotFoundError,

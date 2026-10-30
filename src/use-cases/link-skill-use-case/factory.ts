@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { Skill } from '@/domains/skill';
 import { Workspace } from '@/domains/workspace';
-import { compareContainment } from '@/lib/directory-containment';
-import { LinkDeclinedError, type LinkOccupant, type LinkRefusal } from '@/lib/errors';
+import { compareContainment, type DirectoryContainment } from '@/lib/directory-containment';
+import { InvalidPathError, LinkDeclinedError, type LinkOccupant, type LinkRefusal } from '@/lib/errors';
+import { isErrnoException } from '@/lib/fs';
 import { relate } from '@/lib/paths';
 
 // ----------------------------------------------------------------------------
@@ -232,10 +233,7 @@ function linkSkillToWorkspace(params: {
   }
 
   // Get the containment result of the destination directory against the store's skill directory
-  const containment = compareContainment({
-    candidate: destinationPath,
-    reference: skill.path,
-  });
+  const containment = compareDestination({ destinationPath, skillPath: skill.path });
 
   switch (containment.kind) {
     // If all the destination's content is contained in the store,
@@ -250,6 +248,9 @@ function linkSkillToWorkspace(params: {
     case 'differs':
       return occupied({ kind: 'differing-directory', entry: containment.entry });
 
+    case 'unreadable':
+      return occupied({ kind: 'unreadable-directory', unreadablePath: containment.path });
+
     // If either the destination or the store hold a symlink, link is declined
     case 'unportable':
       return {
@@ -262,5 +263,30 @@ function linkSkillToWorkspace(params: {
           entry: containment.entry,
         },
       };
+  }
+}
+
+/**
+ * A top-level directory that cannot be read raises `InvalidPathError`, and
+ * anything below it raises a raw errno.
+ */
+function compareDestination(params: {
+  destinationPath: string;
+  skillPath: string;
+}): DirectoryContainment | { kind: 'unreadable'; path: string } {
+  const { destinationPath, skillPath } = params;
+
+  try {
+    return compareContainment({ candidate: destinationPath, reference: skillPath });
+  } catch (error) {
+    if (error instanceof InvalidPathError && error.reason === 'unreadable') {
+      return { kind: 'unreadable', path: error.path };
+    }
+
+    if (isErrnoException(error, 'EACCES') || isErrnoException(error, 'EPERM')) {
+      return { kind: 'unreadable', path: error.path ?? destinationPath };
+    }
+
+    throw error;
   }
 }

@@ -23,7 +23,7 @@ import {
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { fakePicker } from '@test-helpers/fake-picker';
 import { tempGitRepo } from '@test-helpers/git-repo';
-import { runsAsRoot } from '@test-helpers/locked-directory';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -509,6 +509,24 @@ describe('export', () => {
       expect(error.message).toBe(`skill "${skillPath}" is not portable. Contains a nested skill.`);
       expect(readdirSync(repo.path)).toEqual(['.git']);
     });
+
+    it.skipIf(runsAsRoot)(
+      'refuses the whole run under --all-skills when one skill holds a folder it cannot list',
+      async () => {
+        const { run, store, repo } = await newCli();
+        const locked = join(storeSkill(store, 'triage'), 'refs');
+
+        storeSkill(store, 'review');
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const error = await captureError(() => run('export', '--all-skills', '--to', 'library'));
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${locked} cannot be read`);
+        expect(readdirSync(repo.path)).toEqual(['.git']);
+      },
+    );
 
     it('refuses a repo that is not registered', async () => {
       const { run, store } = await newCli();

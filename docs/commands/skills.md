@@ -45,7 +45,7 @@ contains another skill is refused as not portable:
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
 
-A skill holding a folder grimoire can list but not enter is declined the same way:
+A skill holding a folder grimoire can't list or enter is declined the same way:
 
 ```shell
 warning: could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read
@@ -150,6 +150,19 @@ in [`link`](./link.md)'s order.
 
 A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill---to-workspaces), prints
 a warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
+
+A store copy that fails the [portability check](../conventions.md#refusals) stops auto-linking before any workspace is
+examined, so nothing is linked. The run keeps its `added` and `already in the store` lines, then exits 1:
+
+```shell
+$ grimoire skills add ~/dev/skills --all
+added brainstorm
+already in the store: triage (also holds "refs")
+error: auto-link stopped: /Users/me/.grimoire/skills/triage/refs cannot be read
+  added skills stay in the store; fix this and run skills add again to link them
+```
+
+With no auto-link workspace there is nothing to link, so store copies are not checked and the run succeeds.
 
 ### When the name is taken
 

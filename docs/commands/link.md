@@ -54,6 +54,7 @@ Each pair gets one outcome, decided by what sits at `<dest>`:
 | a directory the store copy holds in full           | replaced       | stdout `linked <skill> → <workspace>`                                                                                                                                                                            |
 | a directory holding something the store copy lacks | declined       | stderr ``warning: could not link <skill> → <workspace>: <dest> holds a directory that differs from the store copy at "<entry>" — keep it with `grimoire clone <skill> --to <workspace>`, or delete it yourself`` |
 | a directory that cannot be compared (a symlink)    | declined       | stderr `warning: could not link <skill> → <workspace>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                                                                                 |
+| a directory that cannot be read in full            | declined       | stderr `warning: could not link <skill> → <workspace>: <path> cannot be read`                                                                                                                                    |
 | anything else                                      | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> is not a directory`                                                                                                                                |
 
 ```shell

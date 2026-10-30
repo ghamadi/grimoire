@@ -7,6 +7,7 @@ import { GrimoireError } from '@/lib/errors/grimoire-error';
  */
 export type LinkOccupant =
   | { kind: 'differing-directory'; entry: string }
+  | { kind: 'unreadable-directory'; unreadablePath: string }
   | { kind: 'not-a-directory' }
   | { kind: 'foreign-symlink' }
   | { kind: 'clone' };
@@ -93,6 +94,8 @@ function describeOccupant(refusal: OccupiedRefusal): string {
   switch (occupant.kind) {
     case 'differing-directory':
       return `${path} holds a directory that differs from the store copy at "${occupant.entry}" — keep it with \`grimoire clone ${skill} --to ${workspace}\`, or delete it yourself`;
+    case 'unreadable-directory':
+      return `${occupant.unreadablePath} cannot be read`;
     case 'not-a-directory':
       return `${path} is not a directory`;
     case 'foreign-symlink':

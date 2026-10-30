@@ -156,6 +156,22 @@ describe('add-skills-use-case factory', () => {
         ]);
         expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
       });
+
+      it('declines a source holding a folder it cannot list, leaving nothing of it in the store', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const brainstorm = source('brainstorm');
+        const scratch = source('scratch', { 'refs/guide.md': 'guide' });
+        const triage = source('triage');
+        const locked = join(scratch.path, 'refs');
+
+        lockDirectory({ path: locked });
+
+        const report = addSkills({ sources: [brainstorm, scratch, triage] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['brainstorm', 'triage']);
+        expect(report.declined).toEqual([{ kind: 'unreadable', skill: 'scratch', path: locked }]);
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
     });
   });
 

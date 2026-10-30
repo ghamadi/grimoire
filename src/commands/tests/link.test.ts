@@ -1,4 +1,12 @@
-import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readlinkSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { CommanderError, type Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,12 +14,14 @@ import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST } from '@/domains/skill';
 import {
   EntityNotFoundError,
+  InvalidPathError,
   LinkDeclinedError,
   MissingDestinationError,
   UnlinkDeclinedError,
 } from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { fakePicker } from '@test-helpers/fake-picker';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
 afterEach(() => {
@@ -472,6 +482,45 @@ describe('link', () => {
 
       expect(error).toBeInstanceOf(CommanderError);
       expect(error.message).toBe(message);
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it.each([
+        ['naming it', ['locked', '--to', 'personal']],
+        ['under --all-skills, linking nothing', ['--all-skills', '--to', 'personal']],
+      ])('refuses a skill holding a folder it cannot list, %s', async (_, argv) => {
+        const { run, store } = await newCli();
+        const path = await newDirectory('personal');
+        const locked = join(storeSkill(store, 'locked'), 'refs');
+
+        await run('workspaces', 'add', 'personal', path);
+        storeSkill(store, 'brainstorm');
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const error = await captureError(() => run('link', ...argv));
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${locked} cannot be read`);
+        expect(readdirSync(path)).toEqual([]);
+      });
+
+      it('still drops an existing link to a skill holding a folder it cannot list', async () => {
+        const { run, store } = await newCli();
+        const path = await newDirectory('personal');
+        const skillPath = storeSkill(store, 'locked');
+        const locked = join(skillPath, 'refs');
+
+        await run('workspaces', 'add', 'personal', path);
+        symlinkSync(skillPath, join(path, 'locked'));
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const { stdout } = await run('link', 'locked', '--drop', 'personal');
+
+        expect(stdout).toEqual(['unlinked locked → personal']);
+        expect(readdirSync(path)).toEqual([]);
+      });
     });
   });
 

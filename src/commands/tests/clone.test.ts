@@ -17,11 +17,13 @@ import {
   CloneDeclinedError,
   CloneFailedError,
   EntityNotFoundError,
+  InvalidPathError,
   MissingDestinationError,
   UnportableSkillError,
 } from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
 import { fakePicker } from '@test-helpers/fake-picker';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -438,6 +440,25 @@ describe('clone', () => {
     expect(error.message).toBe(`skill "${skillPath}" is not portable. Contains a nested skill.`);
     expect(existsSync(join(path, 'triage'))).toBe(false);
   });
+
+  it.skipIf(runsAsRoot)(
+    'refuses a skill holding a folder it cannot list, leaving no staging folder',
+    async () => {
+      const { run, store } = await newCli();
+      const path = await newDirectory('personal');
+      const locked = join(storeSkill(store, 'triage'), 'refs');
+
+      await run('workspaces', 'add', 'personal', path);
+      mkdirSync(locked);
+      lockDirectory({ path: locked });
+
+      const error = await captureError(() => run('clone', 'triage', '--to', 'personal'));
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error.message).toBe(`${locked} cannot be read`);
+      expect(readdirSync(path)).toEqual([]);
+    },
+  );
 
   it('refuses a workspace that is not registered', async () => {
     const { run, store } = await newCli();
