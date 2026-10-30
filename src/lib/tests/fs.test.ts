@@ -16,7 +16,14 @@ import {
 import { dirname, join } from 'node:path';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { InvalidPathError } from '@/lib/errors';
-import { getDirectoryAccess, movePath, tryStatSync, writeFileStaged, writeTreeStaged } from '@/lib/fs';
+import {
+  getDirectoryAccess,
+  isSystemError,
+  movePath,
+  tryStatSync,
+  writeFileStaged,
+  writeTreeStaged,
+} from '@/lib/fs';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
@@ -231,6 +238,40 @@ describe('getDirectoryAccess', () => {
 
       expect(getDirectoryAccess(path)).toBe('unreadable');
     });
+  });
+});
+
+describe('isSystemError', () => {
+  function errorFrom(action: () => unknown): unknown {
+    try {
+      action();
+    } catch (error) {
+      return error;
+    }
+
+    throw new Error('expected the action to throw');
+  }
+
+  it('accepts what the operating system reports', async () => {
+    const missing = join(await tempRoot(), 'missing');
+
+    expect(isSystemError(errorFrom(() => readFileSync(missing)))).toBe(true);
+  });
+
+  it("rejects Node's own argument errors", () => {
+    const error = errorFrom(() => readFileSync(undefined as never));
+
+    expect(error).toHaveProperty('code', 'ERR_INVALID_ARG_TYPE');
+    expect(isSystemError(error)).toBe(false);
+  });
+
+  it.each([
+    ['an Error', new Error('a bug')],
+    ['a TypeError', new TypeError('a bug')],
+    ['an Error with a numeric code', Object.assign(new Error('a bug'), { code: 11 })],
+    ['a value that is not an Error', 'EACCES'],
+  ])('rejects %s', (_, error) => {
+    expect(isSystemError(error)).toBe(false);
   });
 });
 

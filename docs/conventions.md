@@ -198,6 +198,16 @@ reported. These messages are shared:
 - An unregistered name prints `error: no workspace named "<name>"` or `error: no repo named "<name>"`. Only the first
   unregistered name is reported.
 
+## When the system reports a failure
+
+A failure the system reports, such as a denied permission or a full disk, stops the run with the system's reason and exits 1,
+unless the command's page says otherwise. What the run already wrote stays, even when no line reports it.
+
+```shell
+$ grimoire status
+error: EACCES: permission denied, open '/Users/me/.grimoire/state.json'
+```
+
 ## Unreachable and unreadable workspaces
 
 A workspace is unreachable when its path does not resolve to a directory: it is gone, it is a file, it sits under a file, or

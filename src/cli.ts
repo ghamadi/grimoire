@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { GrimoireStore } from '@/domains/grimoire-store';
 import { GrimoireError } from '@/lib/errors';
+import { isSystemError } from '@/lib/fs';
 import { buildProgram } from '@/program';
 
 try {
@@ -9,9 +10,10 @@ try {
   // rejection with a zero exit code.
   await buildProgram(new GrimoireStore(GrimoireStore.resolveHome())).parseAsync();
 } catch (error) {
-  // Anything that is not a GrimoireError is a bug, and a bug should look like
-  // one — rethrown with its stack intact rather than dressed up as a refusal.
-  if (!(error instanceof GrimoireError)) {
+  // A system error's own sentence names what to fix. Anything else that is not a
+  // GrimoireError is a bug, and a bug should look like one — rethrown with its
+  // stack intact rather than dressed up as a refusal.
+  if (!(error instanceof GrimoireError) && !isSystemError(error)) {
     throw error;
   }
 

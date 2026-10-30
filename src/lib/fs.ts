@@ -119,6 +119,11 @@ export function isErrnoException(
   return code === undefined ? typeof error.code === 'string' : error.code === code;
 }
 
+/** Stricter than `isErrnoException`, which also accepts Node's own `ERR_*` errors: those are bugs. */
+export function isSystemError(error: unknown): error is NodeJS.ErrnoException {
+  return isErrnoException(error) && error.syscall !== undefined;
+}
+
 // -----------------------------------------------------------------------------
 // STAGED WRITES
 // -----------------------------------------------------------------------------
