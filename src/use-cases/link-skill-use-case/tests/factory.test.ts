@@ -423,6 +423,48 @@ describe('link-skill-use-case factory', () => {
       });
     });
 
+    describe.skipIf(runsAsRoot)('a destination that cannot be written', () => {
+      it('declines a read-only workspace rather than throwing, and links the rest', async () => {
+        const { linkSkill, store, workspace } = await newUseCase();
+        const personal = workspace('personal');
+        const work = workspace('work');
+
+        storeSkill(store, 'brainstorm');
+        lockDirectory({ path: personal, mode: 0o555 });
+
+        const report = linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal', 'work'] });
+
+        expect(report.declined).toEqual([
+          {
+            kind: 'unwritable',
+            skill: 'brainstorm',
+            workspace: 'personal',
+            path: join(personal, 'brainstorm'),
+          },
+        ]);
+        expect(report.linked).toEqual([{ skill: 'brainstorm', workspace: 'work', replaced: false }]);
+        expect(existsSync(join(work, 'brainstorm'))).toBe(true);
+      });
+
+      it('declines a held directory it cannot remove, leaving it in place', async () => {
+        const { linkSkill, store, workspace } = await newUseCase();
+        const personal = workspace('personal');
+        const path = join(personal, 'brainstorm');
+
+        storeSkill(store, 'brainstorm');
+        writeSkillDirectory(path);
+        lockDirectory({ path, mode: 0o555 });
+
+        const error = refusal(() => linkSkill({ skillNames: ['brainstorm'], workspaces: ['personal'] }));
+
+        expect((error as LinkDeclinedError).refusals).toEqual([
+          { kind: 'unwritable', skill: 'brainstorm', workspace: 'personal', path },
+        ]);
+        expect(lstatSync(path).isDirectory()).toBe(true);
+        expect(existsSync(join(path, SKILL_MANIFEST))).toBe(true);
+      });
+    });
+
     describe.skipIf(runsAsRoot)('a destination that cannot be read in full', () => {
       it('declines a folder it cannot read, and links the next skill', async () => {
         const { linkSkill, store, workspace } = await newUseCase();

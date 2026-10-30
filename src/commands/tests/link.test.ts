@@ -485,6 +485,22 @@ describe('link', () => {
     });
 
     describe.skipIf(runsAsRoot)('permissions', () => {
+      it('refuses to link into a read-only workspace, with one error line', async () => {
+        const { run, store } = await newCli();
+        const path = await newDirectory('personal');
+
+        await run('workspaces', 'add', 'personal', path);
+        storeSkill(store, 'brainstorm');
+        lockDirectory({ path, mode: 0o555 });
+
+        const error = await captureError(() => run('link', 'brainstorm', '--to', 'personal'));
+
+        expect(error).toBeInstanceOf(LinkDeclinedError);
+        expect(error.message).toBe(
+          `could not link brainstorm → personal: ${join(path, 'brainstorm')} cannot be written`,
+        );
+      });
+
       it.each([
         ['naming it', ['locked', '--to', 'personal']],
         ['under --all-skills, linking nothing', ['--all-skills', '--to', 'personal']],

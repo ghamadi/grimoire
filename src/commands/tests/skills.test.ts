@@ -162,6 +162,52 @@ describe('skills add', () => {
   });
 
   describe.skipIf(runsAsRoot)('permissions', () => {
+    it('warns about a folder under the source it cannot read, and adds the rest', async () => {
+      const { run, store } = await newCli();
+      const container = await newContainer('triage');
+      const locked = join(container, 'locked');
+
+      mkdirSync(locked);
+      lockDirectory({ path: locked });
+
+      const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added triage']);
+      expect(stderr).toEqual([`warning: skipped ${locked}: cannot be read`]);
+      expect(readdirSync(store.paths.skills)).toEqual(['triage']);
+    });
+
+    it('warns before saying nothing was found, when it read nothing else', async () => {
+      const { run } = await newCli();
+      const container = await newContainer();
+      const locked = join(container, 'locked');
+
+      mkdirSync(locked);
+      lockDirectory({ path: locked });
+
+      const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual([`nothing to add: no skill found under ${container}`]);
+      expect(stderr).toEqual([`warning: skipped ${locked}: cannot be read`]);
+    });
+
+    it('declines a read-only workspace with a warning when auto-linking', async () => {
+      const { run, store } = await newCli();
+      const personal = await newDirectory('personal');
+      const container = await newContainer('triage');
+
+      await registerAutoLink(run, 'personal', personal);
+      lockDirectory({ path: personal, mode: 0o555 });
+
+      const { stdout, stderr } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added triage']);
+      expect(stderr).toEqual([
+        `warning: could not link triage → personal: ${join(personal, 'triage')} cannot be written`,
+      ]);
+      expect(existsSync(join(store.paths.skills, 'triage'))).toBe(true);
+    });
+
     it('refuses a path that cannot be read', async () => {
       const { runFailing, store } = await newCli();
       const source = await newDirectory('skills');

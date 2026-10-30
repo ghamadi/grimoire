@@ -32,6 +32,17 @@ describe('describeLinkRefusal', () => {
       }),
     ).toBe('could not link triage → work: /Users/me/work/.agents/skills/triage/refs cannot be read');
   });
+
+  it('describes a destination that cannot be written', () => {
+    expect(
+      describeLinkRefusal({
+        kind: 'unwritable',
+        skill: 'triage',
+        workspace,
+        path: `${workspacePath}/triage`,
+      }),
+    ).toBe('could not link triage → work: /Users/me/work/.agents/skills/triage cannot be written');
+  });
 });
 
 describe('LinkDeclinedError', () => {

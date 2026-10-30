@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { assertUsableDirectory } from '@/lib/directories';
+import { getDirectoryAccess } from '@/lib/fs';
 import { normalizePath } from '@/lib/paths';
 import { Skill } from '@/domains/skill/entity';
 
@@ -28,14 +29,21 @@ export type SkillSource = {
  *
  * With `repoUrl`, `path` is a clone of that repo.
  *
+ * A directory beneath `path` that cannot be read is skipped and handed to
+ * `onUnreadableDirectory`: it costs that directory rather than the crawl.
+ *
  * @throws InvalidPathError if `path` does not exist, is not a directory, or cannot be read.
  */
-export function findSkillSources(params: { path: string; repoUrl?: string }): SkillSource[] {
-  const { repoUrl } = params;
+export function findSkillSources(params: {
+  path: string;
+  repoUrl?: string;
+  onUnreadableDirectory?: (path: string) => void;
+}): SkillSource[] {
+  const { repoUrl, onUnreadableDirectory } = params;
   const root = normalizePath(params.path);
   assertUsableDirectory(root);
 
-  return collect(root)
+  return collect({ directory: root, onUnreadableDirectory })
     .map((source) => ({
       ...source,
       location: repoUrl === undefined ? source.path : relative(root, source.path) || repoUrl,
@@ -47,9 +55,19 @@ export function findSkillSources(params: { path: string; repoUrl?: string }): Sk
 // INTERNAL HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
 
-function collect(directory: string): Omit<SkillSource, 'location'>[] {
+function collect(params: {
+  directory: string;
+  onUnreadableDirectory?: (path: string) => void;
+}): Omit<SkillSource, 'location'>[] {
+  const { directory, onUnreadableDirectory } = params;
+
   if (Skill.isSkillDirectory(directory)) {
     return [{ name: basename(directory), path: directory }];
+  }
+
+  if (getDirectoryAccess(directory) === 'unreadable') {
+    onUnreadableDirectory?.(directory);
+    return [];
   }
 
   return (
@@ -59,7 +77,7 @@ function collect(directory: string): Omit<SkillSource, 'location'>[] {
       // skill as a collision against itself, and an indefinite crawl that follows
       // links can loop forever.
       .filter((entry) => entry.isDirectory() && !isIgnoredEntry(entry.name))
-      .flatMap((entry) => collect(join(directory, entry.name)))
+      .flatMap((entry) => collect({ directory: join(directory, entry.name), onUnreadableDirectory }))
   );
 }
 

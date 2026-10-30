@@ -74,7 +74,10 @@ export function skillsCommand(params: SkillsCommandParams): Command {
           throw new NoTerminalError({ location: path });
         }
 
-        await addFrom({ location: path, sources: findSkillSources({ path }) });
+        await addFrom({
+          location: path,
+          sources: findSkillSources({ path, onUnreadableDirectory: warnSkippedDirectory }),
+        });
         return;
       }
 
@@ -93,7 +96,11 @@ export function skillsCommand(params: SkillsCommandParams): Command {
 
         await addFrom({
           location: displayUrl,
-          sources: findSkillSources({ path: repoPath, repoUrl: displayUrl }),
+          sources: findSkillSources({
+            path: repoPath,
+            repoUrl: displayUrl,
+            onUnreadableDirectory: warnSkippedDirectory,
+          }),
         });
       });
     });
@@ -159,6 +166,10 @@ export function skillsCommand(params: SkillsCommandParams): Command {
 // ----------------------------------------------------------------------------
 // INTERNAL HELPER FUNCTIONS
 // ----------------------------------------------------------------------------
+
+function warnSkippedDirectory(path: string): void {
+  console.warn(`warning: skipped ${path}: cannot be read`);
+}
 
 function isRemoteSource(source: string): boolean {
   return /^(?:https:\/\/|ssh:\/\/|git@[^/:]+:)/.test(source);

@@ -207,11 +207,36 @@ function linkSkillToWorkspace(params: {
     },
   });
 
+  const writeLink = (options: { replaced: boolean }): PairOutcome => {
+    try {
+      if (options.replaced) {
+        rmSync(destinationPath, { recursive: true });
+      }
+
+      symlinkSync(skill.path, destinationPath);
+
+      return { kind: 'linked', replaced: options.replaced };
+    } catch (error) {
+      if (isErrnoException(error, 'EACCES') || isErrnoException(error, 'EPERM')) {
+        return {
+          kind: 'declined',
+          refusal: {
+            kind: 'unwritable',
+            skill: skill.name,
+            workspace: workspace.name,
+            path: destinationPath,
+          },
+        };
+      }
+
+      throw error;
+    }
+  };
+
   const status = lstatSync(destinationPath, { throwIfNoEntry: false });
 
   if (!status) {
-    symlinkSync(skill.path, destinationPath);
-    return { kind: 'linked', replaced: false };
+    return writeLink({ replaced: false });
   }
 
   if (status.isSymbolicLink()) {
@@ -239,10 +264,7 @@ function linkSkillToWorkspace(params: {
     // If all the destination's content is contained in the store,
     // it's safe to replace it with a link to the store
     case 'contained':
-      rmSync(destinationPath, { recursive: true });
-      symlinkSync(skill.path, destinationPath);
-
-      return { kind: 'linked', replaced: true };
+      return writeLink({ replaced: true });
 
     // If the destination differs in any way, link is declined
     case 'differs':

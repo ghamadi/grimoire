@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { findSkillSources } from '@/domains/skill/helpers/skill-sources';
 import { SKILL_MANIFEST } from '@/domains/skill/entity';
 import { InvalidPathError } from '@/lib/errors';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
 describe('findSkillSources', () => {
@@ -140,6 +141,45 @@ describe('findSkillSources', () => {
     writeFileSync(file, '# notes', 'utf8');
 
     expect(() => findSkillSources({ path: file })).toThrow(InvalidPathError);
+  });
+
+  describe.skipIf(runsAsRoot)('permissions', () => {
+    it.each([
+      ['cannot be listed or entered', 0o000],
+      ['can be listed but not entered', 0o600],
+    ])('skips and reports a folder that %s, keeping the rest', async (_, mode) => {
+      const root = await tempRoot();
+      const skill = writeSkillDirectory(join(root, 'triage'));
+      const locked = join(root, 'locked');
+      const unreadable: string[] = [];
+
+      mkdirSync(locked);
+      lockDirectory({ path: locked, mode });
+
+      const sources = findSkillSources({
+        path: root,
+        onUnreadableDirectory: (path) => unreadable.push(path),
+      });
+
+      expect(sources).toEqual([{ name: 'triage', path: skill, location: skill }]);
+      expect(unreadable).toEqual([locked]);
+    });
+
+    it('keeps a skill it can enter but not list, for the add step to decline', async () => {
+      const root = await tempRoot();
+      const skill = writeSkillDirectory(join(root, 'triage'));
+      const unreadable: string[] = [];
+
+      lockDirectory({ path: skill, mode: 0o300 });
+
+      const sources = findSkillSources({
+        path: root,
+        onUnreadableDirectory: (path) => unreadable.push(path),
+      });
+
+      expect(sources).toEqual([{ name: 'triage', path: skill, location: skill }]);
+      expect(unreadable).toEqual([]);
+    });
   });
 });
 

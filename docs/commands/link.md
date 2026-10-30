@@ -55,6 +55,7 @@ Each pair gets one outcome, decided by what sits at `<dest>`:
 | a directory holding something the store copy lacks | declined       | stderr ``warning: could not link <skill> → <workspace>: <dest> holds a directory that differs from the store copy at "<entry>" — keep it with `grimoire clone <skill> --to <workspace>`, or delete it yourself`` |
 | a directory that cannot be compared (a symlink)    | declined       | stderr `warning: could not link <skill> → <workspace>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                                                                                 |
 | a directory that cannot be read in full            | declined       | stderr `warning: could not link <skill> → <workspace>: <path> cannot be read`                                                                                                                                    |
+| a place grimoire cannot write to                   | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> cannot be written`                                                                                                                                 |
 | anything else                                      | declined       | stderr `warning: could not link <skill> → <workspace>: <dest> is not a directory`                                                                                                                                |
 
 ```shell
@@ -63,6 +64,8 @@ linked triage → personal
 already linked triage → work
 warning: could not link triage → scratch: /Users/me/scratch/skills/triage holds a directory that differs from the store copy at "notes.md" — keep it with `grimoire clone triage --to scratch`, or delete it yourself
 ```
+
+Replacing a directory can fail partway, leaving part of it removed. Everything removed is in the store copy.
 
 Lines print grouped as `linked`, then `already linked`, then warnings. Among the warnings, a skipped workspace comes before
 any pair. Under `--all-skills`, pairs inside a group go by skill first. The rest follows

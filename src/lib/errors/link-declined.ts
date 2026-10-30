@@ -20,7 +20,8 @@ export type LinkRefusal =
   | { kind: 'workspace-unreachable'; workspace: string; path: string }
   | { kind: 'workspace-unreadable'; workspace: string; path: string }
   | { kind: 'occupied'; skill: string; workspace: string; path: string; occupant: LinkOccupant }
-  | { kind: 'unportable'; skill: string; workspace: string; path: string; entry: string };
+  | { kind: 'unportable'; skill: string; workspace: string; path: string; entry: string }
+  | { kind: 'unwritable'; skill: string; workspace: string; path: string };
 
 /**
  * The sentence, without the refusal.
@@ -39,6 +40,8 @@ export function describeLinkRefusal(refusal: LinkRefusal): string {
       return `${describePair(refusal)}: ${describeOccupant(refusal)}`;
     case 'unportable':
       return `${describePair(refusal)}: ${refusal.path} holds the symlink "${refusal.entry}", so the two copies cannot be compared`;
+    case 'unwritable':
+      return `${describePair(refusal)}: ${refusal.path} cannot be written`;
   }
 }
 

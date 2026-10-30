@@ -35,6 +35,13 @@ A directory holding `SKILL.md` at its root is the skill itself. Otherwise, `<sou
 indefinitely, skipping entries whose name starts with `.`, and stops the moment it identifies a skill. It reads no file
 contents beyond checking for `SKILL.md`.
 
+A folder under `<source>` that grimoire can't list or enter is skipped, and anything inside it stays unseen. The warning
+prints as soon as the crawl reaches it, before any picker:
+
+```shell
+warning: skipped /Users/me/dev/skills/locked: cannot be read
+```
+
 Two directories under a container may hold a skill of the same name. Both are found, and the second is handled as a collision
 against what the first just added. See [When the name is taken](#when-the-name-is-taken).
 
