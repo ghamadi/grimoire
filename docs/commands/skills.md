@@ -45,6 +45,12 @@ contains another skill is refused as not portable:
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
 
+A skill holding a folder grimoire can list but not enter is declined the same way:
+
+```shell
+warning: could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read
+```
+
 ### Adding from a git URL
 
 An argument that starts with `https://`, `ssh://` or `git@<host>:` is a git URL. Any other argument is a path, so `http://`

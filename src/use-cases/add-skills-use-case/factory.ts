@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { Skill, type SkillSource } from '@/domains/skill';
 import { compareContainment } from '@/lib/directory-containment';
-import { AddDeclinedError, type AddRefusal, UnportableSkillError } from '@/lib/errors';
+import { AddDeclinedError, type AddRefusal, InvalidPathError, UnportableSkillError } from '@/lib/errors';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES
@@ -109,6 +109,13 @@ function decideForSource(params: {
           location: source.location,
           reason: error.reason,
         },
+      };
+    }
+
+    if (error instanceof InvalidPathError && error.reason === 'unreadable') {
+      return {
+        kind: 'declined',
+        refusal: { kind: 'unreadable', skill: source.name, path: error.path },
       };
     }
 
