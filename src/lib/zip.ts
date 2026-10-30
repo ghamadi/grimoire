@@ -5,8 +5,6 @@ import { zipSync, type ZipAttributes, type ZipOptions } from 'fflate';
 type ZipEntry = [key: string, value: [contents: Uint8Array, options: ZipOptions]];
 
 /**
- * The directory as zip bytes, under one top-level `rootName` folder.
- *
  * @throws Error for an entry below the root that is neither a folder nor a regular file:
  * following a link would change what the zip holds.
  */
