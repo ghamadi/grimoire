@@ -1024,6 +1024,24 @@ describe('skills pack', () => {
 
         expect(error).toBeInstanceOf(EntityNotFoundError);
       });
+
+      it('refuses a skill holding a folder it can list but not enter, writing nothing', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const locked = join(storeSkill(store, 'locked'), 'refs');
+
+        storeSkill(store, 'triage');
+        mkdirSync(locked);
+        writeFileSync(join(locked, 'guide.md'), 'guide', 'utf8');
+        lockDirectory({ path: locked, mode: 0o600 });
+
+        const { stdout, error } = await runFailing('skills', 'pack', '--all', '--out', out);
+
+        expect(error).toBeInstanceOf(InvalidPathError);
+        expect(error.message).toBe(`${join(locked, 'guide.md')} cannot be read`);
+        expect(stdout).toEqual([]);
+        expect(readdirSync(out)).toEqual([]);
+      });
     });
   });
 
@@ -1140,6 +1158,22 @@ describe('skills pack', () => {
         expect(error).toBeInstanceOf(PackFailedError);
         expect(error.message).toContain(`failed to pack secret → ${join(out, 'secret.zip')}: EACCES`);
         expect(readdirSync(out)).toEqual(['triage.zip']);
+      });
+
+      it('fails a skill holding a folder it cannot list', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const locked = join(storeSkill(store, 'locked'), 'refs');
+
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const { stdout, error } = await runFailing('skills', 'pack', 'locked', '--out', out);
+
+        expect(error).toBeInstanceOf(PackFailedError);
+        expect(error.message).toContain(`failed to pack locked → ${join(out, 'locked.zip')}: EACCES`);
+        expect(stdout).toEqual([]);
+        expect(readdirSync(out)).toEqual([]);
       });
     });
   });

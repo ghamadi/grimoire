@@ -1,4 +1,4 @@
-import { lstatSync, statSync } from 'node:fs';
+import { lstatSync, statSync, type Stats } from 'node:fs';
 import { basename, join } from 'node:path';
 import { safeFlattenDirectory } from '@/lib/directories';
 import { InvalidPathError, UnportableSkillError } from '@/lib/errors';
@@ -24,7 +24,8 @@ export class Skill {
 
   /**
    * Creates a skill with a verified path.
-   * @throws InvalidPathError if the path does not exist, is not a directory, or holds no SKILL.md.
+   * @throws InvalidPathError if the path does not exist, is not a directory, holds no SKILL.md,
+   * or holds an entry that cannot be read.
    */
   static createVerified(params: SkillParams): Skill {
     const skill = new Skill(params);
@@ -76,7 +77,7 @@ export class Skill {
 
     // verify that the skill does not contain unsupported files
     const containsUnsupportedFiles = this.flattenedTree.some((path) => {
-      const status = lstatSync(path, { throwIfNoEntry: false });
+      const status = lstatTreeEntry(path);
       return (
         !status ||
         status.isBlockDevice() ||
@@ -91,5 +92,17 @@ export class Skill {
     }
 
     return this;
+  }
+}
+
+function lstatTreeEntry(path: string): Stats | undefined {
+  try {
+    return lstatSync(path, { throwIfNoEntry: false });
+  } catch (error) {
+    if (isErrnoException(error, 'EACCES') || isErrnoException(error, 'EPERM')) {
+      throw new InvalidPathError({ path, reason: 'unreadable' });
+    }
+
+    throw error;
   }
 }

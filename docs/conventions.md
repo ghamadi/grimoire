@@ -193,7 +193,8 @@ reported. These messages are shared:
 - An unknown skill prints `error: no skill named "<skill>"`.
 - A skill that fails the portability check prints its reason, as in
   `error: skill "/Users/me/.grimoire/skills/triage" is not portable. Contains a nested skill.` Every skill is checked before
-  any destination is examined, so under `--all-skills` or `skills pack --all` one unportable skill refuses the whole run.
+  any destination is examined, so under `--all-skills` or `skills pack --all` one unportable skill refuses the whole run. A
+  skill holding a folder grimoire can list but not enter is refused the same way, with `error: <entry> cannot be read`.
 - An unregistered name prints `error: no workspace named "<name>"` or `error: no repo named "<name>"`. Only the first
   unregistered name is reported.
 
