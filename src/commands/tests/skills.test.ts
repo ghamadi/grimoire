@@ -208,6 +208,43 @@ describe('skills add', () => {
       ]);
       expect(readdirSync(store.paths.skills).sort()).toEqual(['brainstorm', 'triage']);
     });
+
+    it('adds a skill from a read-only folder so that it can be removed', async () => {
+      const { run, store } = await newCli();
+      const container = await newContainer('alpha');
+
+      lockDirectory({ path: join(container, 'alpha'), mode: 0o555 });
+
+      await run('skills', 'add', container, '--all');
+      await run('skills', 'remove', 'alpha');
+
+      expect(existsSync(join(store.paths.skills, 'alpha'))).toBe(false);
+    });
+
+    it('stops on a failed copy, keeps earlier skills, and succeeds on a re-run once fixed', async () => {
+      const { run, runFailing, store } = await newCli();
+      const container = await newContainer('alpha');
+      const locked = join(container, 'beta', 'locked.txt');
+
+      writeSkillDirectory(join(container, 'beta'), { 'locked.txt': 'locked' });
+      chmodSync(locked, 0o000);
+
+      const { error } = await runFailing('skills', 'add', container, '--all');
+
+      expect(error.message).toMatch(/^EACCES\b/);
+
+      const { stdout: listed } = await run('skills', 'list');
+
+      expect(listed).toEqual(['alpha']);
+
+      chmodSync(locked, 0o644);
+
+      const { stdout } = await run('skills', 'add', container, '--all');
+
+      expect(stdout).toEqual(['added beta', 'already in the store: alpha']);
+      expect(existsSync(join(store.paths.skills, 'beta', SKILL_MANIFEST))).toBe(true);
+      expect(existsSync(join(store.paths.skills, 'beta', 'locked.txt'))).toBe(true);
+    });
   });
 
   it('refuses a path that does not exist', async () => {

@@ -580,6 +580,181 @@ describe('writeTreeStaged', () => {
     });
   });
 
+  describe.skipIf(runsAsRoot)('read-only directories', () => {
+    function unlockWhenFinished(path: string): void {
+      onTestFinished(() => {
+        chmodSync(path, 0o755);
+      });
+    }
+
+    function makeUnreadable(path: string): void {
+      writeFileSync(path, 'secret', 'utf8');
+      chmodSync(path, 0o000);
+      onTestFinished(() => {
+        chmodSync(path, 0o644);
+      });
+    }
+
+    it('writes owner-writable folders from read-only ones, leaving the source as it was', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+
+      lockDirectory({ path: join(from, 'refs'), mode: 0o555 });
+      lockDirectory({ path: from, mode: 0o555 });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toStrictEqual({ kind: 'written' });
+      expect(readTree(to)).toEqual(NEW_SKILL_FILES);
+      expect(statSync(to).mode & 0o777).toBe(0o755);
+      expect(statSync(join(to, 'refs')).mode & 0o777).toBe(0o755);
+      expect(statSync(from).mode & 0o777).toBe(0o555);
+      expect(statSync(join(from, 'refs')).mode & 0o777).toBe(0o555);
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('keeps the mode of a read-only file', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+      const file = join(from, 'SKILL.md');
+
+      chmodSync(file, 0o444);
+
+      writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(statSync(join(to, 'SKILL.md')).mode & 0o777).toBe(0o444);
+    });
+
+    it('can replace its own copy of a read-only source', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+
+      lockDirectory({ path: from, mode: 0o555 });
+
+      writeTreeStaged({ from, to, stagingDirectory });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toStrictEqual({ kind: 'written' });
+      expect(readTree(to)).toEqual(NEW_SKILL_FILES);
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('replaces an old directory with a read-only source', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+
+      writeFiles(to, { 'SKILL.md': 'old skill' });
+      lockDirectory({ path: from, mode: 0o555 });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toStrictEqual({ kind: 'written' });
+      expect(readTree(to)).toEqual(NEW_SKILL_FILES);
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('copies a symlink to a read-only directory without changing that directory', async () => {
+      const { root, to, stagingDirectory } = await sandbox();
+      const target = join(root, 'target');
+      const link = join(root, 'link');
+
+      writeFiles(target, { 'SKILL.md': 'target skill' });
+      lockDirectory({ path: target, mode: 0o555 });
+      symlinkSync(target, link);
+
+      const result = writeTreeStaged({ from: link, to, stagingDirectory });
+
+      expect(result).toStrictEqual({ kind: 'written' });
+      expect(lstatSync(to).isSymbolicLink()).toBe(true);
+      expect(statSync(target).mode & 0o777).toBe(0o555);
+    });
+
+    it('deletes a partial copy holding a read-only folder', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+      const readOnlyFolder = join(from, 'a-refs');
+
+      writeFiles(readOnlyFolder, { 'guide.md': 'guide' });
+      lockDirectory({ path: readOnlyFolder, mode: 0o555 });
+      makeUnreadable(join(from, 'z-secret.md'));
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toMatchObject({ kind: 'failed', error: { code: 'EACCES' } });
+      expect(lstatSync(to, { throwIfNoEntry: false })).toBeUndefined();
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('leaves a read-only directory a partial copy links to as it was', async () => {
+      const { root, from, to, stagingDirectory } = await sandbox();
+      const target = join(root, 'target');
+
+      writeFiles(target, { 'guide.md': 'guide' });
+      lockDirectory({ path: target, mode: 0o555 });
+      symlinkSync(target, join(from, 'a-link'));
+      makeUnreadable(join(from, 'z-secret.md'));
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toMatchObject({ kind: 'failed', error: { code: 'EACCES' } });
+      expect(statSync(target).mode & 0o777).toBe(0o555);
+      expect(readTree(target)).toEqual({ 'guide.md': 'guide' });
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('deletes a read-only copy and restores the old directory when the swap fails', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+
+      writeFiles(to, { 'SKILL.md': 'old skill' });
+      lockDirectory({ path: from, mode: 0o555 });
+      vi.mocked(renameSync)
+        .mockImplementationOnce((oldPath, newPath) => actualFs.renameSync(oldPath, newPath))
+        .mockImplementationOnce(() => {
+          throw Object.assign(new Error('rename failed'), { code: 'EIO' });
+        });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toMatchObject({ kind: 'failed', error: { code: 'EIO' } });
+      expect(readTree(to)).toEqual({ 'SKILL.md': 'old skill' });
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('fails on a read-only old directory, leaving it as it was', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+
+      writeFiles(to, { 'SKILL.md': 'old skill' });
+      lockDirectory({ path: to, mode: 0o555 });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      expect(result).toMatchObject({ kind: 'failed', error: { code: 'EACCES' } });
+      expect(readTree(to)).toEqual({ 'SKILL.md': 'old skill' });
+      expect(statSync(to).mode & 0o777).toBe(0o555);
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('reports an old entry with a read-only folder as stranded, without unlocking it', async () => {
+      const { from, to, stagingDirectory } = await sandbox();
+      const oldFolder = join(to, 'refs');
+
+      writeFiles(oldFolder, { 'old.md': 'old' });
+
+      const lockedMode = 0o555;
+
+      chmodSync(oldFolder, lockedMode);
+
+      const result = writeTreeStaged({ from, to, stagingDirectory });
+
+      if (result.kind !== 'written' || !result.strandedOldEntry) {
+        throw new Error('expected a stranded old entry');
+      }
+
+      const strandedFolder = join(result.strandedOldEntry.path, 'refs');
+
+      unlockWhenFinished(strandedFolder);
+
+      expect(statSync(strandedFolder).mode & 0o777).toBe(lockedMode);
+      expect(readTree(to)).toEqual(NEW_SKILL_FILES);
+    });
+  });
+
   describe('a swap that fails', () => {
     const renameFailure = (code: string) => () => {
       throw Object.assign(new Error(`rename failed: ${code}`), { code });

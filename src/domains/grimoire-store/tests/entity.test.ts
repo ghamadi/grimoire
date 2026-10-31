@@ -21,6 +21,14 @@ describe('paths', () => {
   });
 });
 
+describe('stagingDirectory', () => {
+  it('sits directly inside the skills directory', () => {
+    const store = new GrimoireStore('/home/me/.grimoire');
+
+    expect(store.stagingDirectory).toBe(join(store.paths.skills, '.grimoire-staging'));
+  });
+});
+
 describe('findCollisionWith', () => {
   const store = new GrimoireStore('/home/me/.grimoire');
 

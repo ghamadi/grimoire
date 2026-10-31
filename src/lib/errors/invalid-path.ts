@@ -7,6 +7,7 @@ export type InvalidPathReason =
   | 'not-a-skill'
   | 'not-absolute'
   | 'not-in-git-work-tree'
+  | 'occupied'
   | 'symlink'
   | 'unreadable'
   | 'unresolvable';
@@ -22,6 +23,7 @@ const REASON_MESSAGES: Record<InvalidPathReason, string> = {
   'not-a-skill': 'holds no SKILL.md',
   'not-absolute': 'must be an absolute path or start with ~/',
   'not-in-git-work-tree': 'is not inside a git work tree',
+  occupied: 'is already occupied',
   symlink: 'is a symlink',
   unreadable: 'cannot be read',
   // Distinct from `missing`: the entry is right there in `ls -l`, and the fix is

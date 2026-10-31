@@ -34,7 +34,8 @@ Each command words its own messages for these cases.
 
 ## Copies
 
-A copy of a store skill is verbatim: dotfiles, nested directories and symlinks included.
+A copy of a store skill is verbatim: dotfiles, nested directories and symlinks included. Folder permissions are the one
+exception, as in [Staged writes](#staged-writes).
 
 ## Arguments
 
@@ -175,6 +176,9 @@ warnings, and the [every-declined](#when-every-destination-is-declined) form is 
 `<id>` is random per write. `<dest>` only ever holds the whole old entry or the whole new copy. The staging directory sits
 inside `<directory>` so both renames stay on one filesystem, and one level down so an agent listing `<directory>` never sees
 a half-built skill.
+
+Every folder in the new copy is writable by you, even when the original folder is read-only, because grimoire could not
+otherwise replace or remove the copy later. Files keep their permissions, and the original is not changed.
 
 If `.grimoire-staging` exists and is not a directory, such as a file or a symlink, every write into `<directory>`
 [fails](#when-a-write-fails).

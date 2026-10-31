@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import {
   accessSync,
+  chmodSync,
   constants,
   cpSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   renameSync,
   rmSync,
   rmdirSync,
@@ -164,6 +166,8 @@ export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult 
   try {
     ensureStagingDirectory(stagingDirectory);
     copyTree({ from, to: incomingTempContainer });
+    // A copy can keep read-only modes, and grimoire could then neither move nor delete it.
+    grantOwnerAccessToDirectories(incomingTempContainer);
 
     // If the destination is occupied, back it up to `.outgoing`.
     const hasOccupant = lstatSync(to, { throwIfNoEntry: false }) !== undefined;
@@ -183,6 +187,8 @@ export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult 
       throw error;
     }
   } catch (error) {
+    // A partial copy stops before the grant above.
+    ignoreErrors(() => grantOwnerAccessToDirectories(incomingTempContainer));
     ignoreErrors(() => rmSync(incomingTempContainer, { recursive: true, force: true }));
     removeIfEmpty(stagingDirectory);
 
@@ -267,6 +273,24 @@ function ensureStagingDirectory(path: string): void {
   }
 
   mkdirSync(path, { recursive: true });
+}
+
+/** Symlinks are not followed, so nothing outside `path` changes. */
+function grantOwnerAccessToDirectories(path: string): void {
+  const stats = lstatSync(path, { throwIfNoEntry: false });
+
+  if (!stats?.isDirectory()) {
+    return;
+  }
+
+  // A filesystem without modes can refuse `chmod`, so a directory that needs nothing gets no call.
+  if ((stats.mode & 0o700) !== 0o700) {
+    chmodSync(path, (stats.mode & 0o7777) | 0o700);
+  }
+
+  for (const entry of readdirSync(path)) {
+    grantOwnerAccessToDirectories(join(path, entry));
+  }
 }
 
 /** Best-effort: a staging directory left behind is clutter, never a failed write. */

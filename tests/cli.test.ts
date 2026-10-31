@@ -55,6 +55,27 @@ describe('grimoire cli', () => {
       expect(stderr).toMatch(/^error: EACCES: permission denied/);
       expect(stderr.split('\n')).toHaveLength(1);
     });
+
+    it('stops skills add on a failed copy, on one line, leaving the skill out of the store', async () => {
+      const home = await tempRoot();
+      const beta = join(await tempRoot(), 'beta');
+      const locked = join(beta, 'locked.txt');
+
+      mkdirSync(beta);
+      writeFileSync(join(beta, 'SKILL.md'), '# skill\n', 'utf8');
+      writeFileSync(locked, 'locked', 'utf8');
+      chmodSync(locked, 0o000);
+
+      const { stderr, code } = await runCli(['skills', 'add', beta, '--all'], { home });
+
+      expect(code).toBe(1);
+      expect(stderr).toMatch(/^error: EACCES\b/);
+      expect(stderr.split('\n')).toHaveLength(1);
+
+      const { stdout } = await runCli(['skills', 'list'], { home });
+
+      expect(stdout).not.toContain('beta');
+    });
   });
 
   it('prints status without escape codes when stdout is piped', async () => {

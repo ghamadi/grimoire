@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { extractJsonContent, writeAtomic } from '@/lib/utils/files';
 import type { GrimoireStore } from '@/domains/grimoire-store/entity';
 import { StoreState, type CloneRecord } from '@/domains/grimoire-store/value-objects/store-state';
@@ -23,7 +23,7 @@ import {
   type StoreLink,
 } from '@/domains/grimoire-store/helpers/store-links';
 import { Skill } from '@/domains/skill';
-import { copyTree, movePath } from '@/lib/fs';
+import { movePath, writeTreeStaged } from '@/lib/fs';
 import { Repo } from '@/domains/repo';
 import { Workspace } from '@/domains/workspace';
 import { isInsideGitWorkTree } from '@/lib/git';
@@ -314,7 +314,20 @@ export class GrimoireStoreManager {
 
     const destination = this.skillPath(params.name);
 
-    copyTree({ from: params.sourcePath, to: destination });
+    // Callers checking with `existsSync` still get here with a dangling symlink, and the write would replace it.
+    if (lstatSync(destination, { throwIfNoEntry: false })) {
+      throw new InvalidPathError({ path: destination, reason: 'occupied' });
+    }
+
+    const result = writeTreeStaged({
+      from: params.sourcePath,
+      to: destination,
+      stagingDirectory: this.store.stagingDirectory,
+    });
+
+    if (result.kind === 'failed') {
+      throw result.error;
+    }
 
     return destination;
   }

@@ -172,10 +172,29 @@ warning: could not add notes: /Users/me/dev/notes holds the symlink "ref", so th
 warning: could not add triage: EACCES: permission denied, open '/Users/me/dev/triage/locked.txt'
 ```
 
+A symlink at `<store path>` that resolves nowhere stops the run with `error: <store path> is already occupied`, and stays
+where it is.
+
 The `(also holds …)` note names only the first extra entry. A `.DS_Store` only the store holds is never named in it. A
 symlink only the store copy holds reads as the "and more" row.
 
 There's no `--force`. The store copy is where you edit the skill, and replacing it would lose those edits.
+
+### Writes are staged
+
+Each copy is a [staged write](../conventions.md#staged-writes), with the source in place of the store skill and
+`~/.grimoire/skills/` as `<directory>`.
+
+A write that fails stops the run with the system's reason and exits 1. Commands that go on to the next destination differ
+here. Nothing stays in the store for that skill, skills added before it stay, and the same `skills add` works once the cause
+is fixed.
+
+```shell
+$ grimoire skills add ~/dev/skills --all
+error: EACCES, Permission denied '/Users/me/.grimoire/skills/.grimoire-staging/beta.4f9a1c.incoming'
+```
+
+A `.grimoire-staging` left behind in the store prints in `status` as a [stray entry](./status.md#stray-entries-and-ignore).
 
 ### What `add` refuses
 
