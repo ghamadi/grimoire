@@ -63,6 +63,25 @@ $ grimoire skills add ~/dev/skills
 nothing to add: no skill selected
 ```
 
+## Missing skills
+
+Some commands let you leave out which skills to act on. Their pages link here. This applies when a run names no skill and
+does not pass the command's flag for every skill.
+
+Without a terminal, the run refuses with the [missing-argument message](#refusals), even on an empty store. It does not list
+the choices as [Missing destinations](#missing-destinations) does, because a store can hold too many skills to list in an
+error:
+
+```shell
+$ grimoire skills pack | cat
+error: missing required argument 'skills' (or use --all)
+```
+
+On a terminal with an empty store, the run prints `nothing to <verb>: the store holds no skills` and exits 0.
+
+Otherwise a [picker](#pickers) offers what [`skills list`](./commands/skills.md#skills-list-alias-ls) prints, in name order.
+Choosing nothing prints `nothing to <verb>: no skill selected`. What you pick runs exactly as if you had typed it.
+
 ## Missing destinations
 
 Some commands let you leave out where to write. The skills are checked first, so a wrong skill name is reported as one, with

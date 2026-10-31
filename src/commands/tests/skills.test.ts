@@ -896,6 +896,146 @@ describe('skills pack', () => {
     });
   });
 
+  describe('no skill named', () => {
+    it('refuses a run with no skill and no --all', async () => {
+      const picker = fakePicker({ choose: () => [], isInteractive: false });
+      const { runFailing, store } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+
+      const { error } = await runFailing('skills', 'pack');
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe("error: missing required argument 'skills' (or use --all)");
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses without a terminal on an empty store, leaving the store untouched', async () => {
+      const picker = fakePicker({ choose: () => [], isInteractive: false });
+      const { runFailing, store } = await newCli({ picker });
+
+      const { error } = await runFailing('skills', 'pack');
+
+      expect(error).toBeInstanceOf(CommanderError);
+      expect(error.message).toBe("error: missing required argument 'skills' (or use --all)");
+      expect(picker.offered).toEqual([]);
+      expect(existsSync(store.paths.skills)).toBe(false);
+    });
+
+    it('packs what is picked as if it were typed', async () => {
+      const picker = fakePicker({ choose: () => ['triage'] });
+      const { run, store } = await newCli({ picker });
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'brainstorm');
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('skills', 'pack', '--out', out);
+
+      expect(stdout).toEqual([`packed triage → ${join(out, 'triage.zip')}`]);
+      expect(stderr).toEqual([]);
+      expect(readdirSync(out)).toEqual(['triage.zip']);
+    });
+
+    it('runs a reversed pick in name order', async () => {
+      const picker = fakePicker({ choose: (labels) => [...labels].reverse() });
+      const { run, store } = await newCli({ picker });
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'brainstorm');
+
+      const { stdout } = await run('skills', 'pack', '--out', out);
+
+      expect(stdout).toEqual([
+        `packed brainstorm → ${join(out, 'brainstorm.zip')}`,
+        `packed triage → ${join(out, 'triage.zip')}`,
+      ]);
+    });
+
+    it('offers sorted names, leaving out an entry with no SKILL.md', async () => {
+      const picker = fakePicker({ choose: () => [] });
+      const { run, store } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+      storeSkill(store, 'brainstorm');
+      mkdirSync(join(store.paths.skills, 'draft'), { recursive: true });
+
+      await run('skills', 'pack');
+
+      expect(picker.offered).toEqual(['brainstorm', 'triage']);
+    });
+
+    it('prints a message and exits clean when nothing is picked, even with a missing --out', async () => {
+      const picker = fakePicker({ choose: () => [] });
+      const { run, store } = await newCli({ picker });
+      const directory = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+
+      const { stdout, stderr } = await run('skills', 'pack', '--out', join(directory, 'gone'));
+
+      expect(stdout).toEqual(['nothing to pack: no skill selected']);
+      expect(stderr).toEqual([]);
+      expect(readdirSync(directory)).toEqual([]);
+    });
+
+    it('prints a message and offers nothing on an empty store', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run } = await newCli({ picker });
+
+      const { stdout, stderr } = await run('skills', 'pack');
+
+      expect(stdout).toEqual(['nothing to pack: the store holds no skills']);
+      expect(stderr).toEqual([]);
+      expect(picker.offered).toEqual([]);
+    });
+
+    it('refuses a picked unportable skill, writing nothing for the others', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { runFailing, store } = await newCli({ picker });
+      const out = await newDirectory('dist');
+
+      storeSkill(store, 'triage');
+      mkdirSync(join(store.paths.skills, 'nested', 'sub'), { recursive: true });
+      writeSkillDirectory(join(store.paths.skills, 'nested'), { [`sub/${SKILL_MANIFEST}`]: 'x' });
+
+      const { error } = await runFailing('skills', 'pack', '--out', out);
+
+      expect(error).toBeInstanceOf(UnportableSkillError);
+      expect(readdirSync(out)).toEqual([]);
+    });
+
+    it('checks --out after the pick', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { runFailing, store } = await newCli({ picker });
+      const out = join(await newDirectory('dist'), 'gone');
+
+      storeSkill(store, 'triage');
+
+      const { error } = await runFailing('skills', 'pack', '--out', out);
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(picker.offered).toEqual(['triage']);
+    });
+
+    it('offers no picker to named skills, --all, or the two combined', async () => {
+      const picker = fakePicker({ choose: (labels) => labels });
+      const { run, runFailing, store } = await newCli({ picker });
+
+      storeSkill(store, 'triage');
+
+      const named = await run('skills', 'pack', 'triage', '--out', await newDirectory('named'));
+      const all = await run('skills', 'pack', '--all', '--out', await newDirectory('all'));
+      const combined = await runFailing('skills', 'pack', 'triage', '--all');
+
+      expect(named.stdout).toHaveLength(1);
+      expect(all.stdout).toHaveLength(1);
+      expect(combined.error).toBeInstanceOf(CommanderError);
+      expect(picker.offered).toEqual([]);
+    });
+  });
+
   describe('refusals', () => {
     it('refuses named skills with --all', async () => {
       const { runFailing } = await newCli();
@@ -904,15 +1044,6 @@ describe('skills pack', () => {
 
       expect(error).toBeInstanceOf(CommanderError);
       expect(error.message).toBe('error: --all cannot be combined with named skills');
-    });
-
-    it('refuses a run with no skill and no --all', async () => {
-      const { runFailing } = await newCli();
-
-      const { error } = await runFailing('skills', 'pack');
-
-      expect(error).toBeInstanceOf(CommanderError);
-      expect(error.message).toBe("error: missing required argument 'skills' (or use --all)");
     });
 
     it('refuses an unknown skill', async () => {

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { findSkillSources, type SkillSource } from '@/domains/skill';
-import { packSkills } from '@/commands/skills/helpers/pack';
+import { packSkills, pickSkillNames } from '@/commands/skills/helpers/pack';
 import {
   describeAddRefusal,
   describeLinkRefusal,
@@ -107,25 +107,34 @@ export function skillsCommand(params: SkillsCommandParams): Command {
     .argument('[skills...]', 'store skills to pack, unless --all')
     .option('--all', 'pack every skill the store holds')
     .option('--out <directory>', 'the folder to write the zips into (default: the current folder)')
-    .action((skills: string[], options: { all?: boolean; out?: string }, packCommand: Command) => {
+    .action(async (skills: string[], options: { all?: boolean; out?: string }, packCommand: Command) => {
       const { all, out } = options;
 
       if (skills.length > 0 && all) {
         packCommand.error('error: --all cannot be combined with named skills');
       }
 
-      if (skills.length === 0 && !all) {
+      const mustPick = skills.length === 0 && !all;
+
+      if (mustPick && !picker.isInteractive()) {
         packCommand.error(formatMissingArgument({ name: 'skills', allFlag: '--all' }));
       }
 
-      const skillNames = all ? storeManager.listSkillNames() : skills;
+      const skillNames = all || mustPick ? storeManager.listSkillNames() : skills;
 
       if (skillNames.length === 0) {
         console.log('nothing to pack: the store holds no skills');
         return;
       }
 
-      packSkills({ storeManager, skillNames, outPath: out ?? '.' });
+      const selected = mustPick ? await pickSkillNames({ picker, skillNames }) : skillNames;
+
+      if (selected.length === 0) {
+        console.log('nothing to pack: no skill selected');
+        return;
+      }
+
+      packSkills({ storeManager, skillNames: selected, outPath: out ?? '.' });
     });
 
   command

@@ -257,7 +257,8 @@ Sorted by name. It lists the store's directory, so a skill with no links or clon
 | `--all`             | false              | pack every skill the store holds  |
 | `--out <directory>` | the current folder | the folder to write the zips into |
 
-Name at least one skill, or pass `--all`.
+With no skill named and no `--all`, a picker offers the store's skills on a terminal, and the run refuses without one, as in
+[Missing skills](../conventions.md#missing-skills). `--out` is checked after the pick.
 
 ```shell
 $ grimoire skills pack triage review --out ~/dist
@@ -306,17 +307,17 @@ headed `error: packs failed:` for several.
 
 See [Refusals](../conventions.md#refusals).
 
-**1. Named skills and `--all` are not combined, and one of them is given.**
+**1. Named skills and `--all` are not combined, and with neither there is a terminal to pick on.**
 
 ```shell
 $ grimoire skills pack triage --all
 error: --all cannot be combined with named skills
 
-$ grimoire skills pack
+$ grimoire skills pack | cat
 error: missing required argument 'skills' (or use --all)
 ```
 
-With `--all` on an empty store, the run prints `nothing to pack: the store holds no skills` and exits 0.
+With `--all` or the picker on an empty store, the run prints `nothing to pack: the store holds no skills` and exits 0.
 
 **2. Every skill is one [`skills list`](#skills-list-alias-ls) would print.** Any other name is refused with
 `error: no skill named "<skill>"`.
