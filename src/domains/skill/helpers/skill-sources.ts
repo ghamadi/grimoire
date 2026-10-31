@@ -28,7 +28,7 @@ export type SkillSource = {
  *
  * With `repoUrl`, `path` is a clone of that repo.
  *
- * @throws InvalidPathError if `path` does not exist or is not a directory.
+ * @throws InvalidPathError if `path` does not exist, is not a directory, or cannot be read.
  */
 export function findSkillSources(params: { path: string; repoUrl?: string }): SkillSource[] {
   const { repoUrl } = params;

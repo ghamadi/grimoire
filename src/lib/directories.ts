@@ -1,12 +1,14 @@
 import { readdirSync } from 'node:fs';
-import { tryStatSync } from '@/lib/fs';
+import { getDirectoryAccess, tryStatSync } from '@/lib/fs';
 import { join } from 'node:path';
 import { InvalidPathError } from '@/lib/errors';
 
-/**
- * A path that does not exist has exactly one meaning — a typo.
- */
+/** A directory grimoire can read but not write to still passes. */
 export function assertUsableDirectory(path: string): void {
+  if (getDirectoryAccess(path) === 'unreadable') {
+    throw new InvalidPathError({ path, reason: 'unreadable' });
+  }
+
   const status = tryStatSync(path);
 
   if (!status) {
@@ -21,10 +23,8 @@ export function assertUsableDirectory(path: string): void {
 /**
  * @returns a flat list of all files in the directory and its subdirectories.
  * Empty subdirectories are included if the `includeEmptyDirectories` option is true (default).
- *
- * Never throws. If an error occurs, an empty array is returned.
  */
-export function safeFlattenDirectory(
+export function flattenDirectory(
   path: string,
   options?: { includeEmptyDirectories?: boolean },
 ): string[] {
@@ -52,11 +52,5 @@ export function safeFlattenDirectory(
     return paths;
   }
 
-  try {
-    return recurse(path, true);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.warn(`Error flattening directory \`${path}\`: ${message}`);
-    return [];
-  }
+  return recurse(path, true);
 }

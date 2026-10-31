@@ -2238,6 +2238,39 @@ describe('assertOutsideStore', () => {
   });
 });
 
+describe('assertNotInsideStore', () => {
+  it.each([
+    ['equal to the store root', (store: GrimoireStore) => store.paths.root],
+    ['inside the store', (store: GrimoireStore) => join(store.paths.skills, 'triage')],
+  ])('refuses a path %s', async (_, pathFor) => {
+    const { manager, store } = await newManager();
+
+    expect(() => manager.assertNotInsideStore(pathFor(store))).toThrow(PathCollisionError);
+  });
+
+  it('refuses a symlink that resolves inside the store', async () => {
+    const { manager, store, root } = await newManager();
+    const link = join(root, 'link');
+
+    mkdirSync(store.paths.skills, { recursive: true });
+    symlinkSync(store.paths.skills, link);
+
+    expect(() => manager.assertNotInsideStore(link)).toThrow(PathCollisionError);
+  });
+
+  it('accepts the folder containing the store', async () => {
+    const { manager, store } = await newManager();
+
+    expect(() => manager.assertNotInsideStore(dirname(store.paths.root))).not.toThrow();
+  });
+
+  it('accepts a path unrelated to the store', async () => {
+    const { manager, root } = await newManager();
+
+    expect(() => manager.assertNotInsideStore(join(root, 'dev'))).not.toThrow();
+  });
+});
+
 describe('addSkill', () => {
   it('copies a tree verbatim and reports where it landed', async () => {
     const { manager, store, root } = await newManager();

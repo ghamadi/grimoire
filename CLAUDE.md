@@ -47,6 +47,8 @@ See @CLAUDE.local.md
 - A command factory takes its collaborators as named parameters — `storeManager`, plus anything that reads or writes outside
   the process, such as a picker or a clock. `program.ts` supplies the real ones and tests supply fakes; no command reaches
   for `process.stdin` or `new Date()` directly.
+- Add handling for a filesystem permission failure only when someone hits it in real use, or when it causes data loss or a
+  wrong write. Otherwise let it stop the run with the system's reason.
 
 ### Comments
 
@@ -86,3 +88,7 @@ Supplies what the `branch-review` skill would otherwise look up.
 - A suite is named after the file it covers: `src/<module>/**/<file>.ts` → `src/<module>/tests/<file>.test.ts`.
 - A command folder's `index.ts` is covered by `src/commands/tests/<name>.test.ts`.
 - A comment that fails the [Comments](#comments) rules is a finding.
+- A command handles a filesystem permission failure only where its page documents that. Anywhere else it stops the run, as in
+  [When the system reports a failure](./docs/conventions.md#when-the-system-reports-a-failure). A run that stops on one,
+  finished work it leaves unreported, or a missing test for either is not a finding, and neither is the lack of handling a
+  page doesn't promise. Data loss or a wrong write caused by one still is.

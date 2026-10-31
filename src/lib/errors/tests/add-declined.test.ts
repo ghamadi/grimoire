@@ -23,6 +23,12 @@ const incomparable: AddRefusal = {
   entry: 'ref',
 };
 
+const systemFailure: AddRefusal = {
+  kind: 'system-failure',
+  skill: 'scratch',
+  error: new Error("EACCES: permission denied, scandir '/Users/me/dev/scratch/refs'"),
+};
+
 describe('describeAddRefusal', () => {
   it('describes a store copy that differs', () => {
     expect(describeAddRefusal(differs)).toBe(
@@ -39,6 +45,12 @@ describe('describeAddRefusal', () => {
   it('describes a symlink that cannot be compared', () => {
     expect(describeAddRefusal(incomparable)).toBe(
       'could not add notes: /Users/me/dev/notes holds the symlink "ref", so the two copies cannot be compared',
+    );
+  });
+
+  it("describes a system failure by the system's reason", () => {
+    expect(describeAddRefusal(systemFailure)).toBe(
+      "could not add scratch: EACCES: permission denied, scandir '/Users/me/dev/scratch/refs'",
     );
   });
 });

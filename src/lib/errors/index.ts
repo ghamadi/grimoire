@@ -56,6 +56,18 @@ export {
   type ExportFailure,
 } from '@/lib/errors/export-failed';
 export {
+  PackDeclinedError,
+  describePackRefusal,
+  type PackDeclinedErrorProps,
+  type PackRefusal,
+} from '@/lib/errors/pack-declined';
+export {
+  PackFailedError,
+  describePackFailure,
+  type PackFailedErrorProps,
+  type PackFailure,
+} from '@/lib/errors/pack-failed';
+export {
   LinkDeclinedError,
   describeLinkRefusal,
   type LinkDeclinedErrorProps,

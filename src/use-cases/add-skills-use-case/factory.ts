@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { Skill, type SkillSource } from '@/domains/skill';
 import { compareContainment } from '@/lib/directory-containment';
-import { AddDeclinedError, type AddRefusal, UnportableSkillError } from '@/lib/errors';
+import { AddDeclinedError, type AddRefusal, InvalidPathError, UnportableSkillError } from '@/lib/errors';
+import { isSystemError } from '@/lib/fs';
 
 // ----------------------------------------------------------------------------
 // RESULT SHAPES
@@ -112,18 +113,43 @@ function decideForSource(params: {
       };
     }
 
+    if (isSystemError(error)) {
+      return declineForSystemFailure({ source, error });
+    }
+
     throw error;
   }
 
   const storePath = storeManager.skillPath(source.name);
 
-  // If the skill is not already in the store, add it.
+  // A failed copy stays out of the decline below: it may have written part of the skill.
   if (!existsSync(storePath)) {
     return {
       kind: 'added',
       storePath: storeManager.addSkill({ name: source.name, sourcePath: source.path }),
     };
   }
+
+  try {
+    return compareWithStoreCopy({ source, storePath });
+  } catch (error) {
+    if (isSystemError(error) || (error instanceof InvalidPathError && error.reason === 'unreadable')) {
+      return declineForSystemFailure({ source, error });
+    }
+
+    throw error;
+  }
+}
+
+function declineForSystemFailure(params: { source: SkillSource; error: Error }): SourceOutcome {
+  return {
+    kind: 'declined',
+    refusal: { kind: 'system-failure', skill: params.source.name, error: params.error },
+  };
+}
+
+function compareWithStoreCopy(params: { source: SkillSource; storePath: string }): SourceOutcome {
+  const { source, storePath } = params;
 
   // Containment, not equality: the source is the tree that has to be accounted
   // for, and a store copy holding more than the source still holds every byte

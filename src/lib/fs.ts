@@ -9,6 +9,7 @@ import {
   rmSync,
   rmdirSync,
   statSync,
+  writeFileSync,
   type Stats,
 } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -118,6 +119,11 @@ export function isErrnoException(
   return code === undefined ? typeof error.code === 'string' : error.code === code;
 }
 
+/** Stricter than `isErrnoException`, which also accepts Node's own `ERR_*` errors: those are bugs. */
+export function isSystemError(error: unknown): error is NodeJS.ErrnoException {
+  return isErrnoException(error) && error.syscall !== undefined;
+}
+
 // -----------------------------------------------------------------------------
 // STAGED WRITES
 // -----------------------------------------------------------------------------
@@ -202,6 +208,47 @@ export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult 
   removeIfEmpty(stagingDirectory);
 
   return result;
+}
+
+export type StagedFileWrite = {
+  getContents: () => Uint8Array;
+  to: string;
+  /** Must share a filesystem with `to`. */
+  stagingDirectory: string;
+};
+
+export type StagedFileWriteResult =
+  { kind: 'written' } | { kind: 'failed'; error: NodeJS.ErrnoException | InvalidPathError };
+
+/**
+ * Writes a file at `to` through `stagingDirectory`, so `to` never holds part of it.
+ *
+ * Filesystem failures, including one raised by `getContents`, are returned as
+ * `failed`. Anything else is a bug and is rethrown.
+ */
+export function writeFileStaged(params: StagedFileWrite): StagedFileWriteResult {
+  const { getContents, to, stagingDirectory } = params;
+
+  const incomingFile = join(stagingDirectory, `${basename(to)}.${randomUUID()}.incoming`);
+
+  try {
+    ensureStagingDirectory(stagingDirectory);
+    writeFileSync(incomingFile, getContents());
+    renameSync(incomingFile, to);
+  } catch (error) {
+    ignoreErrors(() => rmSync(incomingFile, { force: true }));
+    removeIfEmpty(stagingDirectory);
+
+    if (error instanceof InvalidPathError || isErrnoException(error)) {
+      return { kind: 'failed', error };
+    }
+
+    throw error;
+  }
+
+  removeIfEmpty(stagingDirectory);
+
+  return { kind: 'written' };
 }
 
 // -----------------------------------------------------------------------------

@@ -7,6 +7,7 @@ it.
 | ----------------------------------------------------------------- | --------------------------------------------------- |
 | [`skills add`](#skills-add-source---all)                          | Add a skill, or a directory of skills, to the store |
 | [`skills list`](#skills-list-alias-ls)                            | List what the store holds                           |
+| [`skills pack`](#skills-pack-skills---all---out-directory)        | Write store skills as zips into a folder            |
 | [`skills path`](#skills-path-skill)                               | Print the path of a store skill, or of the store    |
 | [`skills remove`](#skills-remove-skills---forget-clones-alias-rm) | Remove a skill from the store                       |
 
@@ -42,6 +43,13 @@ contains another skill is refused as not portable:
 
 ```shell
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
+```
+
+A failure the system reports while checking a source, such as a folder grimoire can't list or enter, declines that source the
+same way, with the system's reason:
+
+```shell
+warning: could not add scratch: EACCES: permission denied, scandir '/Users/me/dev/scratch/refs'
 ```
 
 ### Adding from a git URL
@@ -156,10 +164,12 @@ Each source gets one outcome, decided by what sits at its store path, `~/.grimoi
 | a copy that holds the source in full, and more         | already in the store | stdout `already in the store: <skill> (also holds "<entry>")`                                                                       |
 | a copy that does not hold the source in full           | declined             | stderr `warning: could not add <skill>: the store holds a different <skill>, differing at "<entry>" — edit or replace <store path>` |
 | a copy that cannot be compared (a symlink)             | declined             | stderr `warning: could not add <skill>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                   |
+| a copy that cannot be compared (a system failure)      | declined             | stderr `warning: could not add <skill>: <reason>`                                                                                   |
 
 ```shell
 warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
 warning: could not add notes: /Users/me/dev/notes holds the symlink "ref", so the two copies cannot be compared
+warning: could not add triage: EACCES: permission denied, open '/Users/me/dev/triage/locked.txt'
 ```
 
 The `(also holds …)` note names only the first extra entry. A `.DS_Store` only the store holds is never named in it. A
@@ -178,7 +188,14 @@ $ grimoire skills add ~/.grimoire/skills
 error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
 ```
 
-**2. A git URL clones, and git can be run.** The error includes git's own reason:
+**2. A local path is an existing folder you can list and enter.**
+
+```shell
+$ grimoire skills add ~/locked
+error: /Users/me/locked cannot be read
+```
+
+**3. A git URL clones, and git can be run.** The error includes git's own reason:
 
 ```shell
 $ grimoire skills add https://github.com/someone/nope.git
@@ -205,7 +222,7 @@ cloning https://github.com/someone/skills.git…
 error: could not run git: grimoire needs it installed and on your PATH
 ```
 
-**3. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
+**4. There's a terminal to choose from, or `--all` was given.** Without either, a run has nobody to choose what to add.
 
 ```shell
 $ grimoire skills add ~/dev/skills
@@ -228,6 +245,98 @@ triage
 
 Sorted by name. It lists the store's directory, so a skill with no links or clones still shows up. Empty store prints
 `No skills in the store.`
+
+## `skills pack [skills...] [--all] [--out <directory>]`
+
+| Argument | Meaning                              |
+| -------- | ------------------------------------ |
+| `skills` | One or more skill names in the store |
+
+| Flag                | Default            | Effect                            |
+| ------------------- | ------------------ | --------------------------------- |
+| `--all`             | false              | pack every skill the store holds  |
+| `--out <directory>` | the current folder | the folder to write the zips into |
+
+Name at least one skill, or pass `--all`.
+
+```shell
+$ grimoire skills pack triage review --out ~/dist
+packed triage → /Users/me/dist/triage.zip
+packed review → /Users/me/dist/review.zip
+```
+
+### What the zip holds
+
+`<skill>.zip` holds one top-level `<skill>/` folder with an exact copy of the store skill inside: dotfiles, `.DS_Store`,
+`.git`, empty folders and execute bits are all kept.
+
+A skill holding a symlink is declined, because a provider's upload or a Windows unzip does not restore one. It would arrive
+broken without saying so.
+
+Nothing reads the contents of `SKILL.md`. What a provider rejects, such as a `name` in the wrong format, is the provider's to
+report.
+
+### Where the zip goes
+
+`--out` must be an existing folder you can list and enter. It can't be the store or sit inside it, with symlinks resolved. A
+folder that contains the store, such as `~`, is fine. With no `--out`, the zip goes in the current folder as the system
+reports it, with symlinks resolved. On macOS, a run from `/tmp` prints `/private/tmp/triage.zip`.
+
+Anything already at `<out>/<skill>.zip` declines that skill: a file, a folder or a symlink, even a dangling one. There is no
+override, so packing again after an edit means deleting the old zip first.
+
+Each zip is a [staged write](../conventions.md#staged-writes) through `<out>/.grimoire-staging/`, with the zip taking the
+place of the copy.
+
+### Outcomes
+
+| Outcome  | When                                   | Output                                                                                                      |
+| -------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| packed   | the staged write landed                | stdout `packed <skill> → <zip path>`                                                                        |
+| declined | the skill holds a symlink              | stderr `warning: could not pack <skill> → <zip path>: the skill holds the symlink "<entry>"`                |
+| declined | something is at `<zip path>`           | stderr `warning: could not pack <skill> → <zip path>: something is already there — delete it to pack again` |
+| failed   | the staged write failed and was undone | `failed to pack <skill> → <zip path>: <reason>`, printed last                                               |
+
+Lines are grouped as in [Outcomes](../conventions.md#outcomes). When every skill is declined, the run fails as in
+[When every destination is declined](../conventions.md#when-every-destination-is-declined): `error: could not pack …` for one
+skill, `error: nothing packed:` for several. Failures follow [When a write fails](../conventions.md#when-a-write-fails),
+headed `error: packs failed:` for several.
+
+### What `pack` refuses
+
+See [Refusals](../conventions.md#refusals).
+
+**1. Named skills and `--all` are not combined, and one of them is given.**
+
+```shell
+$ grimoire skills pack triage --all
+error: --all cannot be combined with named skills
+
+$ grimoire skills pack
+error: missing required argument 'skills' (or use --all)
+```
+
+With `--all` on an empty store, the run prints `nothing to pack: the store holds no skills` and exits 0.
+
+**2. Every skill is one [`skills list`](#skills-list-alias-ls) would print.** Any other name is refused with
+`error: no skill named "<skill>"`.
+
+**3. Every skill passes the portability check.**
+
+**4. `--out` is an existing folder you can list and enter.** A folder you can enter but can't write to passes this check, and
+each skill then fails as in [Outcomes](#outcomes).
+
+```shell
+$ grimoire skills pack triage --out ~/locked
+error: /Users/me/locked cannot be read
+```
+
+**5. `--out` is not the store, and does not sit inside it.**
+
+```shell
+$ grimoire skills pack triage --out ~/.grimoire/skills
+error: /Users/me/.grimoire/skills sits inside the grimoire store (/Users/me/.grimoire)
+```
 
 ## `skills path [skill]`
 

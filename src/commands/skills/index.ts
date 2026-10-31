@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { findSkillSources, type SkillSource } from '@/domains/skill';
+import { packSkills } from '@/commands/skills/helpers/pack';
 import {
   describeAddRefusal,
   describeLinkRefusal,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/errors';
 import { assertUsableDirectory } from '@/lib/directories';
 import { cloneRepo, getUrlWithoutCredentials } from '@/lib/git';
+import { formatMissingArgument } from '@/lib/missing-argument';
 import { normalizePath } from '@/lib/paths';
 import type { Picker } from '@/lib/picker';
 import { withTempDirectory } from '@/lib/temp-directory';
@@ -98,6 +100,33 @@ export function skillsCommand(params: SkillsCommandParams): Command {
     .alias('ls')
     .description('List the skills the store holds')
     .action(() => logSkillNames(storeManager.listSkillNames()));
+
+  command
+    .command('pack')
+    .description('Write store skills as zips into a folder')
+    .argument('[skills...]', 'store skills to pack, unless --all')
+    .option('--all', 'pack every skill the store holds')
+    .option('--out <directory>', 'the folder to write the zips into (default: the current folder)')
+    .action((skills: string[], options: { all?: boolean; out?: string }, packCommand: Command) => {
+      const { all, out } = options;
+
+      if (skills.length > 0 && all) {
+        packCommand.error('error: --all cannot be combined with named skills');
+      }
+
+      if (skills.length === 0 && !all) {
+        packCommand.error(formatMissingArgument({ name: 'skills', allFlag: '--all' }));
+      }
+
+      const skillNames = all ? storeManager.listSkillNames() : skills;
+
+      if (skillNames.length === 0) {
+        console.log('nothing to pack: the store holds no skills');
+        return;
+      }
+
+      packSkills({ storeManager, skillNames, outPath: out ?? '.' });
+    });
 
   command
     .command('path')

@@ -27,6 +27,36 @@ describe('grimoire cli', () => {
     expect(stderr).toBe('error: no workspace named "nope"');
   });
 
+  it('reports a system error on stderr without a stack, and exits non-zero', async () => {
+    const home = await tempRoot();
+
+    writeFileSync(join(home, '.grimoire'), '', 'utf8');
+
+    const { stdout, stderr, code } = await runCli(['skills', 'list'], { home });
+
+    expect(code).toBe(1);
+    expect(stdout).toBe('');
+    expect(stderr).toMatch(/^error: E[A-Z]+: /);
+    expect(stderr.split('\n')).toHaveLength(1);
+  });
+
+  describe.skipIf(runsAsRoot)('a permission error', () => {
+    it('is reported on stderr without a stack, and exits non-zero', async () => {
+      const home = await tempRoot();
+      const grimoireHome = join(home, '.grimoire');
+
+      mkdirSync(grimoireHome);
+      lockDirectory({ path: grimoireHome });
+
+      const { stdout, stderr, code } = await runCli(['status'], { home });
+
+      expect(code).toBe(1);
+      expect(stdout).toBe('');
+      expect(stderr).toMatch(/^error: EACCES: permission denied/);
+      expect(stderr.split('\n')).toHaveLength(1);
+    });
+  });
+
   it('prints status without escape codes when stdout is piped', async () => {
     const { stdout, code } = await runCli(['status'], { home: await tempRoot(), dropColorEnv: true });
 

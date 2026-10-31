@@ -8,6 +8,7 @@ export type InvalidPathReason =
   | 'not-absolute'
   | 'not-in-git-work-tree'
   | 'symlink'
+  | 'unreadable'
   | 'unresolvable';
 
 export type InvalidPathErrorProps = {
@@ -22,6 +23,7 @@ const REASON_MESSAGES: Record<InvalidPathReason, string> = {
   'not-absolute': 'must be an absolute path or start with ~/',
   'not-in-git-work-tree': 'is not inside a git work tree',
   symlink: 'is a symlink',
+  unreadable: 'cannot be read',
   // Distinct from `missing`: the entry is right there in `ls -l`, and the fix is
   // to repoint the link rather than to go looking for a directory that is gone.
   unresolvable: 'cannot be resolved: too many levels of symbolic links',

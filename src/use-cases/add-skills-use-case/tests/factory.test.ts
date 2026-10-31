@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
-import { AddDeclinedError, InvalidPathError } from '@/lib/errors';
+import { AddDeclinedError, InvalidPathError, describeAddRefusal } from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
+import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 import { createAddSkillsUseCase } from '@/use-cases/add-skills-use-case/factory';
 
@@ -136,6 +137,104 @@ describe('add-skills-use-case factory', () => {
         { kind: 'unportable', skill: 'scratch', location: scratch.path, reason: 'nested-skill' },
       ]);
       expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+    });
+
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it('declines a source holding a folder it can list but not enter, and adds the rest', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const brainstorm = source('brainstorm');
+        const scratch = source('scratch', { 'refs/guide.md': 'guide' });
+        const triage = source('triage');
+
+        lockDirectory({ path: join(scratch.path, 'refs'), mode: 0o600 });
+
+        const report = addSkills({ sources: [brainstorm, scratch, triage] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['brainstorm', 'triage']);
+        expect(report.declined.map(describeAddRefusal)).toEqual([
+          `could not add scratch: EACCES: permission denied, lstat '${join(scratch.path, 'refs', 'guide.md')}'`,
+        ]);
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
+
+      it('declines a source holding a subfolder of a folder it cannot enter, writing nothing', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const scratch = source('scratch', { 'refs/deep/guide.md': 'guide' });
+
+        lockDirectory({ path: join(scratch.path, 'refs'), mode: 0o600 });
+
+        const error = refusal(() => addSkills({ sources: [scratch] }));
+
+        expect(error.message).toBe(
+          `could not add scratch: EACCES: permission denied, scandir '${join(scratch.path, 'refs', 'deep')}'`,
+        );
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
+
+      it('declines a source holding a folder it cannot list, writing nothing', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const scratch = source('scratch', { 'refs/guide.md': 'guide' });
+
+        lockDirectory({ path: join(scratch.path, 'refs') });
+
+        const error = refusal(() => addSkills({ sources: [scratch] }));
+
+        expect(error.message).toBe(
+          `could not add scratch: EACCES: permission denied, scandir '${join(scratch.path, 'refs')}'`,
+        );
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
+
+      it('declines a source whose file cannot be compared with the store copy, and adds the rest', async () => {
+        const { addSkills, source, storeSkill } = await newUseCase();
+        const alpha = source('alpha');
+        const zeta = source('zeta');
+
+        storeSkill('triage', { 'locked.txt': 'same' });
+        const triage = source('triage', { 'locked.txt': 'same' });
+        const locked = join(triage.path, 'locked.txt');
+
+        chmodSync(locked, 0o000);
+
+        const report = addSkills({ sources: [alpha, triage, zeta] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['alpha', 'zeta']);
+        expect(report.declined.map(describeAddRefusal)).toEqual([
+          `could not add triage: EACCES: permission denied, open '${locked}'`,
+        ]);
+      });
+
+      it('declines a source whose store copy cannot be read, and adds the rest', async () => {
+        const { addSkills, source, storeSkill } = await newUseCase();
+        const alpha = source('alpha');
+        const triage = source('triage');
+        const storePath = storeSkill('triage');
+
+        lockDirectory({ path: storePath });
+
+        const report = addSkills({ sources: [alpha, triage] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['alpha']);
+        expect(report.declined.map(describeAddRefusal)).toEqual([
+          `could not add triage: ${storePath} cannot be read`,
+        ]);
+      });
+
+      it('declines a source sharing a folder the store copy cannot enter, and adds the rest', async () => {
+        const { addSkills, source, storeSkill } = await newUseCase();
+        const alpha = source('alpha');
+        const triage = source('triage', { 'refs/guide.md': 'guide' });
+        const lockedFolder = join(storeSkill('triage', { 'refs/guide.md': 'guide' }), 'refs');
+
+        lockDirectory({ path: lockedFolder });
+
+        const report = addSkills({ sources: [alpha, triage] });
+
+        expect(report.added.map(({ skill }) => skill)).toEqual(['alpha']);
+        expect(report.declined.map(describeAddRefusal)).toEqual([
+          `could not add triage: EACCES: permission denied, lstat '${join(lockedFolder, 'guide.md')}'`,
+        ]);
+      });
     });
   });
 

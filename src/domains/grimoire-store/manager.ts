@@ -298,6 +298,15 @@ export class GrimoireStoreManager {
     }
   }
 
+  /** Accepts a path that contains the store, unlike `assertOutsideStore`. */
+  assertNotInsideStore(path: string): void {
+    const collision = this.store.findCollisionWith(path);
+
+    if (collision && collision.relation !== 'contains') {
+      throw new PathCollisionError({ path, collision });
+    }
+  }
+
   /** Copies a skill directory into the store verbatim, and returns where it landed. */
   addSkill(params: { name: string; sourcePath: string }): string {
     this.ensureLayout();
