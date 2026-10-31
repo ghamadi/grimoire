@@ -1,13 +1,13 @@
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
-import { assertUsableDirectory, safeFlattenDirectory } from '@/lib/directories';
+import { describe, expect, it } from 'vitest';
+import { assertUsableDirectory, flattenDirectory } from '@/lib/directories';
 import { InvalidPathError, type InvalidPathReason } from '@/lib/errors';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
 
 describe('directories', () => {
-  describe('safeFlattenDirectory', () => {
+  describe('flattenDirectory', () => {
     it('returns [] for an empty root directory', async () => {
       const root = await tempRoot();
 
@@ -203,27 +203,28 @@ describe('directories', () => {
       expect(flatten(fixture.root)).toEqual(sorted([realEmpty, join(fixture.root, 'linked')]));
     });
 
-    it('returns [] for a missing path', async () => {
+    it('throws for a missing path', async () => {
       const root = await tempRoot();
 
-      expect(safeFlattenDirectory(join(root, 'missing'))).toEqual([]);
+      expect(() => flattenDirectory(join(root, 'missing'))).toThrow(/ENOENT/);
     });
 
-    it('returns [] when the path is a file', async () => {
+    it('throws when the path is a file', async () => {
       const fixture = await newFixture();
       const file = fixture.file('notes.md', '# notes');
 
-      expect(safeFlattenDirectory(file)).toEqual([]);
+      expect(() => flattenDirectory(file)).toThrow(/ENOTDIR/);
     });
 
-    it('warns and returns [] when flattening fails', async () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const root = await tempRoot();
+    describe.skipIf(runsAsRoot)('permissions', () => {
+      it('throws for a subdirectory it cannot list', async () => {
+        const fixture = await newFixture();
+        const locked = fixture.directory('locked');
 
-      expect(safeFlattenDirectory(join(root, 'missing'))).toEqual([]);
-      expect(warn).toHaveBeenCalledOnce();
+        lockDirectory({ path: locked });
 
-      warn.mockRestore();
+        expect(() => flattenDirectory(fixture.root)).toThrow(/EACCES/);
+      });
     });
   });
 
@@ -293,7 +294,7 @@ function reasonFor(path: string): InvalidPathReason | undefined {
 }
 
 function flatten(path: string, options?: { includeEmptyDirectories?: boolean }): string[] {
-  return sorted(safeFlattenDirectory(path, options));
+  return sorted(flattenDirectory(path, options));
 }
 
 function sorted(paths: string[]): string[] {

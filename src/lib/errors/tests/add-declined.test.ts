@@ -23,10 +23,10 @@ const incomparable: AddRefusal = {
   entry: 'ref',
 };
 
-const unreadable: AddRefusal = {
-  kind: 'unreadable',
+const systemFailure: AddRefusal = {
+  kind: 'system-failure',
   skill: 'scratch',
-  path: '/Users/me/dev/scratch/refs/guide.md',
+  error: new Error("EACCES: permission denied, scandir '/Users/me/dev/scratch/refs'"),
 };
 
 describe('describeAddRefusal', () => {
@@ -48,9 +48,9 @@ describe('describeAddRefusal', () => {
     );
   });
 
-  it('describes a source holding an entry that cannot be read', () => {
-    expect(describeAddRefusal(unreadable)).toBe(
-      'could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read',
+  it("describes a system failure by the system's reason", () => {
+    expect(describeAddRefusal(systemFailure)).toBe(
+      "could not add scratch: EACCES: permission denied, scandir '/Users/me/dev/scratch/refs'",
     );
   });
 });

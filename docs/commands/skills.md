@@ -45,10 +45,11 @@ contains another skill is refused as not portable:
 warning: could not add scratch: skill "/Users/me/dev/scratch" is not portable. Contains a nested skill.
 ```
 
-A skill holding a folder grimoire can list but not enter is declined the same way:
+A failure the system reports while checking a source, such as a folder grimoire can't list or enter, declines that source the
+same way, with the system's reason:
 
 ```shell
-warning: could not add scratch: /Users/me/dev/scratch/refs/guide.md cannot be read
+warning: could not add scratch: EACCES: permission denied, scandir '/Users/me/dev/scratch/refs'
 ```
 
 ### Adding from a git URL

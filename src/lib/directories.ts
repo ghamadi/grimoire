@@ -23,10 +23,8 @@ export function assertUsableDirectory(path: string): void {
 /**
  * @returns a flat list of all files in the directory and its subdirectories.
  * Empty subdirectories are included if the `includeEmptyDirectories` option is true (default).
- *
- * Never throws. If an error occurs, an empty array is returned.
  */
-export function safeFlattenDirectory(
+export function flattenDirectory(
   path: string,
   options?: { includeEmptyDirectories?: boolean },
 ): string[] {
@@ -54,11 +52,5 @@ export function safeFlattenDirectory(
     return paths;
   }
 
-  try {
-    return recurse(path, true);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.warn(`Error flattening directory \`${path}\`: ${message}`);
-    return [];
-  }
+  return recurse(path, true);
 }

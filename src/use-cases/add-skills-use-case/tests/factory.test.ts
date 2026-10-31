@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
 import { SKILL_MANIFEST, type SkillSource } from '@/domains/skill';
-import { AddDeclinedError, InvalidPathError } from '@/lib/errors';
+import { AddDeclinedError, InvalidPathError, describeAddRefusal } from '@/lib/errors';
 import { DS_STORE_NAME, finderDsStoreBytes } from '@test-helpers/ds-store';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
 import { tempRoot } from '@test-helpers/temp-root';
@@ -151,9 +151,37 @@ describe('add-skills-use-case factory', () => {
         const report = addSkills({ sources: [brainstorm, scratch, triage] });
 
         expect(report.added.map(({ skill }) => skill)).toEqual(['brainstorm', 'triage']);
-        expect(report.declined).toEqual([
-          { kind: 'unreadable', skill: 'scratch', path: join(scratch.path, 'refs', 'guide.md') },
+        expect(report.declined.map(describeAddRefusal)).toEqual([
+          `could not add scratch: EACCES: permission denied, lstat '${join(scratch.path, 'refs', 'guide.md')}'`,
         ]);
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
+
+      it('declines a source holding a subfolder of a folder it cannot enter, writing nothing', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const scratch = source('scratch', { 'refs/deep/guide.md': 'guide' });
+
+        lockDirectory({ path: join(scratch.path, 'refs'), mode: 0o600 });
+
+        const error = refusal(() => addSkills({ sources: [scratch] }));
+
+        expect(error.message).toBe(
+          `could not add scratch: EACCES: permission denied, scandir '${join(scratch.path, 'refs', 'deep')}'`,
+        );
+        expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
+      });
+
+      it('declines a source holding a folder it cannot list, writing nothing', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const scratch = source('scratch', { 'refs/guide.md': 'guide' });
+
+        lockDirectory({ path: join(scratch.path, 'refs') });
+
+        const error = refusal(() => addSkills({ sources: [scratch] }));
+
+        expect(error.message).toBe(
+          `could not add scratch: EACCES: permission denied, scandir '${join(scratch.path, 'refs')}'`,
+        );
         expect(existsSync(join(store.paths.skills, 'scratch'))).toBe(false);
       });
     });

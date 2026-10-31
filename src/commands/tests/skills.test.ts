@@ -204,7 +204,7 @@ describe('skills add', () => {
 
       expect(stdout).toEqual(['added brainstorm', 'added triage']);
       expect(stderr).toEqual([
-        `warning: could not add scratch: ${join(locked, 'guide.md')} cannot be read`,
+        `warning: could not add scratch: EACCES: permission denied, lstat '${join(locked, 'guide.md')}'`,
       ]);
       expect(readdirSync(store.paths.skills).sort()).toEqual(['brainstorm', 'triage']);
     });
@@ -1057,9 +1057,42 @@ describe('skills pack', () => {
 
         const { stdout, error } = await runFailing('skills', 'pack', '--all', '--out', out);
 
-        expect(error).toBeInstanceOf(InvalidPathError);
-        expect(error.message).toBe(`${join(locked, 'guide.md')} cannot be read`);
+        expect(error.message).toBe(`EACCES: permission denied, lstat '${join(locked, 'guide.md')}'`);
         expect(stdout).toEqual([]);
+        expect(readdirSync(out)).toEqual([]);
+      });
+
+      it('refuses a skill holding a subfolder of a folder it cannot enter, writing nothing', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const locked = join(storeSkill(store, 'locked'), 'refs');
+
+        storeSkill(store, 'triage');
+        mkdirSync(join(locked, 'deep'), { recursive: true });
+        lockDirectory({ path: locked, mode: 0o600 });
+
+        const { stdout, stderr, error } = await runFailing('skills', 'pack', '--all', '--out', out);
+
+        expect(error.message).toBe(`EACCES: permission denied, scandir '${join(locked, 'deep')}'`);
+        expect(stdout).toEqual([]);
+        expect(stderr).toEqual([]);
+        expect(readdirSync(out)).toEqual([]);
+      });
+
+      it('refuses a skill holding a folder it cannot list, writing nothing', async () => {
+        const { runFailing, store } = await newCli();
+        const out = await newDirectory('dist');
+        const locked = join(storeSkill(store, 'locked'), 'refs');
+
+        storeSkill(store, 'triage');
+        mkdirSync(locked);
+        lockDirectory({ path: locked });
+
+        const { stdout, stderr, error } = await runFailing('skills', 'pack', '--all', '--out', out);
+
+        expect(error.message).toBe(`EACCES: permission denied, scandir '${locked}'`);
+        expect(stdout).toEqual([]);
+        expect(stderr).toEqual([]);
         expect(readdirSync(out)).toEqual([]);
       });
     });
@@ -1178,22 +1211,6 @@ describe('skills pack', () => {
         expect(error).toBeInstanceOf(PackFailedError);
         expect(error.message).toContain(`failed to pack secret → ${join(out, 'secret.zip')}: EACCES`);
         expect(readdirSync(out)).toEqual(['triage.zip']);
-      });
-
-      it('fails a skill holding a folder it cannot list', async () => {
-        const { runFailing, store } = await newCli();
-        const out = await newDirectory('dist');
-        const locked = join(storeSkill(store, 'locked'), 'refs');
-
-        mkdirSync(locked);
-        lockDirectory({ path: locked });
-
-        const { stdout, error } = await runFailing('skills', 'pack', 'locked', '--out', out);
-
-        expect(error).toBeInstanceOf(PackFailedError);
-        expect(error.message).toContain(`failed to pack locked → ${join(out, 'locked.zip')}: EACCES`);
-        expect(stdout).toEqual([]);
-        expect(readdirSync(out)).toEqual([]);
       });
     });
   });
