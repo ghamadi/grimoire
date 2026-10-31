@@ -122,8 +122,7 @@ function decideForSource(params: {
 
   const storePath = storeManager.skillPath(source.name);
 
-  // If the skill is not already in the store, add it. A failed copy stays out of
-  // the decline below: it may have written part of the skill.
+  // A failed copy stays out of the decline below: it may have written part of the skill.
   if (!existsSync(storePath)) {
     return {
       kind: 'added',
