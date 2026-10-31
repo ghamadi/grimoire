@@ -164,10 +164,12 @@ Each source gets one outcome, decided by what sits at its store path, `~/.grimoi
 | a copy that holds the source in full, and more         | already in the store | stdout `already in the store: <skill> (also holds "<entry>")`                                                                       |
 | a copy that does not hold the source in full           | declined             | stderr `warning: could not add <skill>: the store holds a different <skill>, differing at "<entry>" — edit or replace <store path>` |
 | a copy that cannot be compared (a symlink)             | declined             | stderr `warning: could not add <skill>: <root> holds the symlink "<entry>", so the two copies cannot be compared`                   |
+| a copy that cannot be compared (a system failure)      | declined             | stderr `warning: could not add <skill>: <reason>`                                                                                   |
 
 ```shell
 warning: could not add deploy: the store holds a different deploy, differing at "SKILL.md" — edit or replace /Users/me/.grimoire/skills/deploy
 warning: could not add notes: /Users/me/dev/notes holds the symlink "ref", so the two copies cannot be compared
+warning: could not add triage: EACCES: permission denied, open '/Users/me/dev/triage/locked.txt'
 ```
 
 The `(also holds …)` note names only the first extra entry. A `.DS_Store` only the store holds is never named in it. A
