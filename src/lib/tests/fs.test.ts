@@ -729,6 +729,19 @@ describe('writeFileStaged', () => {
     expect(readFileSync(stagingDirectory, 'utf8')).toBe('mine');
   });
 
+  it('fails when the file cannot move into place, deleting the incoming file and leaving `to` as it was', async () => {
+    const { to, stagingDirectory } = await sandbox();
+
+    mkdirSync(to);
+    writeFileSync(join(to, 'mine'), 'mine');
+
+    const result = writeFileStaged({ getContents: () => CONTENTS, to, stagingDirectory });
+
+    expect(result.kind).toBe('failed');
+    expect(readdirSync(to)).toEqual(['mine']);
+    expect(existsSync(stagingDirectory)).toBe(false);
+  });
+
   it('leaves in place a staging folder that held something else', async () => {
     const { to, stagingDirectory } = await sandbox();
 
