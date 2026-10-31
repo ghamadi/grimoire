@@ -12,6 +12,7 @@ import {
 } from '@/lib/errors';
 import { STAGING_DIRECTORY_NAME, writeFileStaged } from '@/lib/fs';
 import { normalizePath } from '@/lib/paths';
+import type { Picker } from '@/lib/picker';
 import { zipDirectory } from '@/lib/zip';
 
 type PackOutcome =
@@ -37,6 +38,22 @@ export function packSkills(params: {
   storeManager.assertNotInsideStore(outDirectory);
 
   report(skills.map((skill) => packSkill({ skill, outDirectory })));
+}
+
+export async function pickSkillNames(params: {
+  picker: Picker;
+  skillNames: string[];
+}): Promise<string[]> {
+  const { picker, skillNames } = params;
+
+  const picked = new Set(
+    await picker.pick({
+      message: 'Select the skills to pack',
+      choices: skillNames.map((name) => ({ value: name, label: name })),
+    }),
+  );
+
+  return skillNames.filter((name) => picked.has(name));
 }
 
 // ----------------------------------------------------------------------------
