@@ -263,7 +263,7 @@ async function createHangingGit() {
 
   writeFileSync(
     gitPath,
-    ['#!/bin/sh', `touch '${markerPath}'`, 'exec sleep 30'].join('\n') + '\n',
+    ['#!/bin/sh', `: > '${markerPath}'`, 'exec sleep 30'].join('\n') + '\n',
     'utf8',
   );
   chmodSync(gitPath, 0o755);
