@@ -2366,7 +2366,7 @@ describe('addSkill', () => {
 
       expect(readdirSync(store.paths.skills)).toEqual(['beta']);
       expect(manager.listSkillNames()).toEqual(['beta']);
-      expect(lstatSync(destination).mode & 0o777).toBe(0o755);
+      expect(lstatSync(destination).mode & 0o700).toBe(0o700);
     });
   });
 

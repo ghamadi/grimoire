@@ -605,8 +605,8 @@ describe('writeTreeStaged', () => {
 
       expect(result).toStrictEqual({ kind: 'written' });
       expect(readTree(to)).toEqual(NEW_SKILL_FILES);
-      expect(statSync(to).mode & 0o777).toBe(0o755);
-      expect(statSync(join(to, 'refs')).mode & 0o777).toBe(0o755);
+      expect(statSync(to).mode & 0o700).toBe(0o700);
+      expect(statSync(join(to, 'refs')).mode & 0o700).toBe(0o700);
       expect(statSync(from).mode & 0o777).toBe(0o555);
       expect(statSync(join(from, 'refs')).mode & 0o777).toBe(0o555);
       expect(existsSync(stagingDirectory)).toBe(false);
