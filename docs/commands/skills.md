@@ -173,7 +173,7 @@ warning: could not add triage: EACCES: permission denied, open '/Users/me/dev/tr
 ```
 
 A symlink at `<store path>` that resolves nowhere stops the run with `error: <store path> is already occupied`, and stays
-where it is.
+where it is. Skills added before it stay, and print no line.
 
 The `(also holds …)` note names only the first extra entry. A `.DS_Store` only the store holds is never named in it. A
 symlink only the store copy holds reads as the "and more" row.

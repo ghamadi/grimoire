@@ -474,6 +474,20 @@ describe('add-skills-use-case factory', () => {
       expect(error).toMatchObject({ reason: 'occupied' });
       expect(lstatSync(storePath).isSymbolicLink()).toBe(true);
     });
+
+    it('keeps skills added before a dangling symlink stops the run', async () => {
+      const { addSkills, store, root, source } = await newUseCase();
+      const brainstorm = source('brainstorm');
+      const triage = source('triage');
+
+      mkdirSync(store.paths.skills, { recursive: true });
+      symlinkSync(join(root, 'nowhere'), join(store.paths.skills, 'triage'));
+
+      const error = refusal(() => addSkills({ sources: [brainstorm, triage] }));
+
+      expect(error).toMatchObject({ reason: 'occupied' });
+      expect(existsSync(join(store.paths.skills, 'brainstorm', SKILL_MANIFEST))).toBe(true);
+    });
   });
 });
 
