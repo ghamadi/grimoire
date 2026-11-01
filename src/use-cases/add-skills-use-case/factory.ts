@@ -16,6 +16,8 @@ type AddSkillsUseCaseFactoryParams = {
 export type AddSkillsUseCaseParams = {
   /** Already selected. Verified and copied in the order given. */
   sources: SkillSource[];
+  /** Reports a source whose name is taken as `replaceable`, with no comparison. */
+  overwrite?: boolean;
 };
 
 export type SkillAdded = { skill: string; storePath: string };
@@ -30,6 +32,7 @@ export type AddSkillsReport = {
   added: SkillAdded[];
   present: SkillPresent[];
   declined: AddRefusal[];
+  replaceable: SkillSource[];
 };
 
 export type AddSkillsUseCase = (params: AddSkillsUseCaseParams) => AddSkillsReport;
@@ -54,9 +57,10 @@ export function createAddSkillsUseCase(factoryParams: AddSkillsUseCaseFactoryPar
     const added: SkillAdded[] = [];
     const present: SkillPresent[] = [];
     const declined: AddRefusal[] = [];
+    const replaceable: SkillSource[] = [];
 
     for (const source of params.sources) {
-      const outcome = decideForSource({ source, storeManager });
+      const outcome = decideForSource({ source, storeManager, overwrite: params.overwrite });
 
       switch (outcome.kind) {
         case 'added':
@@ -68,14 +72,17 @@ export function createAddSkillsUseCase(factoryParams: AddSkillsUseCaseFactoryPar
         case 'declined':
           declined.push(outcome.refusal);
           break;
+        case 'replaceable':
+          replaceable.push(source);
+          break;
       }
     }
 
-    if (declined.length > 0 && added.length === 0 && present.length === 0) {
+    if (declined.length > 0 && added.length === 0 && present.length === 0 && replaceable.length === 0) {
       throw new AddDeclinedError({ refusals: declined });
     }
 
-    return { added, present, declined };
+    return { added, present, declined, replaceable };
   };
 }
 
@@ -86,7 +93,8 @@ export function createAddSkillsUseCase(factoryParams: AddSkillsUseCaseFactoryPar
 type SourceOutcome =
   | { kind: 'added'; storePath: string }
   | { kind: 'present'; storeExtra?: string }
-  | { kind: 'declined'; refusal: AddRefusal };
+  | { kind: 'declined'; refusal: AddRefusal }
+  | { kind: 'replaceable' };
 
 /**
  * Verifies and, depending on what the store already holds under that name,
@@ -95,8 +103,9 @@ type SourceOutcome =
 function decideForSource(params: {
   source: SkillSource;
   storeManager: GrimoireStoreManager;
+  overwrite?: boolean;
 }): SourceOutcome {
-  const { source, storeManager } = params;
+  const { source, storeManager, overwrite } = params;
 
   try {
     Skill.createVerified(source);
@@ -128,6 +137,10 @@ function decideForSource(params: {
       kind: 'added',
       storePath: storeManager.addSkill({ name: source.name, sourcePath: source.path }),
     };
+  }
+
+  if (overwrite) {
+    return { kind: 'replaceable' };
   }
 
   try {

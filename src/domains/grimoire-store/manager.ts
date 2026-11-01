@@ -27,7 +27,7 @@ import { movePath, writeTreeStaged } from '@/lib/fs';
 import { Repo } from '@/domains/repo';
 import { Workspace } from '@/domains/workspace';
 import { isInsideGitWorkTree } from '@/lib/git';
-import { trashBinName } from '@/domains/grimoire-store/helpers/trash';
+import { getTrashedCopyPath, trashBinName } from '@/domains/grimoire-store/helpers/trash';
 import { normalizePath, relate } from '@/lib/paths';
 
 type RegisterWorkspaceParams = {
@@ -452,7 +452,34 @@ export class GrimoireStoreManager {
     const binPath = this.freeBinPath(trashBinName({ skill: params.name, at: params.at }));
 
     mkdirSync(binPath, { recursive: true });
-    movePath({ from: storePath, to: join(binPath, 'store') });
+    movePath({ from: storePath, to: getTrashedCopyPath(binPath) });
+
+    return binPath;
+  }
+
+  /**
+   * Replaces the store copy with a copy of the source, moving the old one into a
+   * fresh bin under `.trash/`, and returns the bin's path. A failure leaves the
+   * old copy in place.
+   *
+   * @throws EntityNotFoundError if the store does not hold the skill.
+   */
+  replaceSkill(params: { name: string; sourcePath: string; at: Date }): string {
+    const storePath = this.requireSkillPath(params.name);
+
+    this.assertOutsideStore(params.sourcePath);
+
+    const binPath = this.freeBinPath(trashBinName({ skill: params.name, at: params.at }));
+    const result = writeTreeStaged({
+      from: params.sourcePath,
+      to: storePath,
+      stagingDirectory: this.store.stagingDirectory,
+      oldEntryDestination: getTrashedCopyPath(binPath),
+    });
+
+    if (result.kind === 'failed') {
+      throw result.error;
+    }
 
     return binPath;
   }

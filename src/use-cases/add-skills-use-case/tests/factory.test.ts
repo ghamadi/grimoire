@@ -401,6 +401,107 @@ describe('add-skills-use-case factory', () => {
     });
   });
 
+  describe('with overwrite', () => {
+    it.each<{ label: string; storeFiles: Record<string, string> }>([
+      { label: 'a changed copy', storeFiles: { [SKILL_MANIFEST]: 'old' } },
+      { label: 'an identical copy', storeFiles: {} },
+      { label: 'a copy holding extra files', storeFiles: { 'notes.md': 'mine' } },
+    ])('reports $label as replaceable and leaves it unwritten', async ({ storeFiles }) => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+      const storePath = storeSkill('triage', storeFiles);
+      const triage = source('triage');
+      const before = statSync(join(storePath, SKILL_MANIFEST)).mtimeMs;
+
+      const report = addSkills({ sources: [triage], overwrite: true });
+
+      expect(report).toEqual({ added: [], present: [], declined: [], replaceable: [triage] });
+      expect(statSync(join(storePath, SKILL_MANIFEST)).mtimeMs).toBe(before);
+    });
+
+    it('reports a source holding a symlink as replaceable', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('triage');
+      const triage = source('triage');
+      symlinkSync(SKILL_MANIFEST, join(triage.path, 'ref'));
+
+      const report = addSkills({ sources: [triage], overwrite: true });
+
+      expect(report).toEqual({ added: [], present: [], declined: [], replaceable: [triage] });
+    });
+
+    it('adds a free name', async () => {
+      const { addSkills, source } = await newUseCase();
+
+      const report = addSkills({ sources: [source('triage')], overwrite: true });
+
+      expect(report.added.map(({ skill }) => skill)).toEqual(['triage']);
+      expect(report.replaceable).toEqual([]);
+    });
+
+    it('adds the first of two same-named new sources and reports the second as replaceable', async () => {
+      const { addSkills, root, source } = await newUseCase();
+      const first = source('triage');
+      const second = sourceAt(writeSkillDirectory(join(root, 'other', 'triage')));
+
+      const report = addSkills({ sources: [first, second], overwrite: true });
+
+      expect(report.added.map(({ skill }) => skill)).toEqual(['triage']);
+      expect(report.replaceable).toEqual([second]);
+    });
+
+    it('declines a nested-skill source rather than offering it', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('triage');
+      storeSkill('deploy');
+      const nested = source('triage', { [`inner/${SKILL_MANIFEST}`]: 'nested' });
+      const deploy = source('deploy');
+
+      const report = addSkills({ sources: [nested, deploy], overwrite: true });
+
+      expect(report.declined.map(({ skill }) => skill)).toEqual(['triage']);
+      expect(report.replaceable).toEqual([deploy]);
+    });
+
+    it('still throws for a dangling symlink at the store path', async () => {
+      const { addSkills, root, store, source } = await newUseCase();
+
+      mkdirSync(store.paths.skills, { recursive: true });
+      symlinkSync(join(root, 'gone'), join(store.paths.skills, 'triage'));
+
+      const error = refusal(() => addSkills({ sources: [source('triage')], overwrite: true }));
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error).toMatchObject({ reason: 'occupied' });
+    });
+
+    it('returns a report when only replaceable and declined sources remain', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('deploy');
+      const nested = source('triage', { [`inner/${SKILL_MANIFEST}`]: 'nested' });
+      const deploy = source('deploy');
+
+      const report = addSkills({ sources: [nested, deploy], overwrite: true });
+
+      expect(report.declined).toHaveLength(1);
+      expect(report.replaceable).toEqual([deploy]);
+    });
+
+    it('reports nothing replaceable without the flag', async () => {
+      const { addSkills, source, storeSkill } = await newUseCase();
+
+      storeSkill('triage', { [SKILL_MANIFEST]: 'old' });
+      storeSkill('deploy');
+
+      const report = addSkills({ sources: [source('triage'), source('deploy')] });
+
+      expect(report.replaceable).toEqual([]);
+      expect(report.declined.map(({ skill }) => skill)).toEqual(['triage']);
+    });
+  });
+
   describe('what throws and what does not', () => {
     it('returns a report rather than throwing when something was added and something declined', async () => {
       const { addSkills, store, source, storeSkill } = await newUseCase();
@@ -448,7 +549,12 @@ describe('add-skills-use-case factory', () => {
     it('returns an empty report for an empty sources array', async () => {
       const { addSkills } = await newUseCase();
 
-      expect(addSkills({ sources: [] })).toEqual({ added: [], present: [], declined: [] });
+      expect(addSkills({ sources: [] })).toEqual({
+        added: [],
+        present: [],
+        declined: [],
+        replaceable: [],
+      });
     });
 
     it('throws InvalidPathError for a source deleted after selection', async () => {

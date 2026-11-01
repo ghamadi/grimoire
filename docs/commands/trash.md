@@ -1,7 +1,8 @@
 # `trash`
 
-[`skills remove`](./skills.md#where-the-copy-goes) moves each store copy into `~/.grimoire/.trash/` instead of deleting it.
-This group is the only thing that deletes from there.
+[`skills remove`](./skills.md#where-the-copy-goes) and
+[`skills add --overwrite`](./skills.md#--overwrite-replaces-store-copies) move each store copy into `~/.grimoire/.trash/`
+instead of deleting it. This group is the only thing that deletes from there.
 
 | Command                       | Purpose                                    |
 | ----------------------------- | ------------------------------------------ |

@@ -791,6 +791,56 @@ describe('writeTreeStaged', () => {
     });
   });
 
+  describe('an old entry kept at oldEntryDestination', () => {
+    it('moves it there, creating the missing parent, and removes the staging directory', async () => {
+      const { root, from, to, stagingDirectory } = await sandbox();
+      const oldEntryDestination = join(root, 'trash', 'bin', 'store');
+
+      writeFiles(to, { 'SKILL.md': 'old skill', 'old-only.md': 'old' });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory, oldEntryDestination });
+
+      expect(result).toStrictEqual({ kind: 'written' });
+      expect(readTree(oldEntryDestination)).toEqual({ 'SKILL.md': 'old skill', 'old-only.md': 'old' });
+      expect(readTree(to)).toEqual(NEW_SKILL_FILES);
+      expect(existsSync(stagingDirectory)).toBe(false);
+    });
+
+    it('puts it back when the new copy cannot be moved in', async () => {
+      const { root, from, to, stagingDirectory } = await sandbox();
+      const oldEntryDestination = join(root, 'trash', 'bin', 'store');
+
+      writeFiles(to, { 'SKILL.md': 'old skill' });
+      vi.mocked(renameSync)
+        .mockImplementationOnce((source, destination) => actualFs.renameSync(source, destination))
+        .mockImplementationOnce(() => {
+          throw Object.assign(new Error('rename failed'), { code: 'EIO' });
+        });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory, oldEntryDestination });
+
+      expect(result).toMatchObject({ kind: 'failed', error: { code: 'EIO' } });
+      expect(readTree(to)).toEqual({ 'SKILL.md': 'old skill' });
+      expect(existsSync(oldEntryDestination)).toBe(false);
+    });
+
+    it('creates no parent when the copy fails', async () => {
+      const { root, from, to, stagingDirectory } = await sandbox();
+      const oldEntryDestination = join(root, 'trash', 'bin', 'store');
+
+      writeFiles(to, { 'SKILL.md': 'old skill' });
+      vi.mocked(cpSync).mockImplementationOnce(() => {
+        throw Object.assign(new Error('copy failed'), { code: 'EIO' });
+      });
+
+      const result = writeTreeStaged({ from, to, stagingDirectory, oldEntryDestination });
+
+      expect(result).toMatchObject({ kind: 'failed', error: { code: 'EIO' } });
+      expect(readTree(to)).toEqual({ 'SKILL.md': 'old skill' });
+      expect(existsSync(join(root, 'trash'))).toBe(false);
+    });
+  });
+
   describe('cleanup', () => {
     it('reports the old entry as stranded, and leaves the complete new copy, when it cannot be deleted', async () => {
       const { from, to, stagingDirectory } = await sandbox();

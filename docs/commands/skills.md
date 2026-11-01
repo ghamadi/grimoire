@@ -5,21 +5,22 @@ it.
 
 | Command                                                           | Purpose                                             |
 | ----------------------------------------------------------------- | --------------------------------------------------- |
-| [`skills add`](#skills-add-source---all)                          | Add a skill, or a directory of skills, to the store |
+| [`skills add`](#skills-add-source---all---overwrite)              | Add a skill, or a directory of skills, to the store |
 | [`skills list`](#skills-list-alias-ls)                            | List what the store holds                           |
 | [`skills pack`](#skills-pack-skills---all---out-directory)        | Write store skills as zips into a folder            |
 | [`skills path`](#skills-path-skill)                               | Print the path of a store skill, or of the store    |
 | [`skills remove`](#skills-remove-skills---forget-clones-alias-rm) | Remove a skill from the store                       |
 
-## `skills add <source> [--all]`
+## `skills add <source> [--all] [--overwrite]`
 
 | Argument | Meaning                                                                 |
 | -------- | ----------------------------------------------------------------------- |
 | `source` | A skill directory, a directory to search under for skills, or a git URL |
 
-| Flag    | Default | Effect                                                                |
-| ------- | ------- | --------------------------------------------------------------------- |
-| `--all` | false   | add every skill found under `source`, skipping the interactive picker |
+| Flag          | Default | Effect                                                                                                                                                     |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--all`       | false   | add every skill found under `source`, skipping the interactive picker                                                                                      |
+| `--overwrite` | false   | replace the store copy of any skill the store already holds, once confirmed. See [`--overwrite` replaces store copies](#--overwrite-replaces-store-copies) |
 
 ```shell
 $ grimoire skills add ~/dev/skills --all
@@ -85,7 +86,8 @@ warning: could not add scratch: skill "tools/scratch" is not portable. Contains 
 
 A user name or token in an `https://` URL is left out of every line grimoire prints.
 
-Nothing records where a skill came from. The store copy is yours to edit, and later changes to the repo do not reach it.
+Nothing records where a skill came from. The store copy is yours to edit, and later changes to the repo reach it only through
+[`--overwrite`](#--overwrite-replaces-store-copies).
 
 ### Choosing what to add
 
@@ -136,9 +138,9 @@ and the workspace would end up with two copies of the same skill.
 
 ### Auto-linking what was added
 
-Once the copy step is done, every skill now in the store under a name this run added or found already there gets linked into
-every [auto-link workspace](./workspaces.md#workspaces-add-name-path---auto-link). Linking skills found already there keeps
-`add` idempotent: running it twice against the same source leaves the same end state.
+Once the copy step is done, every skill now in the store under a name this run added, replaced or found already there gets
+linked into every [auto-link workspace](./workspaces.md#workspaces-add-name-path---auto-link). Linking skills found already
+there keeps `add` idempotent: running it twice against the same source leaves the same end state.
 
 ```shell
 linked brainstorm → personal
@@ -146,8 +148,9 @@ already linked triage → personal
 ```
 
 Output is grouped as in [Outcomes](../conventions.md#outcomes), with the line shapes from
-[When the name is taken](#when-the-name-is-taken): `added`, `already in the store`, then warnings, then the auto-link lines
-in [`link`](./link.md)'s order.
+[When the name is taken](#when-the-name-is-taken) and [`--overwrite`](#--overwrite-replaces-store-copies): `added`, then
+`replaced` or `left in place`, then `already in the store`, then warnings, then the auto-link lines in [`link`](./link.md)'s
+order.
 
 A workspace that declines the link, for any reason in [`link`'s outcome table](./link.md#link-skill---to-workspaces), prints
 a warning. An auto-link decline never changes the exit code, even when every link is declined, because the store copy landed.
@@ -178,7 +181,37 @@ where it is. Skills added before it stay, and print no line.
 The `(also holds …)` note names only the first extra entry. A `.DS_Store` only the store holds is never named in it. A
 symlink only the store copy holds reads as the "and more" row.
 
-There's no `--force`. The store copy is where you edit the skill, and replacing it would lose those edits.
+A plain run leaves the store copy alone, because that is where you edit the skill. To replace it, use
+[`--overwrite`](#--overwrite-replaces-store-copies).
+
+### `--overwrite` replaces store copies
+
+Nothing is compared, so any source whose name is taken waits for a prompt, an identical copy included. The table above
+applies only without the flag. New skills are added first.
+
+```shell
+$ grimoire skills add ~/dev/skills --all --overwrite
+added gamma
+◆  Replace the store copy of alpha? Skill directories get replaced completely, not merged. Each old copy goes to the trash.
+│  ○ Yes / ● No
+replaced alpha (old copy: /Users/me/.grimoire/.trash/alpha-20260915T124530)
+linked gamma → personal
+already linked alpha → personal
+```
+
+Yes replaces every waiting skill. Anything else, including Enter, Ctrl-C or having no terminal, prints
+`left in place: <skill>` for each, makes no bin and exits 0. Those skills aren't auto-linked in that run, and skills already
+added stay.
+
+A replaced store directory holds exactly the source's files. Files only the old copy had survive only in its bin, which has
+the layout and `mv` recovery in [Where the copy goes](#where-the-copy-goes). An unchanged source is offered every run, and
+each yes makes a bin.
+
+Links keep working in every workspace, because the store path doesn't change. Clones are untouched.
+
+A source check that fails still declines the source as usual, and a symlink at the store path that resolves nowhere still
+stops the run. An entry at the store path that isn't a skill also goes to the trash. When two sources share a name, the last
+wins and the store copy is replaced once.
 
 ### Writes are staged
 
@@ -187,7 +220,7 @@ Each copy is a [staged write](../conventions.md#staged-writes), with the source 
 
 A write that fails stops the run with the system's reason and exits 1. Commands that go on to the next destination differ
 here. Nothing stays in the store for that skill, skills added before it stay, and the same `skills add` works once the cause
-is fixed.
+is fixed. A failed replacement leaves the old copy in place, and replacements before it stay.
 
 ```shell
 $ grimoire skills add ~/dev/skills --all

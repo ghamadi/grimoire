@@ -164,8 +164,8 @@ with the same contents. Two commands go further, but only where you point them:
 
 On `grimoire update`, npm replaces grimoire's own installed package, and nothing else.
 
-Skills removed from the store go to `~/.grimoire/.trash/` until `grimoire trash empty`. The full rule is in
-[`docs/safety.md`](./docs/safety.md).
+Skills removed from the store, and store copies replaced by `skills add --overwrite`, go to `~/.grimoire/.trash/` until
+`grimoire trash empty`. The full rule is in [`docs/safety.md`](./docs/safety.md).
 
 ## Commands
 

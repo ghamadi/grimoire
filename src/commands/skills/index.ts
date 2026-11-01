@@ -3,7 +3,9 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import type { GrimoireStoreManager } from '@/domains/grimoire-store';
 import { findSkillSources, type SkillSource } from '@/domains/skill';
+import { confirmOverwrite, overwriteSkills } from '@/commands/skills/helpers/overwrite';
 import { packSkills, pickSkillNames } from '@/commands/skills/helpers/pack';
+import type { ConfirmPrompt } from '@/lib/confirm-prompt';
 import {
   describeAddRefusal,
   describeLinkRefusal,
@@ -34,6 +36,8 @@ import {
 export type SkillsCommandParams = {
   storeManager: GrimoireStoreManager;
   picker: Picker;
+  confirmPrompt: ConfirmPrompt;
+  now: () => Date;
 };
 
 // ----------------------------------------------------------------------------
@@ -44,7 +48,7 @@ export type SkillsCommandParams = {
  * The `skills` command group: argv in, stdout out.
  */
 export function skillsCommand(params: SkillsCommandParams): Command {
-  const { storeManager, picker } = params;
+  const { storeManager, picker, confirmPrompt, now } = params;
   const addSkills = createAddSkillsUseCase({ storeManager });
   const linkSkill = createLinkSkillUseCase({ storeManager });
   const removeSkills = createRemoveSkillsUseCase({ storeManager });
@@ -56,11 +60,23 @@ export function skillsCommand(params: SkillsCommandParams): Command {
     .description('Add a skill, or a directory of skills, to the store')
     .argument('<source>', 'a skill directory, a directory to search under for skills, or a git URL')
     .option('--all', 'add every skill found under <source>')
-    .action(async (source: string, options: { all?: boolean }) => {
+    .option('--overwrite', 'replace the store copy of any skill the store already holds, once confirmed')
+    .action(async (source: string, options: { all?: boolean; overwrite?: boolean }) => {
       const all = options.all ?? false;
+      const overwrite = options.overwrite ?? false;
       const mustRefuse = !all && !picker.isInteractive();
       const addFrom = (params: { location: string; sources: SkillSource[] }) =>
-        addSources({ ...params, all, picker, addSkills, linkSkill });
+        addSources({
+          ...params,
+          all,
+          overwrite,
+          storeManager,
+          picker,
+          confirmPrompt,
+          now,
+          addSkills,
+          linkSkill,
+        });
 
       if (!isRemoteSource(source)) {
         const path = normalizePath(source);
@@ -175,11 +191,26 @@ async function addSources(params: {
   location: string;
   sources: SkillSource[];
   all: boolean;
+  overwrite: boolean;
+  storeManager: GrimoireStoreManager;
   picker: Picker;
+  confirmPrompt: ConfirmPrompt;
+  now: () => Date;
   addSkills: AddSkillsUseCase;
   linkSkill: LinkSkillUseCase;
 }): Promise<void> {
-  const { location, sources, all, picker, addSkills, linkSkill } = params;
+  const {
+    location,
+    sources,
+    all,
+    overwrite,
+    storeManager,
+    picker,
+    confirmPrompt,
+    now,
+    addSkills,
+    linkSkill,
+  } = params;
 
   if (sources.length === 0) {
     console.log(`nothing to add: no skill found under ${location}`);
@@ -201,14 +232,32 @@ async function addSources(params: {
     return;
   }
 
-  const add = addSkills({ sources: selected });
-  const link = autoLink({
-    linkSkill,
-    skillNames: linkableSkills({ sources: selected, added: add }),
-  });
+  const add = addSkills({ sources: selected, overwrite });
 
-  logAddReport(add);
-  logLinkReport(link);
+  logAddedSkills(add);
+
+  // Later entries win, so among same-named sources the last one is what lands.
+  const sourcePathsByName = new Map(add.replaceable.map(({ name, path }) => [name, path]));
+  const replaceableSkillNames = [...sourcePathsByName.keys()];
+  const isOverwriteConfirmed =
+    replaceableSkillNames.length > 0 &&
+    (await confirmOverwrite({ skillNames: replaceableSkillNames, picker, confirmPrompt }));
+
+  if (isOverwriteConfirmed) {
+    overwriteSkills({ skillNames: replaceableSkillNames, sourcePathsByName, storeManager, now });
+  } else {
+    logSkillsLeftInPlace(replaceableSkillNames);
+  }
+
+  const replacedSkillNames = isOverwriteConfirmed ? replaceableSkillNames : [];
+
+  logPresentAndDeclinedSkills(add);
+  logLinkReport(
+    autoLink({
+      linkSkill,
+      skillNames: linkableSkills({ sources: selected, added: add, replacedSkillNames }),
+    }),
+  );
 }
 
 /** The picked sources in the crawl's order, ignoring anything it did not offer. */
@@ -218,13 +267,24 @@ function inSourceOrder(params: { sources: SkillSource[]; picked: SkillSource[] }
 }
 
 /** Every skill this run put in the store or found already there, in source order. */
-function linkableSkills(params: { sources: SkillSource[]; added: AddSkillsReport }): string[] {
-  const names = new Set([...params.added.added, ...params.added.present].map(({ skill }) => skill));
+function linkableSkills(params: {
+  sources: SkillSource[];
+  added: AddSkillsReport;
+  replacedSkillNames: string[];
+}): string[] {
+  const names = new Set([
+    ...[...params.added.added, ...params.added.present].map(({ skill }) => skill),
+    ...params.replacedSkillNames,
+  ]);
 
   return params.sources.filter(({ name }) => names.has(name)).map(({ name }) => name);
 }
 
 function autoLink(params: { linkSkill: LinkSkillUseCase; skillNames: string[] }): LinkSkillReport {
+  if (params.skillNames.length === 0) {
+    return { linked: [], alreadyLinked: [], declined: [] };
+  }
+
   try {
     return params.linkSkill({ skillNames: params.skillNames });
   } catch (error) {
@@ -236,11 +296,19 @@ function autoLink(params: { linkSkill: LinkSkillUseCase; skillNames: string[] })
   }
 }
 
-function logAddReport(add: AddSkillsReport): void {
+function logAddedSkills(add: AddSkillsReport): void {
   for (const { skill } of add.added) {
     console.log(`added ${skill}`);
   }
+}
 
+function logSkillsLeftInPlace(skillNames: string[]): void {
+  for (const skillName of skillNames) {
+    console.log(`left in place: ${skillName}`);
+  }
+}
+
+function logPresentAndDeclinedSkills(add: AddSkillsReport): void {
   for (const { skill, storeExtra } of add.present) {
     console.log(`already in the store: ${skill}${storeExtra ? ` (also holds "${storeExtra}")` : ''}`);
   }

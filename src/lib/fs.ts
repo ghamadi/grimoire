@@ -14,7 +14,7 @@ import {
   writeFileSync,
   type Stats,
 } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { InvalidPathError } from '@/lib/errors';
 
 /**
@@ -138,6 +138,8 @@ export type StagedTreeWrite = {
   to: string;
   /** Must share a filesystem with `to`. Created when missing, removed when left empty. */
   stagingDirectory: string;
+  /** Where the old entry is kept instead of being deleted. Must share a filesystem with `to`. */
+  oldEntryDestination?: string;
 };
 
 export type StagedTreeWriteResult =
@@ -157,11 +159,12 @@ export type StagedTreeWriteResult =
  * returned as `failed`. Anything else is a bug and is rethrown.
  */
 export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult {
-  const { from, to, stagingDirectory } = params;
+  const { from, to, stagingDirectory, oldEntryDestination } = params;
 
   const id = randomUUID();
   const incomingTempContainer = join(stagingDirectory, `${basename(to)}.${id}.incoming`);
   const disposableTempContainer = join(stagingDirectory, `${basename(to)}.${id}.outgoing`);
+  const oldEntryPath = oldEntryDestination ?? disposableTempContainer;
 
   try {
     ensureStagingDirectory(stagingDirectory);
@@ -169,10 +172,11 @@ export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult 
     // A copy can keep read-only modes, and grimoire could then neither move nor delete it.
     grantOwnerAccessToDirectories(incomingTempContainer);
 
-    // If the destination is occupied, back it up to `.outgoing`.
+    // If the destination is occupied, move it aside.
     const hasOccupant = lstatSync(to, { throwIfNoEntry: false }) !== undefined;
     if (hasOccupant) {
-      renameSync(to, disposableTempContainer);
+      mkdirSync(dirname(oldEntryPath), { recursive: true });
+      renameSync(to, oldEntryPath);
     }
 
     try {
@@ -181,7 +185,7 @@ export function writeTreeStaged(params: StagedTreeWrite): StagedTreeWriteResult 
     } catch (error) {
       // If the move failed, restore the old entry if it was backed up.
       if (hasOccupant) {
-        ignoreErrors(() => renameSync(disposableTempContainer, to));
+        ignoreErrors(() => renameSync(oldEntryPath, to));
       }
 
       throw error;

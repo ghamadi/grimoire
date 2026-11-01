@@ -78,6 +78,24 @@ describe('grimoire cli', () => {
     });
   });
 
+  it('leaves the store copy alone for skills add --overwrite when piped, without hanging', async () => {
+    const home = await tempRoot();
+    const source = join(await tempRoot(), 'triage');
+    const storeCopy = join(home, '.grimoire', 'skills', 'triage');
+
+    mkdirSync(source);
+    writeFileSync(join(source, 'SKILL.md'), 'new', 'utf8');
+    mkdirSync(storeCopy, { recursive: true });
+    writeFileSync(join(storeCopy, 'SKILL.md'), 'old', 'utf8');
+
+    const { stdout, code } = await runCli(['skills', 'add', source, '--all', '--overwrite'], { home });
+
+    expect(code).toBe(0);
+    expect(stdout).toContain('left in place: triage');
+    expect(readFileSync(join(storeCopy, 'SKILL.md'), 'utf8')).toBe('old');
+    expect(existsSync(join(home, '.grimoire', '.trash'))).toBe(false);
+  });
+
   it('prints status without escape codes when stdout is piped', async () => {
     const { stdout, code } = await runCli(['status'], { home: await tempRoot(), dropColorEnv: true });
 

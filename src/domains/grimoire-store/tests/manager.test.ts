@@ -2012,6 +2012,92 @@ describe('trashSkill', () => {
   });
 });
 
+describe('replaceSkill', () => {
+  const at = new Date(2026, 8, 15, 12, 45, 30);
+  const stamp = 'triage-20260915T124530';
+
+  async function newReplacement() {
+    const { manager, store } = await newManager();
+    const sourcePath = writeSkillDirectory(join(await tempRoot(), 'triage'), { 'SKILL.md': 'new\n' });
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'), {
+      'SKILL.md': 'old\n',
+      'old-only.md': 'mine',
+    });
+
+    return { manager, store, sourcePath };
+  }
+
+  it('moves the old copy into <bin>/store, whole, and returns the bin', async () => {
+    const { manager, store, sourcePath } = await newReplacement();
+
+    const bin = manager.replaceSkill({ name: 'triage', sourcePath, at });
+
+    expect(bin).toBe(join(store.paths.trash, stamp));
+    expect(readdirSync(bin)).toEqual(['store']);
+    expect(readFileSync(join(bin, 'store', 'SKILL.md'), 'utf8')).toBe('old\n');
+    expect(readFileSync(join(bin, 'store', 'old-only.md'), 'utf8')).toBe('mine');
+  });
+
+  it('leaves the store path holding exactly the source files', async () => {
+    const { manager, store, sourcePath } = await newReplacement();
+
+    manager.replaceSkill({ name: 'triage', sourcePath, at });
+
+    const storePath = join(store.paths.skills, 'triage');
+
+    expect(readdirSync(storePath)).toEqual(['SKILL.md']);
+    expect(readFileSync(join(storePath, 'SKILL.md'), 'utf8')).toBe('new\n');
+  });
+
+  it('takes the next free suffix for a second replacement in the same second', async () => {
+    const { manager, sourcePath } = await newReplacement();
+
+    const first = manager.replaceSkill({ name: 'triage', sourcePath, at });
+    const second = manager.replaceSkill({ name: 'triage', sourcePath, at });
+
+    expect(second).toBe(`${first}-2`);
+  });
+
+  it('refuses a skill the store does not hold, leaving no bin behind', async () => {
+    const { manager, store } = await newManager();
+    const sourcePath = writeSkillDirectory(join(await tempRoot(), 'triage'));
+
+    expect(() => manager.replaceSkill({ name: 'triage', sourcePath, at })).toThrow(EntityNotFoundError);
+    expect(readdirSync(store.paths.trash)).toEqual([]);
+  });
+
+  it('refuses a source inside the store', async () => {
+    const { manager, store } = await newReplacement();
+    const sourcePath = writeSkillDirectory(join(store.paths.skills, 'other'));
+
+    expect(() => manager.replaceSkill({ name: 'triage', sourcePath, at })).toThrow(PathCollisionError);
+    expect(readdirSync(store.paths.trash)).toEqual([]);
+  });
+
+  describe.skipIf(runsAsRoot)('a source that cannot be copied', () => {
+    it('leaves the store copy unchanged, makes no bin, and removes the staging directory', async () => {
+      const { manager, store, sourcePath } = await newReplacement();
+      const locked = join(sourcePath, 'locked.txt');
+
+      writeFileSync(locked, 'locked', 'utf8');
+      chmodSync(locked, 0o000);
+      onTestFinished(() => chmodSync(locked, 0o600));
+
+      expect(() => manager.replaceSkill({ name: 'triage', sourcePath, at })).toThrow(
+        expect.objectContaining({ code: 'EACCES' }),
+      );
+
+      const storePath = join(store.paths.skills, 'triage');
+
+      expect(readFileSync(join(storePath, 'SKILL.md'), 'utf8')).toBe('old\n');
+      expect(readFileSync(join(storePath, 'old-only.md'), 'utf8')).toBe('mine');
+      expect(readdirSync(store.paths.trash)).toEqual([]);
+      expect(existsSync(store.stagingDirectory)).toBe(false);
+    });
+  });
+});
+
 describe('emptyTrash', () => {
   it('deletes every bin and returns their paths in name order', async () => {
     const { manager, store } = await newManager();

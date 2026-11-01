@@ -12,12 +12,15 @@ import { trashCommand } from '@/commands/trash';
 import { updateCommand } from '@/commands/update';
 import { workspacesCommand } from '@/commands/workspaces';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
+import { clackConfirmPrompt, type ConfirmPrompt } from '@/lib/confirm-prompt';
 import { systemNpmClient, type NpmClient } from '@/lib/npm';
 import { clackPicker, type Picker } from '@/lib/picker';
 import { getVersion } from '@/lib/utils';
 
 export type ProgramDependencies = {
   picker?: Picker;
+  confirmPrompt?: ConfirmPrompt;
+  now?: () => Date;
   textStyler?: TextStyler;
   getTerminalWidth?: () => number | undefined;
   npmClient?: NpmClient;
@@ -34,6 +37,8 @@ export type ProgramDependencies = {
 export function buildProgram(store: GrimoireStore, dependencies: ProgramDependencies = {}): Command {
   const {
     picker = clackPicker,
+    confirmPrompt = clackConfirmPrompt,
+    now = () => new Date(),
     textStyler = styleText,
     getTerminalWidth = getStdoutTerminalWidth,
     npmClient = systemNpmClient,
@@ -50,7 +55,7 @@ export function buildProgram(store: GrimoireStore, dependencies: ProgramDependen
     .addCommand(workspacesCommand({ storeManager }))
     .addCommand(reposCommand({ storeManager }))
     .addCommand(exportCommand({ storeManager, picker }))
-    .addCommand(skillsCommand({ storeManager, picker }))
+    .addCommand(skillsCommand({ storeManager, picker, confirmPrompt, now }))
     .addCommand(linkCommand({ storeManager, picker }))
     .addCommand(cloneCommand({ storeManager, picker }))
     .addCommand(trashCommand({ storeManager, textStyler }))

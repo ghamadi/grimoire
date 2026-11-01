@@ -30,6 +30,7 @@ import {
   WorkspaceUnreadableError,
 } from '@/lib/errors';
 import { buildProgram, type ProgramDependencies } from '@/program';
+import { fakeConfirmPrompt } from '@test-helpers/fake-confirm-prompt';
 import { fakePicker } from '@test-helpers/fake-picker';
 import { tempGitRepo } from '@test-helpers/git-repo';
 import { lockDirectory, runsAsRoot } from '@test-helpers/locked-directory';
@@ -446,6 +447,313 @@ describe('skills add', () => {
       `warning: could not add gamma: the store holds a different gamma, differing at "SKILL.md" — edit or replace ${join(store.paths.skills, 'gamma')}`,
       `warning: workspace "work" was skipped: ${work} is not an existing directory`,
     ]);
+  });
+});
+
+describe('skills add --overwrite', () => {
+  const STAMP = '20260915T124530';
+
+  async function newOverwriteCli(
+    params: { answer?: boolean; isInteractive?: boolean; onPrompt?: () => void } = {},
+  ) {
+    const { answer = true, isInteractive = true, onPrompt } = params;
+    const confirmPrompt = fakeConfirmPrompt({ answer, onPrompt });
+    const cli = await newCli({
+      picker: fakePicker({ choose: (labels) => labels, isInteractive }),
+      confirmPrompt,
+      now: () => new Date(2026, 8, 15, 12, 45, 30),
+    });
+
+    return { ...cli, confirmPrompt };
+  }
+
+  /** A container whose `triage` differs from the store's, which holds a file only it has. */
+  async function newDifferingTriage(store: GrimoireStore): Promise<string> {
+    const container = await newDirectory('skills');
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'), {
+      [SKILL_MANIFEST]: 'old',
+      'old-only.md': 'mine',
+    });
+    writeSkillDirectory(join(container, 'triage'), { [SKILL_MANIFEST]: 'new' });
+
+    return container;
+  }
+
+  it('never asks without the flag', async () => {
+    const { run, store, confirmPrompt } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+
+    writeSkillDirectory(join(container, 'gamma'));
+
+    const { stderr } = await run('skills', 'add', container, '--all');
+
+    expect(confirmPrompt.messages).toEqual([]);
+    expect(stderr[0]).toContain('the store holds a different triage');
+    expect(readFileSync(join(store.paths.skills, 'triage', SKILL_MANIFEST), 'utf8')).toBe('old');
+  });
+
+  it('prints added lines before asking', async () => {
+    const { run, store } = await newOverwriteCli({ onPrompt: () => console.log('<prompt>') });
+    const container = await newDifferingTriage(store);
+
+    writeSkillDirectory(join(container, 'gamma'));
+
+    const { stdout } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout.slice(0, 2)).toEqual(['added gamma', '<prompt>']);
+  });
+
+  it('names each waiting skill once in the prompt', async () => {
+    const { run, store, confirmPrompt } = await newOverwriteCli();
+    const container = await newDirectory('skills');
+
+    storeSkill(store, 'alpha');
+    storeSkill(store, 'beta');
+    writeSkillDirectory(join(container, 'one', 'alpha'));
+    writeSkillDirectory(join(container, 'two', 'alpha'));
+    writeSkillDirectory(join(container, 'beta'));
+
+    await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(confirmPrompt.messages).toHaveLength(1);
+    expect(confirmPrompt.messages[0]).toMatch(
+      /^Replace the store copy of (alpha, beta|beta, alpha)\? Skill directories get replaced completely, not merged\. Each old copy goes to the trash\.$/,
+    );
+  });
+
+  it('on yes, replaces the store copy and keeps the old one in a bin', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+    const bin = join(store.paths.trash, `triage-${STAMP}`);
+
+    const { stdout, stderr } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout).toEqual([`replaced triage (old copy: ${bin})`]);
+    expect(stderr).toEqual([]);
+    expect(readdirSync(join(store.paths.skills, 'triage'))).toEqual([SKILL_MANIFEST]);
+    expect(readFileSync(join(store.paths.skills, 'triage', SKILL_MANIFEST), 'utf8')).toBe('new');
+    expect(readFileSync(join(bin, 'store', 'old-only.md'), 'utf8')).toBe('mine');
+  });
+
+  it('replaces an identical copy too', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newContainer('triage');
+
+    storeSkill(store, 'triage');
+
+    const { stdout } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout).toEqual([
+      `replaced triage (old copy: ${join(store.paths.trash, `triage-${STAMP}`)})`,
+    ]);
+  });
+
+  it('on no, leaves the store alone, makes no bin, exits clean and does not auto-link', async () => {
+    const { run, store } = await newOverwriteCli({ answer: false });
+    const container = await newDifferingTriage(store);
+    const personal = await newDirectory('personal');
+
+    await registerAutoLink(run, 'personal', personal);
+
+    const { stdout, stderr } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout).toEqual(['left in place: triage']);
+    expect(stderr).toEqual([]);
+    expect(readFileSync(join(store.paths.skills, 'triage', SKILL_MANIFEST), 'utf8')).toBe('old');
+    expect(trashEntries(store)).toEqual([]);
+    expect(readdirSync(personal)).toEqual([]);
+  });
+
+  it('treats no terminal as no, without asking', async () => {
+    const { run, store, confirmPrompt } = await newOverwriteCli({ isInteractive: false });
+    const container = await newDifferingTriage(store);
+
+    const { stdout } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(confirmPrompt.messages).toEqual([]);
+    expect(stdout).toEqual(['left in place: triage']);
+    expect(trashEntries(store)).toEqual([]);
+  });
+
+  it('does not ask when every source is new', async () => {
+    const { run, confirmPrompt } = await newOverwriteCli();
+    const container = await newContainer('gamma');
+
+    const { stdout } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout).toEqual(['added gamma']);
+    expect(confirmPrompt.messages).toEqual([]);
+  });
+
+  it('prints no workspace warning when no answers leave nothing to link', async () => {
+    const { run, store } = await newOverwriteCli({ answer: false });
+    const container = await newDifferingTriage(store);
+    const gone = await newDirectory('gone');
+
+    await registerAutoLink(run, 'gone', gone);
+    rmSync(gone, { recursive: true });
+
+    const { stderr } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stderr).toEqual([]);
+  });
+
+  it('adds the new one and replaces the existing one from a picker selection', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+
+    writeSkillDirectory(join(container, 'gamma'));
+
+    const { stdout } = await run('skills', 'add', container, '--overwrite');
+
+    expect(stdout).toEqual([
+      'added gamma',
+      `replaced triage (old copy: ${join(store.paths.trash, `triage-${STAMP}`)})`,
+    ]);
+  });
+
+  it('replaces from a git URL', async () => {
+    const { run, store } = await newOverwriteCli();
+    const source = 'https://git.test/someone/skills.git';
+    const { publishRepo } = await newGitHost();
+
+    await publishRepo('someone/skills.git', (repo) =>
+      writeSkillDirectory(join(repo, 'triage'), { [SKILL_MANIFEST]: 'from git' }),
+    );
+    writeSkillDirectory(join(store.paths.skills, 'triage'), { [SKILL_MANIFEST]: 'old' });
+
+    const { stdout } = await run('skills', 'add', source, '--all', '--overwrite');
+
+    expect(stdout).toEqual([
+      `replaced triage (old copy: ${join(store.paths.trash, `triage-${STAMP}`)})`,
+    ]);
+    expect(readFileSync(join(store.paths.skills, 'triage', SKILL_MANIFEST), 'utf8')).toBe('from git');
+  });
+
+  it('keeps links in auto-link and manual workspaces resolving to the new content', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+    const personal = await newDirectory('personal');
+    const work = await newDirectory('work');
+
+    await registerAutoLink(run, 'personal', personal);
+    await registerWorkspace(run, 'work', work);
+    linkEntry({ workspace: personal, store, skill: 'triage' });
+    linkEntry({ workspace: work, store, skill: 'triage' });
+
+    const { stdout } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout).toContain('already linked triage → personal');
+    expect(readFileSync(join(personal, 'triage', SKILL_MANIFEST), 'utf8')).toBe('new');
+    expect(readFileSync(join(work, 'triage', SKILL_MANIFEST), 'utf8')).toBe('new');
+  });
+
+  it('leaves a cloned directory and its record untouched', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+    const work = await newDirectory('work');
+
+    await registerWorkspace(run, 'work', work);
+    writeSkillDirectory(join(work, 'triage'), { [SKILL_MANIFEST]: 'clone' });
+    recordClone(store, 'triage', { workspace: 'work' });
+    const stateBefore = readFileSync(store.paths.state, 'utf8');
+
+    await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(readFileSync(join(work, 'triage', SKILL_MANIFEST), 'utf8')).toBe('clone');
+    expect(readFileSync(store.paths.state, 'utf8')).toBe(stateBefore);
+  });
+
+  it('leaves a bin that trash empty deletes', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+
+    await run('skills', 'add', container, '--all', '--overwrite');
+    expect(trashEntries(store)).toHaveLength(1);
+
+    await run('trash', 'empty');
+
+    expect(trashEntries(store)).toEqual([]);
+  });
+
+  it('replaces the store copy once with the last of two same-named sources', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDirectory('skills');
+
+    writeSkillDirectory(join(store.paths.skills, 'triage'), { [SKILL_MANIFEST]: 'old' });
+    writeSkillDirectory(join(container, 'one', 'triage'), { [SKILL_MANIFEST]: 'first' });
+    writeSkillDirectory(join(container, 'two', 'triage'), { [SKILL_MANIFEST]: 'second' });
+
+    const { stdout } = await run('skills', 'add', container, '--all', '--overwrite');
+    const bin = join(store.paths.trash, `triage-${STAMP}`);
+
+    expect(stdout).toEqual([`replaced triage (old copy: ${bin})`]);
+    expect(readFileSync(join(store.paths.skills, 'triage', SKILL_MANIFEST), 'utf8')).toBe('second');
+    expect(readFileSync(join(bin, 'store', SKILL_MANIFEST), 'utf8')).toBe('old');
+    expect(trashEntries(store)).toEqual([`triage-${STAMP}`]);
+  });
+
+  it('warns about a nested-skill source as usual and does not offer it', async () => {
+    const { run, store, confirmPrompt } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+
+    storeSkill(store, 'scratch');
+    writeSkillDirectory(join(container, 'scratch'));
+    writeSkillDirectory(join(container, 'scratch', 'inner'));
+
+    const { stderr } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stderr).toHaveLength(1);
+    expect(stderr[0]).toContain('Contains a nested skill');
+    expect(confirmPrompt.messages[0]).not.toContain('scratch');
+  });
+
+  describe.skipIf(runsAsRoot)('a write failure', () => {
+    it('stops with the system error, keeping earlier replacements and the failing store copy', async () => {
+      const { runFailing, store } = await newOverwriteCli();
+      const container = await newDirectory('skills');
+      const locked = join(container, 'beta', 'locked.txt');
+
+      writeSkillDirectory(join(store.paths.skills, 'alpha'), { [SKILL_MANIFEST]: 'old alpha' });
+      writeSkillDirectory(join(store.paths.skills, 'beta'), { [SKILL_MANIFEST]: 'old beta' });
+      writeSkillDirectory(join(container, 'alpha'), { [SKILL_MANIFEST]: 'new alpha' });
+      writeSkillDirectory(join(container, 'beta'), { [SKILL_MANIFEST]: 'new beta' });
+      writeFileSync(locked, 'locked', 'utf8');
+      chmodSync(locked, 0o000);
+      onTestFinished(() => chmodSync(locked, 0o600));
+
+      const { stdout, error } = await runFailing('skills', 'add', container, '--all', '--overwrite');
+
+      expect(error).toMatchObject({ code: 'EACCES' });
+      expect(stdout).toEqual([
+        `replaced alpha (old copy: ${join(store.paths.trash, `alpha-${STAMP}`)})`,
+      ]);
+      expect(readFileSync(join(store.paths.skills, 'alpha', SKILL_MANIFEST), 'utf8')).toBe('new alpha');
+      expect(readFileSync(join(store.paths.skills, 'beta', SKILL_MANIFEST), 'utf8')).toBe('old beta');
+      expect(trashEntries(store)).toEqual([`alpha-${STAMP}`]);
+    });
+  });
+
+  it('prints added, then replaced, then link lines, with warnings on stderr', async () => {
+    const { run, store } = await newOverwriteCli();
+    const container = await newDifferingTriage(store);
+    const personal = await newDirectory('personal');
+
+    await registerAutoLink(run, 'personal', personal);
+    writeSkillDirectory(join(container, 'gamma'));
+    writeSkillDirectory(join(container, 'scratch'));
+    writeSkillDirectory(join(container, 'scratch', 'inner'));
+
+    const { stdout, stderr } = await run('skills', 'add', container, '--all', '--overwrite');
+
+    expect(stdout).toEqual([
+      'added gamma',
+      `replaced triage (old copy: ${join(store.paths.trash, `triage-${STAMP}`)})`,
+      'linked gamma → personal',
+      'linked triage → personal',
+    ]);
+    expect(stderr).toHaveLength(1);
   });
 });
 
