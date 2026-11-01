@@ -307,7 +307,7 @@ export class GrimoireStoreManager {
     }
   }
 
-  /** Copies a skill directory into the store verbatim, and returns where it landed. */
+  /** Copies a skill directory into the store, and returns where it landed. */
   addSkill(params: { name: string; sourcePath: string }): string {
     this.ensureLayout();
     this.assertOutsideStore(params.sourcePath);
