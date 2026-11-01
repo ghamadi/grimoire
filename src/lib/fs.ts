@@ -275,7 +275,6 @@ function ensureStagingDirectory(path: string): void {
   mkdirSync(path, { recursive: true });
 }
 
-/** Symlinks are not followed, so nothing outside `path` changes. */
 function grantOwnerAccessToDirectories(path: string): void {
   const stats = lstatSync(path, { throwIfNoEntry: false });
 
