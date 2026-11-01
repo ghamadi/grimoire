@@ -5,13 +5,14 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import {
   CollidingRegistrationError,
   DuplicateNameError,
@@ -2317,8 +2318,71 @@ describe('addSkill', () => {
 
     writeSkillDirectory(join(store.paths.skills, 'triage'), { 'SKILL.md': 'store version' });
 
-    expect(() => manager.addSkill({ name: 'triage', sourcePath: source })).toThrow();
+    const error = refusalOf(() => manager.addSkill({ name: 'triage', sourcePath: source }));
+
+    expect(error).toBeInstanceOf(InvalidPathError);
+    expect(error).toMatchObject({ reason: 'occupied' });
     expect(readFileSync(join(store.paths.skills, 'triage', 'SKILL.md'), 'utf8')).toBe('store version');
+  });
+
+  it('throws when a dangling symlink is at the destination, leaving it in place', async () => {
+    const { manager, store, root } = await newManager();
+    const source = writeSkillDirectory(join(root, 'dev', 'triage'));
+    const destination = join(store.paths.skills, 'triage');
+    const target = join(root, 'nowhere');
+
+    mkdirSync(store.paths.skills, { recursive: true });
+    symlinkSync(target, destination);
+
+    const error = refusalOf(() => manager.addSkill({ name: 'triage', sourcePath: source }));
+
+    expect(error).toBeInstanceOf(InvalidPathError);
+    expect(error).toMatchObject({ reason: 'occupied' });
+    expect(lstatSync(destination).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(destination)).toBe(target);
+  });
+
+  it('leaves only the skill in the skills directory after a successful add', async () => {
+    const { manager, store, root } = await newManager();
+    const source = writeSkillDirectory(join(root, 'dev', 'brainstorm'));
+
+    manager.addSkill({ name: 'brainstorm', sourcePath: source });
+
+    expect(readdirSync(store.paths.skills)).toEqual(['brainstorm']);
+  });
+
+  describe.skipIf(runsAsRoot)('a read-only source folder', () => {
+    it('adds the skill with a writable folder and nothing left beside it', async () => {
+      const { manager, store, root } = await newManager();
+      const source = writeSkillDirectory(join(root, 'dev', 'beta'));
+      const destination = join(store.paths.skills, 'beta');
+
+      chmodSync(source, 0o555);
+      onTestFinished(() => {
+        chmodSync(source, 0o755);
+      });
+
+      manager.addSkill({ name: 'beta', sourcePath: source });
+
+      expect(readdirSync(store.paths.skills)).toEqual(['beta']);
+      expect(manager.listSkillNames()).toEqual(['beta']);
+      expect(lstatSync(destination).mode & 0o700).toBe(0o700);
+    });
+  });
+
+  describe.skipIf(runsAsRoot)('a copy that fails partway', () => {
+    it('throws the system error and leaves nothing in the skills directory', async () => {
+      const { manager, store, root } = await newManager();
+      const source = writeSkillDirectory(join(root, 'dev', 'beta'), { 'locked.txt': 'locked' });
+
+      chmodSync(join(source, 'locked.txt'), 0o000);
+
+      const error = refusalOf(() => manager.addSkill({ name: 'beta', sourcePath: source }));
+
+      expect(error).toMatchObject({ code: 'EACCES' });
+      expect(readdirSync(store.paths.skills)).toEqual([]);
+      expect(manager.listSkillNames()).toEqual([]);
+    });
   });
 });
 

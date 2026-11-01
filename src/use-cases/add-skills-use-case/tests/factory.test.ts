@@ -1,4 +1,14 @@
-import { chmodSync, existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GrimoireStore, GrimoireStoreManager } from '@/domains/grimoire-store';
@@ -235,6 +245,29 @@ describe('add-skills-use-case factory', () => {
           `could not add triage: EACCES: permission denied, lstat '${join(lockedFolder, 'guide.md')}'`,
         ]);
       });
+
+      it('stops on a failed copy, keeps what it added, and succeeds once the cause is fixed', async () => {
+        const { addSkills, store, source } = await newUseCase();
+        const brainstorm = source('brainstorm');
+        const beta = source('beta', { 'locked.txt': 'locked' });
+        const locked = join(beta.path, 'locked.txt');
+
+        chmodSync(locked, 0o000);
+
+        const error = refusal(() => addSkills({ sources: [brainstorm, beta] }));
+
+        expect(error).toMatchObject({ code: 'EACCES' });
+        expect(readdirSync(store.paths.skills)).toEqual(['brainstorm']);
+
+        chmodSync(locked, 0o644);
+
+        const report = addSkills({ sources: [brainstorm, beta] });
+
+        expect(report.present.map(({ skill }) => skill)).toEqual(['brainstorm']);
+        expect(report.added.map(({ skill }) => skill)).toEqual(['beta']);
+        expect(existsSync(join(store.paths.skills, 'beta', SKILL_MANIFEST))).toBe(true);
+        expect(existsSync(join(store.paths.skills, 'beta', 'locked.txt'))).toBe(true);
+      });
     });
   });
 
@@ -425,6 +458,35 @@ describe('add-skills-use-case factory', () => {
       rmSync(vanished.path, { recursive: true });
 
       expect(refusal(() => addSkills({ sources: [vanished] }))).toBeInstanceOf(InvalidPathError);
+    });
+
+    it('throws InvalidPathError for a dangling symlink at the store path, leaving it in place', async () => {
+      const { addSkills, store, root, source } = await newUseCase();
+      const triage = source('triage');
+      const storePath = join(store.paths.skills, 'triage');
+
+      mkdirSync(store.paths.skills, { recursive: true });
+      symlinkSync(join(root, 'nowhere'), storePath);
+
+      const error = refusal(() => addSkills({ sources: [triage] }));
+
+      expect(error).toBeInstanceOf(InvalidPathError);
+      expect(error).toMatchObject({ reason: 'occupied' });
+      expect(lstatSync(storePath).isSymbolicLink()).toBe(true);
+    });
+
+    it('keeps skills added before a dangling symlink stops the run', async () => {
+      const { addSkills, store, root, source } = await newUseCase();
+      const brainstorm = source('brainstorm');
+      const triage = source('triage');
+
+      mkdirSync(store.paths.skills, { recursive: true });
+      symlinkSync(join(root, 'nowhere'), join(store.paths.skills, 'triage'));
+
+      const error = refusal(() => addSkills({ sources: [brainstorm, triage] }));
+
+      expect(error).toMatchObject({ reason: 'occupied' });
+      expect(existsSync(join(store.paths.skills, 'brainstorm', SKILL_MANIFEST))).toBe(true);
     });
   });
 });

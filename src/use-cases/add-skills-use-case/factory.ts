@@ -122,7 +122,7 @@ function decideForSource(params: {
 
   const storePath = storeManager.skillPath(source.name);
 
-  // A failed copy stays out of the decline below: it may have written part of the skill.
+  // A failed copy stays out of the decline below because it stops the run.
   if (!existsSync(storePath)) {
     return {
       kind: 'added',

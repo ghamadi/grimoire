@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Collision } from '@/lib/errors';
+import { STAGING_DIRECTORY_NAME } from '@/lib/fs';
 import { normalizePath, relate } from '@/lib/paths';
 
 export const DEFAULT_HOME_DIRECTORY = '.grimoire';
@@ -38,6 +39,10 @@ export class GrimoireStore {
 
   static resolveHome(): string {
     return normalizePath(join(homedir(), DEFAULT_HOME_DIRECTORY));
+  }
+
+  get stagingDirectory(): string {
+    return join(this.paths.skills, STAGING_DIRECTORY_NAME);
   }
 
   /**
